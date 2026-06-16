@@ -359,11 +359,12 @@ if [ ! -f /opt/aaas/platform/docker/docker-compose.yaml ]; then
   cat > /opt/aaas/platform/docker/docker-compose.yaml << 'EOF'
 # AaaS Platform — Tenant Container Registry
 # Managed by OpenCode admin agent
-# Add one service block per tenant
+# OpenCode adds one service block per tenant under services:
 # Always specify service name when running docker compose commands
 # to avoid affecting ALL tenants unintentionally
 
-services: {}
+services:
+  # Tenant services are added here by OpenCode during onboarding.
 EOF
   success "docker-compose.yaml created"
 else
@@ -427,4 +428,8 @@ echo "  3. Run 'source ~/.bashrc' or open a new terminal"
 echo "     to activate nvm, Docker auto-start, and SSH agent."
 echo ""
 echo "  4. Proceed to Plan A — OpenCode Admin Agent Setup"
+echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-a.sh | bash"
+echo ""
+echo "     Or install Plan A and build the Hermes tenant image immediately:"
+echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-a.sh | bash -s -- --build-image"
 echo ""

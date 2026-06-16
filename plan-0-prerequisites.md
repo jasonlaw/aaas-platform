@@ -18,7 +18,7 @@ Once complete, OpenCode takes over all ongoing operations.
 
 **Sequence:**
 ```
-Plan 0 (this document)  →  Plan A (OpenCode setup)  →  Plan B (Hermes tenant setup)
+Plan 0 (this document)  →  Plan A (OpenCode setup)  →  Plan B (Hermes tenant reference & validation)
 ```
 
 ---
@@ -64,17 +64,19 @@ Plan 0 (this document)  →  Plan A (OpenCode setup)  →  Plan B (Hermes tenant
 
 ## Quick Setup (Recommended)
 
-Download and run the setup script in one command:
+Download and run the setup script from the actual repository in one command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/your-org/aaas-platform/main/setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-0.sh | bash
 ```
 
 Or if you have the script locally:
 
 ```bash
-chmod +x setup.sh
-./setup.sh
+git clone https://github.com/jasonlaw/aaas-platform.git
+cd aaas-platform
+chmod +x scripts/setup-plan-0.sh
+./scripts/setup-plan-0.sh
 ```
 
 The script is idempotent — safe to run multiple times.
@@ -342,11 +344,12 @@ EOF
 cat > /opt/aaas/platform/docker/docker-compose.yaml << 'EOF'
 # AaaS Platform — Tenant Container Registry
 # Managed by OpenCode admin agent
-# Add one service block per tenant
+# OpenCode adds one service block per tenant under services:
 # Always specify service name when running docker compose commands
 # to avoid affecting ALL tenants unintentionally
 
-services: {}
+services:
+  # Tenant services are added here by OpenCode during onboarding.
 EOF
 ```
 
@@ -441,4 +444,8 @@ grep -A4 "SSH agent" ~/.bashrc
 
 ## Next Step
 
-Proceed to **Plan A: OpenCode Admin Agent Setup**.
+Proceed to **Plan A: OpenCode Admin Agent Setup**:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-a.sh | bash
+```

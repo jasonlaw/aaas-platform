@@ -27,6 +27,36 @@ health, and handling suspend/reactivate/offboard operations via structured SOP s
 
 ---
 
+## Quick Setup
+
+Plan A is automated by a one-line installer. Run this from inside WSL2 Ubuntu
+after Plan 0 has completed:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-a.sh | bash
+```
+
+To install the Plan A files and build the Hermes tenant image in one run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-a.sh | bash -s -- --build-image
+```
+
+If you already cloned the repository, you can also run the local script:
+
+```bash
+git pull
+./scripts/setup-plan-a.sh --build-image
+```
+
+The script installs the versioned files from this repository into
+`/opt/aaas/platform/`. When run through `curl`, it downloads the repository
+archive to a temporary folder first, then installs the same versioned assets. It
+validates the required SOPs/templates and leaves existing `tenants.yaml` and
+`docker-compose.yaml` untouched if they already exist.
+
+---
+
 ## Platform Structure Reference
 
 ```
@@ -82,6 +112,8 @@ health, and handling suspend/reactivate/offboard operations via structured SOP s
 
 OpenCode owns the Dockerfile and is responsible for building and maintaining
 the Hermes Docker image. The image is built once and reused for every tenant.
+The automation script copies the repository Dockerfile to
+`/opt/aaas/platform/docker/Dockerfile`.
 
 ### 1.1 Create the Dockerfile
 
@@ -101,13 +133,14 @@ USER root
 # Install fastembed (mandatory for Mnemosyne semantic recall)
 RUN pip3 install fastembed --break-system-packages
 
+# Install Mnemosyne plugin outside /opt/data because /opt/data is replaced
+# by the per-tenant host volume at runtime.
+RUN mkdir -p /opt/hermes/plugins && \
+    git clone https://github.com/AxDSan/mnemosyne /opt/hermes/plugins/mnemosyne && \
+    chown -R hermes:hermes /opt/hermes/plugins
+
 # Switch back to hermes user (required by official image)
 USER hermes
-
-# Install Mnemosyne plugin into /opt/data/plugins/
-# /opt/data is the official Hermes data directory inside the container
-RUN mkdir -p /opt/data/plugins && \
-    git clone https://github.com/AxDSan/mnemosyne /opt/data/plugins/mnemosyne
 ```
 
 ### 1.2 Build the custom image
@@ -136,6 +169,9 @@ Expected: `hermes-tenant` listed with `latest` and `v1.0` tags.
 
 ## Phase 2: Templates
 
+The automation script copies the repository templates from `platform/templates/`
+to `/opt/aaas/platform/templates/`.
+
 ### 2.1 Base templates
 
 **`/opt/aaas/platform/templates/_base/config.yaml.template`**
@@ -162,14 +198,14 @@ display:
 gateway:
   platforms:
     telegram:
-      home_chat_id: "{{TELEGRAM_CHAT_ID}}"
+      home_chat_id: ""      # auto-populated on first message
       gateway_restart_notification: true
 
 # Mnemosyne plugin enabled
 plugins:
   - name: mnemosyne
     enabled: true
-    path: /opt/data/plugins/mnemosyne
+    path: /opt/hermes/plugins/mnemosyne
 ```
 
 **`/opt/aaas/platform/templates/_base/env.template`**
@@ -180,6 +216,7 @@ plugins:
 
 LLM_API_KEY=
 TELEGRAM_BOT_TOKEN=
+# Comma-separated numeric Telegram user IDs allowed to use this tenant bot
 TELEGRAM_ALLOWED_USERS=
 # DISCORD_BOT_TOKEN=          # uncomment when Discord added
 # WHATSAPP_BRIDGE_TOKEN=      # uncomment when WhatsApp added
@@ -263,6 +300,9 @@ Technical skill level: non-technical — use simple language, no jargon
 
 ## Phase 3: AGENTS.md — OpenCode Skill Index
 
+The automation script copies the repository `platform/AGENTS.md` to
+`/opt/aaas/platform/AGENTS.md`.
+
 Create `/opt/aaas/platform/AGENTS.md`:
 
 ```markdown
@@ -281,6 +321,7 @@ You manage Hermes tenant agents running as Docker containers.
 
 ## Docker Conventions
 - One service per tenant in docker-compose.yaml
+- docker-compose.yaml starts as an empty `services:` placeholder; replace/update it as valid YAML under that mapping
 - Service name:    hermes_{tenant-id}
 - Container name:  hermes_{tenant-id}
 - Data mount:      /opt/aaas/tenants/{tenant-id}  →  /opt/data
@@ -290,6 +331,7 @@ You manage Hermes tenant agents running as Docker containers.
 
 ## Tenant Data Split
 - Secrets (API keys, tokens):   /opt/aaas/tenants/{id}/.env         (never commit)
+- Telegram access:              TELEGRAM_ALLOWED_USERS is a comma-separated list of numeric Telegram user IDs
 - Config (model, gateway):      /opt/aaas/tenants/{id}/config.yaml
 - Business metadata:            /opt/aaas/platform/tenants.yaml
 - Container management:         /opt/aaas/platform/docker/docker-compose.yaml
@@ -327,6 +369,9 @@ Always read the relevant SOP before executing ANY tenant operation.
 ---
 
 ## Phase 4: SOP Skill Files
+
+The automation script copies the repository SOP files from `platform/sop/` to
+`/opt/aaas/platform/sop/`.
 
 ### 4.1 build-image.md
 
@@ -406,7 +451,7 @@ Ask operator one question at a time:
 13. Posting frequency? (daily / few times a week / weekly)
 14. Telegram bot token? (from @BotFather)
 15. Telegram bot username? (e.g. @MamasKitchenAI)
-16. Owner Telegram user ID? (numeric — owner gets from @userinfobot)
+16. Allowed Telegram user IDs? (comma-separated numeric IDs — each user gets their ID from @userinfobot; each user must open the bot and send `/start` before the bot can message them)
 17. Tenant LLM API key? (BYOK)
 18. LLM provider? (e.g. openai / anthropic / openrouter)
 19. LLM model name? (e.g. gpt-4o / claude-sonnet-4-6)
@@ -432,7 +477,7 @@ Load vertical template (fnb / retail / services).
 Substitute all {{VARIABLES}} with collected values.
 
 Write these files:
-- /opt/aaas/tenants/{tenant-id}/config.yaml       (model, gateway, plugins — no secrets)
+- /opt/aaas/tenants/{tenant-id}/config.yaml       (model, gateway, plugins — no secrets; keep home_chat_id empty)
 - /opt/aaas/tenants/{tenant-id}/.env              (all secrets — never commit)
 - /opt/aaas/tenants/{tenant-id}/.env.template     (keys only, no values — safe to commit)
 - /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md  (brand seed — Mnemosyne only)
@@ -442,16 +487,18 @@ Write these files:
 .env contents:
   LLM_API_KEY={tenant-byok-key}
   TELEGRAM_BOT_TOKEN={bot-token}
-  TELEGRAM_ALLOWED_USERS={owner-telegram-id}
+  TELEGRAM_ALLOWED_USERS={comma-separated-allowed-user-ids}
 
 Verify:
 - memory_enabled: false in config.yaml
 - Mnemosyne plugin enabled in config.yaml
 - No secrets in config.yaml
+- home_chat_id remains empty; allowed users are controlled by TELEGRAM_ALLOWED_USERS in .env
 
 ## Step 5: Add tenant service to docker-compose.yaml
 
-Append to /opt/aaas/platform/docker/docker-compose.yaml:
+Update /opt/aaas/platform/docker/docker-compose.yaml structurally under the top-level `services:` mapping.
+If the file only contains the empty placeholder, replace it with a valid services mapping:
 
   hermes_{tenant-id}:
     image: hermes-tenant:latest
@@ -463,11 +510,8 @@ Append to /opt/aaas/platform/docker/docker-compose.yaml:
       - /opt/aaas/tenants/{tenant-id}/files:/home/hermes/files
     env_file:
       - /opt/aaas/tenants/{tenant-id}/.env
-    deploy:
-      resources:
-        limits:
-          memory: 1g
-          cpus: "1.0"
+    mem_limit: 1g
+    cpus: "1.0"
 
 ## Step 6: Start tenant container
 
@@ -509,7 +553,9 @@ Add entry to /opt/aaas/platform/tenants.yaml:
 
 ## Step 10: Send welcome message
 
-Send via the tenant's Telegram bot:
+Send via the tenant's Telegram bot to every numeric user ID in `TELEGRAM_ALLOWED_USERS`.
+Telegram only allows a bot to message users who have already opened the bot and
+sent `/start`; report `403 Forbidden` results as "user must start the bot first".
 
 "👋 Hello! I'm your AI marketing assistant for {Business Name}.
 
@@ -521,6 +567,20 @@ Here's what I can help you with:
 
 To get started, just send me a photo of your dish and tell
 me a little about it. I'll take care of the rest! 🍜"
+
+Implementation note for OpenCode:
+```bash
+set -a
+. /opt/aaas/tenants/{tenant-id}/.env
+set +a
+IFS=',' read -ra USER_IDS <<< "$TELEGRAM_ALLOWED_USERS"
+for user_id in "${USER_IDS[@]}"; do
+  user_id="$(echo "$user_id" | xargs)"
+  curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+    -d chat_id="$user_id" \
+    --data-urlencode text="Hello! I'm your AI marketing assistant for {Business Name}. To get started, send me a dish photo and tell me a little about it."
+done
+```
 
 ## Step 11: Confirm completion
 
@@ -826,44 +886,25 @@ Verify in a separate terminal:
 docker images | grep hermes-tenant
 ```
 
-### 5.4 Test onboarding a dummy tenant
+### 5.4 Verify tenant SOPs are ready
 
 Inside OpenCode, type:
 ```
-onboard a new tenant
+summarize the onboarding, suspend, reactivate, health, and log review SOPs
 ```
 
-Verify in a separate terminal:
-```bash
-docker ps | grep hermes_
-```
+OpenCode should read the SOP files from `/opt/aaas/platform/sop/` and summarize
+the expected tenant lifecycle operations without creating a tenant yet.
 
-```bash
-cat /opt/aaas/platform/tenants.yaml
-```
-
-```bash
-cat /opt/aaas/platform/docker/docker-compose.yaml
-```
-
-### 5.5 Test suspend and reactivate
-
-Inside OpenCode, type:
-```
-suspend tenant test-restaurant
-```
-
-Then:
-```
-reactivate tenant test-restaurant
-```
-
-### 5.6 Test health monitoring
+### 5.5 Test health monitoring with no tenants
 
 Inside OpenCode, type:
 ```
 run a health check on all tenants
 ```
+
+Expected: OpenCode reads `tenants.yaml`, sees no active tenants, and reports a
+clean empty state. Tenant onboarding and lifecycle validation happen in Plan B.
 
 ---
 
@@ -875,14 +916,10 @@ Before proceeding to Plan B:
 - [ ] OpenCode reads AGENTS.md and describes all skills
 - [ ] All SOP files created in `/opt/aaas/platform/sop/`
 - [ ] All templates created in `/opt/aaas/platform/templates/`
-- [ ] Dummy tenant onboarded via OpenCode
-- [ ] `docker ps` shows `hermes_{dummy-id}` running
-- [ ] `docker-compose.yaml` updated with tenant service
-- [ ] Native Hermes memory disabled in config.yaml
-- [ ] Mnemosyne plugin enabled in config.yaml
-- [ ] Suspend / reactivate cycle works
-- [ ] Health check SOP runs without errors
-- [ ] `tenants.yaml` stays accurate throughout
+- [ ] Dockerfile installed at `/opt/aaas/platform/docker/Dockerfile`
+- [ ] docker-compose.yaml placeholder exists and is valid YAML
+- [ ] Health check SOP handles the empty tenant registry cleanly
+- [ ] Plan B is ready for first tenant onboarding and validation
 
 ---
 
@@ -891,7 +928,7 @@ Before proceeding to Plan B:
 - No automated health check scheduling — run manually
 - BotFather step is manual — not automated
 - Logo must be manually added to files/assets/ post-onboarding
-- No git versioning — Dockerfile and SOPs not version controlled yet
+- Dockerfile, SOPs, and templates are now git-versioned in this repository
 
 ---
 

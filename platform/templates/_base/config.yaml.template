@@ -1,0 +1,28 @@
+_config_version: 1
+
+model:
+  provider: {{MODEL_PROVIDER}}
+  model: {{MODEL_NAME}}
+
+memory:
+  memory_enabled: false
+  user_profile_enabled: false
+
+terminal:
+  backend: local
+
+display:
+  tool_progress: off
+  busy_ack_detail: off
+  cleanup_progress: true
+
+gateway:
+  platforms:
+    telegram:
+      home_chat_id: ""
+      gateway_restart_notification: true
+
+plugins:
+  - name: mnemosyne
+    enabled: true
+    path: /opt/hermes/plugins/mnemosyne

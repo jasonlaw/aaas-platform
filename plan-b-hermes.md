@@ -1,5 +1,5 @@
-# Plan B: Hermes Tenant Agent Setup
-> **AaaS Platform — Tenant Agent Implementation Plan**
+# Plan B: Hermes Tenant Agent Reference & Validation
+> **AaaS Platform — Tenant Agent Reference & Validation Plan**
 > Version: 1.2 (POC)
 > Last Updated: 2026-06-15
 > Status: Living document — improve as you learn
@@ -13,7 +13,10 @@ gets their own isolated Docker container running a Hermes instance, pre-configur
 with their brand identity via Mnemosyne memory, and accessible via their own
 Telegram bot.
 
-This plan validates the full tenant experience end-to-end — from container startup
+This document is primarily a **reference and validation runbook**. In normal use,
+the OpenCode admin agent from Plan A performs Hermes tenant setup by following the
+Plan A SOPs. Plan B documents what a correctly onboarded tenant should look like
+and how to validate the full tenant experience end-to-end, from container startup
 to content generation.
 
 **Prerequisites:** Plan A (OpenCode Admin Agent Setup) fully completed and validated.
@@ -28,6 +31,52 @@ to content generation.
 - OpenCode admin agent operational ✅
 - At least one Telegram bot token ready (from @BotFather)
 - A test LLM API key (BYOK — your own for testing)
+
+---
+
+## POC Use Case Flow
+
+For the POC, use OpenCode as the operator interface:
+
+```bash
+cd /opt/aaas/platform
+opencode
+```
+
+Inside OpenCode, ask:
+
+```text
+onboard a new tenant
+```
+
+Use this document to answer the onboarding questions and validate the result.
+The expected first test tenant can use:
+
+- Business type: Food & Beverage
+- Business name: Test Restaurant
+- Cuisine type: Asian Fusion
+- Location: Singapore
+- Menu highlights: Signature Laksa, Grilled Chicken Rice, Teh Tarik Float
+- Brand tone: casual and friendly
+- Primary color: #FF6B35
+- Secondary color: #2C3E50
+- Owner name: Test Owner
+- Language: English
+- Communication style: concise
+- Timezone: Asia/Singapore
+- Posting frequency: few times a week
+- Telegram bot token: from @BotFather
+- Allowed Telegram user IDs: comma-separated numeric IDs from @userinfobot
+- Before welcome delivery: each allowed user should open the bot and send `/start`
+- LLM provider/model/API key: your test BYOK values
+
+OpenCode should follow `/opt/aaas/platform/sop/onboard-tenant.md`, generate the
+tenant files from templates, update `docker-compose.yaml` and `tenants.yaml`,
+start only the new tenant container, seed Mnemosyne, and send the welcome message
+to every allowed Telegram user ID.
+If welcome delivery returns `403 Forbidden`, the affected user has not started the
+bot yet; ask them to send `/start`, then retry the welcome message or continue
+with Telegram validation.
 
 ---
 
@@ -60,28 +109,28 @@ HOST                                          CONTAINER
 
 ---
 
-## Phase 1: First Tenant — Manual Onboarding
+## Phase 1: Verify First Tenant Files
 
-Onboard the first tenant **manually** before trusting OpenCode to automate it.
-This validates the full stack hands-on and is the reference for the SOP.
+After OpenCode finishes onboarding, verify the generated tenant directory. The
+manual snippets below are expected output references and fallback debugging notes;
+they are not the normal setup path.
 
-### 1.1 Create tenant config directory
+### 1.1 Verify tenant config directory
 
 ```bash
 TENANT_ID="test-restaurant"
 ```
 
 ```bash
-mkdir -p /opt/aaas/tenants/$TENANT_ID/memories
-mkdir -p /opt/aaas/tenants/$TENANT_ID/skills
-mkdir -p /opt/aaas/tenants/$TENANT_ID/files/assets
-mkdir -p /opt/aaas/tenants/$TENANT_ID/files/uploads
-mkdir -p /opt/aaas/tenants/$TENANT_ID/files/generated
+find /opt/aaas/tenants/$TENANT_ID -maxdepth 3 -type d | sort
 ```
 
-### 1.2 Write config.yaml
+Expected directories include `memories`, `skills`, `files/assets`,
+`files/uploads`, and `files/generated`.
 
-Create `/opt/aaas/tenants/test-restaurant/config.yaml`:
+### 1.2 Verify config.yaml
+
+Expected `/opt/aaas/tenants/test-restaurant/config.yaml`:
 
 ```yaml
 _config_version: 1
@@ -109,22 +158,22 @@ gateway:
       home_chat_id: ""      # auto-populated on first message
       gateway_restart_notification: true
 
-# Mnemosyne plugin — path relative to /opt/data inside container
+# Mnemosyne plugin code lives in the image outside the /opt/data tenant mount
 plugins:
   - name: mnemosyne
     enabled: true
-    path: /opt/data/plugins/mnemosyne
+    path: /opt/hermes/plugins/mnemosyne
 ```
 
-### 1.3 Write .env file
+### 1.3 Verify .env file
 
-Create `/opt/aaas/tenants/test-restaurant/.env`:
+Expected `/opt/aaas/tenants/test-restaurant/.env`:
 
 ```bash
 # Tenant secrets — DO NOT COMMIT THIS FILE
 LLM_API_KEY=sk-your-test-key-here
 TELEGRAM_BOT_TOKEN=your-bot-token-here
-TELEGRAM_ALLOWED_USERS=your-numeric-telegram-user-id
+TELEGRAM_ALLOWED_USERS=comma-separated-numeric-telegram-user-ids
 ```
 
 **How to get your Telegram numeric user ID:**
@@ -134,12 +183,12 @@ TELEGRAM_ALLOWED_USERS=your-numeric-telegram-user-id
 2. Search for @userinfobot
 3. Send /start
 4. Copy the numeric ID it replies with
-5. Paste into TELEGRAM_ALLOWED_USERS
+5. Paste one or more numeric IDs into TELEGRAM_ALLOWED_USERS, separated by commas
 ```
 
-### 1.4 Write .env.template
+### 1.4 Verify .env.template
 
-Create `/opt/aaas/tenants/test-restaurant/.env.template`:
+Expected `/opt/aaas/tenants/test-restaurant/.env.template`:
 
 ```bash
 # Required secret keys for this tenant
@@ -152,9 +201,9 @@ TELEGRAM_ALLOWED_USERS=
 # WHATSAPP_BRIDGE_TOKEN=    # uncomment when WhatsApp added
 ```
 
-### 1.5 Write SOUL.md
+### 1.5 Verify SOUL.md
 
-Create `/opt/aaas/tenants/test-restaurant/SOUL.md`:
+Expected `/opt/aaas/tenants/test-restaurant/SOUL.md`:
 
 ```markdown
 You are the dedicated AI marketing assistant for Test Restaurant,
@@ -176,9 +225,9 @@ You communicate in English.
 Memory system: You use Mnemosyne for persistent memory.
 ```
 
-### 1.6 Write MEMORY.md (Mnemosyne seed only)
+### 1.6 Verify MEMORY.md (Mnemosyne seed only)
 
-Create `/opt/aaas/tenants/test-restaurant/memories/MEMORY.md`:
+Expected `/opt/aaas/tenants/test-restaurant/memories/MEMORY.md`:
 
 ```markdown
 # Brand Seed Context
@@ -196,9 +245,9 @@ Generated output saved to ~/files/generated/.
 Always confirm with owner before posting. Never auto-post unless explicitly told to.
 ```
 
-### 1.7 Write USER.md (Mnemosyne seed only)
+### 1.7 Verify USER.md (Mnemosyne seed only)
 
-Create `/opt/aaas/tenants/test-restaurant/memories/USER.md`:
+Expected `/opt/aaas/tenants/test-restaurant/memories/USER.md`:
 
 ```markdown
 # Owner Seed Context
@@ -215,11 +264,12 @@ Technical skill level: non-technical — use simple language, no jargon
 
 ---
 
-## Phase 2: Add Tenant to Docker Compose
+## Phase 2: Verify Docker Compose and Container
 
-### 2.1 Add service to docker-compose.yaml
+### 2.1 Verify service in docker-compose.yaml
 
-Add the following service to `/opt/aaas/platform/docker/docker-compose.yaml`:
+OpenCode should add the following service under the top-level `services:` mapping
+in `/opt/aaas/platform/docker/docker-compose.yaml`:
 
 ```yaml
 services:
@@ -233,21 +283,15 @@ services:
       - /opt/aaas/tenants/test-restaurant/files:/home/hermes/files
     env_file:
       - /opt/aaas/tenants/test-restaurant/.env
-    deploy:
-      resources:
-        limits:
-          memory: 1g
-          cpus: "1.0"
+    mem_limit: 1g
+    cpus: "1.0"
 ```
 
-### 2.2 Start tenant container
+### 2.2 Verify tenant container start
 
 ```bash
 cd /opt/aaas/platform/docker
-```
-
-```bash
-docker compose up -d hermes_test-restaurant
+docker compose ps hermes_test-restaurant
 ```
 
 ### 2.3 Verify container is running
@@ -269,7 +313,10 @@ Look for:
 
 ---
 
-## Phase 3: Seed Mnemosyne Memory
+## Phase 3: Verify Mnemosyne Memory
+
+OpenCode should seed Mnemosyne during onboarding. Use these checks to verify the
+seed succeeded and persists.
 
 ### 3.1 Wait for container to fully initialise
 
@@ -277,7 +324,19 @@ Look for:
 sleep 10
 ```
 
-### 3.2 Seed brand context into Mnemosyne
+### 3.2 Verify Mnemosyne received the memories
+
+```bash
+docker exec hermes_test-restaurant hermes memory list
+```
+
+Expected: brand facts and owner profile listed in Mnemosyne.
+
+### 3.3 Optional fallback: re-seed brand context
+
+OpenCode should already have seeded these memories. If `hermes memory list`
+does not show the expected brand and owner facts, re-seed them manually for
+debugging:
 
 Seed brand facts:
 ```bash
@@ -289,28 +348,24 @@ Seed owner profile:
 docker exec hermes_test-restaurant hermes memory add "$(cat /opt/aaas/tenants/test-restaurant/memories/USER.md)"
 ```
 
-### 3.3 Verify Mnemosyne received the memories
-
-```bash
-docker exec hermes_test-restaurant hermes memory list
-```
-
-Expected: brand facts and owner profile listed in Mnemosyne.
-
 ### 3.4 Verify Mnemosyne SQLite DB location
 
 ```bash
 docker exec hermes_test-restaurant find / -name "mnemosyne.db" 2>/dev/null
 ```
 
-**Expected:** DB inside `/opt/data/` — ideally:
+**Expected:** DB inside `/opt/data/` so it survives container replacement.
+The Mnemosyne plugin code itself lives in the image at `/opt/hermes/plugins/mnemosyne`;
+only runtime data should need to persist under `/opt/data/`.
+
+An acceptable DB path looks like:
 ```
-/opt/data/plugins/mnemosyne/mnemosyne.db
+/opt/data/.../mnemosyne.db
 ```
 
-Which maps to this path on the host:
+Which maps to a path under this host directory:
 ```
-/opt/aaas/tenants/test-restaurant/plugins/mnemosyne/mnemosyne.db
+/opt/aaas/tenants/test-restaurant/
 ```
 
 **If DB is inside `/opt/data/`** — ✅ persisted on host automatically via volume mount.
