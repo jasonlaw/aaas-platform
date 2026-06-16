@@ -57,8 +57,66 @@ require_command() {
 copy_tree() {
   local source="$1"
   local target="$2"
+  [ -d "$source" ] || error "Missing source directory: $source"
   mkdir -p "$target"
   cp -a "$source"/. "$target"/
+}
+
+validate_asset_source() {
+  local required=(
+    "$ASSET_ROOT/AGENTS.md"
+    "$ASSET_ROOT/docker/Dockerfile"
+    "$ASSET_ROOT/sop/build-image.md"
+    "$ASSET_ROOT/sop/onboard-tenant.md"
+    "$ASSET_ROOT/sop/suspend-tenant.md"
+    "$ASSET_ROOT/sop/reactivate-tenant.md"
+    "$ASSET_ROOT/sop/offboard-tenant.md"
+    "$ASSET_ROOT/sop/update-tenant.md"
+    "$ASSET_ROOT/sop/upgrade-tenants.md"
+    "$ASSET_ROOT/sop/monitor-health.md"
+    "$ASSET_ROOT/sop/monitor-logs.md"
+    "$ASSET_ROOT/templates/_base/config.yaml.template"
+    "$ASSET_ROOT/templates/_base/env.template"
+    "$ASSET_ROOT/templates/_base/SOUL.md.template"
+    "$ASSET_ROOT/templates/_base/USER.md.template"
+    "$ASSET_ROOT/templates/verticals/fnb/SOUL.md.template"
+    "$ASSET_ROOT/templates/verticals/fnb/MEMORY.md.template"
+    "$ASSET_ROOT/templates/verticals/fnb/USER.md.template"
+  )
+
+  for path in "${required[@]}"; do
+    [ -f "$path" ] || error "Repository asset missing: $path"
+  done
+}
+
+validate_installed_matches_source() {
+  [ -n "$ASSET_ROOT" ] || return
+
+  local relative_paths=(
+    "AGENTS.md"
+    "docker/Dockerfile"
+    "sop/build-image.md"
+    "sop/onboard-tenant.md"
+    "sop/suspend-tenant.md"
+    "sop/reactivate-tenant.md"
+    "sop/offboard-tenant.md"
+    "sop/update-tenant.md"
+    "sop/upgrade-tenants.md"
+    "sop/monitor-health.md"
+    "sop/monitor-logs.md"
+    "templates/_base/config.yaml.template"
+    "templates/_base/env.template"
+    "templates/_base/SOUL.md.template"
+    "templates/_base/USER.md.template"
+    "templates/verticals/fnb/SOUL.md.template"
+    "templates/verticals/fnb/MEMORY.md.template"
+    "templates/verticals/fnb/USER.md.template"
+  )
+
+  for relative_path in "${relative_paths[@]}"; do
+    cmp -s "$ASSET_ROOT/$relative_path" "$PLATFORM_ROOT/$relative_path" \
+      || error "Installed asset differs from repository asset: $relative_path"
+  done
 }
 
 cleanup() {
@@ -100,12 +158,14 @@ ensure_plan0_ready() {
   [ -d "$PLATFORM_ROOT" ] || error "$PLATFORM_ROOT does not exist. Run scripts/setup-plan-0.sh first."
 
   docker --version >/dev/null
+  docker info >/dev/null 2>&1 || error "Docker Engine is not reachable. Start Docker inside WSL2, then rerun Plan A."
   opencode --version >/dev/null
   success "Plan 0 tools and folders are present"
 }
 
 install_assets() {
   log "Installing Plan A OpenCode admin assets..."
+  validate_asset_source
 
   mkdir -p "$PLATFORM_ROOT/sop"
   mkdir -p "$PLATFORM_ROOT/templates"
@@ -153,6 +213,7 @@ EOF
 build_image() {
   log "Building Hermes tenant Docker image..."
   require_command docker
+  [ -f "$PLATFORM_ROOT/docker/Dockerfile" ] || error "Missing Dockerfile. Run Plan A install before --build-image."
   cd "$PLATFORM_ROOT/docker"
   docker pull nousresearch/hermes-agent:latest
   docker build -t hermes-tenant:latest .
@@ -193,8 +254,25 @@ validate_install() {
 
   grep -q "memory_enabled: false" "$PLATFORM_ROOT/templates/_base/config.yaml.template" \
     || error "Base config template must disable native Hermes memory"
-  grep -q "mnemosyne" "$PLATFORM_ROOT/templates/_base/config.yaml.template" \
-    || error "Base config template must enable Mnemosyne"
+  grep -q "provider: mnemosyne" "$PLATFORM_ROOT/templates/_base/config.yaml.template" \
+    || error "Base config template must set memory.provider to mnemosyne"
+  grep -q "home_chat_id: \"\"" "$PLATFORM_ROOT/templates/_base/config.yaml.template" \
+    || error "Base config template must leave Telegram home_chat_id empty"
+  grep -q "TELEGRAM_ALLOWED_USERS=" "$PLATFORM_ROOT/templates/_base/env.template" \
+    || error "Base env template must document TELEGRAM_ALLOWED_USERS"
+  grep -q "MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data" "$PLATFORM_ROOT/templates/_base/env.template" \
+    || error "Base env template must keep Mnemosyne data inside /opt/data"
+  grep -q "FROM nousresearch/hermes-agent:latest" "$PLATFORM_ROOT/docker/Dockerfile" \
+    || error "Dockerfile must extend nousresearch/hermes-agent:latest"
+  grep -q "mnemosyne-memory\[embeddings\]" "$PLATFORM_ROOT/docker/Dockerfile" \
+    || error "Dockerfile must install mnemosyne-memory with embeddings"
+  grep -q "mnemosyne-hermes" "$PLATFORM_ROOT/docker/Dockerfile" \
+    || error "Dockerfile must install mnemosyne-hermes"
+  grep -q "^services:" "$PLATFORM_ROOT/docker/docker-compose.yaml" \
+    || error "docker-compose.yaml must contain a top-level services mapping"
+  grep -q "docker compose up -d {service-name}" "$PLATFORM_ROOT/AGENTS.md" \
+    || error "AGENTS.md must include the service-specific docker compose safety rule"
+  validate_installed_matches_source
 
   success "Plan A validation passed"
 }

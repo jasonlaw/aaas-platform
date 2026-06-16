@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # AaaS Platform — Bootstrap Setup Script
-# Version: 1.4
+# Version: 1.0
 # Run this once inside your WSL2 Ubuntu terminal
 # Assumptions: WSL2 + Ubuntu already running
 # =============================================================================

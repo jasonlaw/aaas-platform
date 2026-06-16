@@ -1,11 +1,12 @@
 FROM nousresearch/hermes-agent:latest
 
+# Install as root
 USER root
 
-RUN pip3 install fastembed --break-system-packages
+RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir \
+    "mnemosyne-memory[embeddings]" \
+    mnemosyne-hermes && \
+    chown -R hermes:hermes /opt/hermes/.venv
 
-RUN mkdir -p /opt/hermes/plugins && \
-    git clone https://github.com/AxDSan/mnemosyne /opt/hermes/plugins/mnemosyne && \
-    chown -R hermes:hermes /opt/hermes/plugins
-
+# Switch back to hermes user (required by official image)
 USER hermes

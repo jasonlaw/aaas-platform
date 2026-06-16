@@ -2,11 +2,16 @@ _config_version: 1
 
 model:
   provider: {{MODEL_PROVIDER}}
-  model: {{MODEL_NAME}}
+  default: {{MODEL_NAME}}
 
+# Native Hermes memory DISABLED — replaced by Mnemosyne plugin
 memory:
+  provider: mnemosyne
   memory_enabled: false
   user_profile_enabled: false
+  mnemosyne:
+    auto_sleep: true
+    sleep_threshold: 20
 
 terminal:
   backend: local
@@ -19,10 +24,5 @@ display:
 gateway:
   platforms:
     telegram:
-      home_chat_id: ""
+      home_chat_id: ""      # auto-populated on first message
       gateway_restart_notification: true
-
-plugins:
-  - name: mnemosyne
-    enabled: true
-    path: /opt/hermes/plugins/mnemosyne

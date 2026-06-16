@@ -1,6 +1,6 @@
 # Plan B: Hermes Tenant Agent Reference & Validation
 > **AaaS Platform — Tenant Agent Reference & Validation Plan**
-> Version: 1.2 (POC)
+> Version: 1.0 (POC)
 > Last Updated: 2026-06-15
 > Status: Living document — improve as you learn
 
@@ -136,13 +136,17 @@ Expected `/opt/aaas/tenants/test-restaurant/config.yaml`:
 _config_version: 1
 
 model:
-  provider: openai          # replace with your BYOK provider
-  model: gpt-4o             # replace with your model
+  provider: openrouter      # replace with your BYOK provider
+  default: openai/gpt-4o    # replace with your model
 
 # Native Hermes memory DISABLED — Mnemosyne handles all memory
 memory:
+  provider: mnemosyne
   memory_enabled: false
   user_profile_enabled: false
+  mnemosyne:
+    auto_sleep: true
+    sleep_threshold: 20
 
 terminal:
   backend: local
@@ -158,11 +162,6 @@ gateway:
       home_chat_id: ""      # auto-populated on first message
       gateway_restart_notification: true
 
-# Mnemosyne plugin code lives in the image outside the /opt/data tenant mount
-plugins:
-  - name: mnemosyne
-    enabled: true
-    path: /opt/hermes/plugins/mnemosyne
 ```
 
 ### 1.3 Verify .env file
@@ -171,9 +170,10 @@ Expected `/opt/aaas/tenants/test-restaurant/.env`:
 
 ```bash
 # Tenant secrets — DO NOT COMMIT THIS FILE
-LLM_API_KEY=sk-your-test-key-here
+OPENROUTER_API_KEY=sk-your-test-key-here
 TELEGRAM_BOT_TOKEN=your-bot-token-here
 TELEGRAM_ALLOWED_USERS=comma-separated-numeric-telegram-user-ids
+MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data
 ```
 
 **How to get your Telegram numeric user ID:**
@@ -194,9 +194,13 @@ Expected `/opt/aaas/tenants/test-restaurant/.env.template`:
 # Required secret keys for this tenant
 # Copy to .env and fill in real values
 
-LLM_API_KEY=
+OPENROUTER_API_KEY=
+# OPENAI_API_KEY=
+# ANTHROPIC_API_KEY=
+# NOUS_API_KEY=
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_ALLOWED_USERS=
+MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data
 # DISCORD_BOT_TOKEN=        # uncomment when Discord added
 # WHATSAPP_BRIDGE_TOKEN=    # uncomment when WhatsApp added
 ```
@@ -307,7 +311,7 @@ docker logs hermes_test-restaurant --tail 30
 ```
 
 Look for:
-- Mnemosyne plugin loaded
+- Mnemosyne provider/plugin activation messages after the activation step
 - Telegram gateway connected
 - No errors
 
@@ -327,25 +331,27 @@ sleep 10
 ### 3.2 Verify Mnemosyne received the memories
 
 ```bash
-docker exec hermes_test-restaurant hermes memory list
+docker exec hermes_test-restaurant hermes memory status
+docker exec hermes_test-restaurant hermes mnemosyne stats
+docker exec hermes_test-restaurant hermes mnemosyne inspect "Test Restaurant"
 ```
 
 Expected: brand facts and owner profile listed in Mnemosyne.
 
 ### 3.3 Optional fallback: re-seed brand context
 
-OpenCode should already have seeded these memories. If `hermes memory list`
+OpenCode should already have seeded these memories. If `hermes mnemosyne inspect`
 does not show the expected brand and owner facts, re-seed them manually for
 debugging:
 
 Seed brand facts:
 ```bash
-docker exec hermes_test-restaurant hermes memory add "$(cat /opt/aaas/tenants/test-restaurant/memories/MEMORY.md)"
+docker exec hermes_test-restaurant mnemosyne remember "$(cat /opt/aaas/tenants/test-restaurant/memories/MEMORY.md)"
 ```
 
 Seed owner profile:
 ```bash
-docker exec hermes_test-restaurant hermes memory add "$(cat /opt/aaas/tenants/test-restaurant/memories/USER.md)"
+docker exec hermes_test-restaurant mnemosyne remember "$(cat /opt/aaas/tenants/test-restaurant/memories/USER.md)"
 ```
 
 ### 3.4 Verify Mnemosyne SQLite DB location
@@ -355,8 +361,9 @@ docker exec hermes_test-restaurant find / -name "mnemosyne.db" 2>/dev/null
 ```
 
 **Expected:** DB inside `/opt/data/` so it survives container replacement.
-The Mnemosyne plugin code itself lives in the image at `/opt/hermes/plugins/mnemosyne`;
-only runtime data should need to persist under `/opt/data/`.
+Mnemosyne runtime data is forced into `/opt/data/mnemosyne/data` by
+`MNEMOSYNE_DATA_DIR`; the package/plugin code lives in the Hermes Python
+environment baked into the image.
 
 An acceptable DB path looks like:
 ```

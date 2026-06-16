@@ -1,6 +1,6 @@
 # Plan 0: Prerequisites & Bootstrap
 > **AaaS Platform — One-Time Manual Setup**
-> Version: 1.4
+> Version: 1.0
 > Last Updated: 2026-06-16
 > Status: Living document — improve as you learn
 

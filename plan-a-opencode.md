@@ -1,6 +1,6 @@
 # Plan A: OpenCode Admin Agent Setup
 > **AaaS Platform — Admin Agent Implementation Plan**
-> Version: 1.2 (POC)
+> Version: 1.0 (POC)
 > Last Updated: 2026-06-15
 > Status: Living document — improve as you learn
 
@@ -120,7 +120,7 @@ The automation script copies the repository Dockerfile to
 > **Important:** We extend the official `nousresearch/hermes-agent:latest` image.
 > We do NOT build from scratch. Nous Research maintains the base image including
 > Hermes binary, Python, Node.js, Playwright, and all dependencies.
-> We only add Mnemosyne and fastembed on top.
+> We only add the Mnemosyne Hermes integration and local embedding support on top.
 
 Create `/opt/aaas/platform/docker/Dockerfile`:
 
@@ -130,14 +130,10 @@ FROM nousresearch/hermes-agent:latest
 # Install as root
 USER root
 
-# Install fastembed (mandatory for Mnemosyne semantic recall)
-RUN pip3 install fastembed --break-system-packages
-
-# Install Mnemosyne plugin outside /opt/data because /opt/data is replaced
-# by the per-tenant host volume at runtime.
-RUN mkdir -p /opt/hermes/plugins && \
-    git clone https://github.com/AxDSan/mnemosyne /opt/hermes/plugins/mnemosyne && \
-    chown -R hermes:hermes /opt/hermes/plugins
+RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir \
+    "mnemosyne-memory[embeddings]" \
+    mnemosyne-hermes && \
+    chown -R hermes:hermes /opt/hermes/.venv
 
 # Switch back to hermes user (required by official image)
 USER hermes
@@ -180,12 +176,16 @@ _config_version: 1
 
 model:
   provider: {{MODEL_PROVIDER}}
-  model: {{MODEL_NAME}}
+  default: {{MODEL_NAME}}
 
 # Native Hermes memory DISABLED — replaced by Mnemosyne plugin
 memory:
+  provider: mnemosyne
   memory_enabled: false
   user_profile_enabled: false
+  mnemosyne:
+    auto_sleep: true
+    sleep_threshold: 20
 
 terminal:
   backend: local
@@ -201,11 +201,6 @@ gateway:
       home_chat_id: ""      # auto-populated on first message
       gateway_restart_notification: true
 
-# Mnemosyne plugin enabled
-plugins:
-  - name: mnemosyne
-    enabled: true
-    path: /opt/hermes/plugins/mnemosyne
 ```
 
 **`/opt/aaas/platform/templates/_base/env.template`**
@@ -214,10 +209,19 @@ plugins:
 # This file documents required secret keys (values are empty)
 # Real values go in .env (gitignored)
 
-LLM_API_KEY=
+# Set the API key required by the selected Hermes model provider.
+# Examples:
+OPENROUTER_API_KEY=
+# OPENAI_API_KEY=
+# ANTHROPIC_API_KEY=
+# NOUS_API_KEY=
+
 TELEGRAM_BOT_TOKEN=
 # Comma-separated numeric Telegram user IDs allowed to use this tenant bot
 TELEGRAM_ALLOWED_USERS=
+
+# Keep Mnemosyne runtime data inside the tenant volume
+MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data
 # DISCORD_BOT_TOKEN=          # uncomment when Discord added
 # WHATSAPP_BRIDGE_TOKEN=      # uncomment when WhatsApp added
 ```
@@ -452,9 +456,10 @@ Ask operator one question at a time:
 14. Telegram bot token? (from @BotFather)
 15. Telegram bot username? (e.g. @MamasKitchenAI)
 16. Allowed Telegram user IDs? (comma-separated numeric IDs — each user gets their ID from @userinfobot; each user must open the bot and send `/start` before the bot can message them)
-17. Tenant LLM API key? (BYOK)
-18. LLM provider? (e.g. openai / anthropic / openrouter)
-19. LLM model name? (e.g. gpt-4o / claude-sonnet-4-6)
+17. LLM provider? (e.g. openrouter / openai-api / anthropic / nous-api)
+18. Provider API key environment variable? (e.g. OPENROUTER_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY / NOUS_API_KEY)
+19. Tenant LLM API key? (BYOK)
+20. LLM model name? (e.g. openai/gpt-4o / anthropic/claude-sonnet-4-6)
 
 Show full confirmation summary. Ask: "Proceed with onboarding? (y/n)"
 
@@ -477,7 +482,7 @@ Load vertical template (fnb / retail / services).
 Substitute all {{VARIABLES}} with collected values.
 
 Write these files:
-- /opt/aaas/tenants/{tenant-id}/config.yaml       (model, gateway, plugins — no secrets; keep home_chat_id empty)
+- /opt/aaas/tenants/{tenant-id}/config.yaml       (model, gateway, Mnemosyne memory provider — no secrets; keep home_chat_id empty)
 - /opt/aaas/tenants/{tenant-id}/.env              (all secrets — never commit)
 - /opt/aaas/tenants/{tenant-id}/.env.template     (keys only, no values — safe to commit)
 - /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md  (brand seed — Mnemosyne only)
@@ -485,13 +490,15 @@ Write these files:
 - /opt/aaas/tenants/{tenant-id}/SOUL.md             (agent personality)
 
 .env contents:
-  LLM_API_KEY={tenant-byok-key}
+  {provider-api-key-env-name}={tenant-byok-key}
   TELEGRAM_BOT_TOKEN={bot-token}
   TELEGRAM_ALLOWED_USERS={comma-separated-allowed-user-ids}
+  MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data
 
 Verify:
 - memory_enabled: false in config.yaml
-- Mnemosyne plugin enabled in config.yaml
+- memory.provider: mnemosyne in config.yaml
+- MNEMOSYNE_DATA_DIR points inside /opt/data in .env
 - No secrets in config.yaml
 - home_chat_id remains empty; allowed users are controlled by TELEGRAM_ALLOWED_USERS in .env
 
@@ -523,19 +530,32 @@ docker compose up -d hermes_{tenant-id}
 docker ps | grep hermes_{tenant-id}
 docker logs hermes_{tenant-id} --tail 20
 
-## Step 8: Seed Mnemosyne with brand context
+## Step 8: Activate and seed Mnemosyne
 
 Wait 10 seconds for container to fully initialise:
 sleep 10
 
-Seed brand context:
-docker exec hermes_{tenant-id} hermes memory add "$(cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)"
+Install the Mnemosyne Hermes plugin link into the tenant's `/opt/data` volume,
+then activate the provider:
+```bash
+docker exec hermes_{tenant-id} mnemosyne-hermes install --hermes-home /opt/data
+docker exec hermes_{tenant-id} hermes config set memory.provider mnemosyne
+docker exec hermes_{tenant-id} hermes memory setup
+docker compose restart hermes_{tenant-id}
+```
 
-Seed owner profile:
-docker exec hermes_{tenant-id} hermes memory add "$(cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)"
+Seed brand and owner context through the active Mnemosyne provider. Prefer the
+installed version's Mnemosyne CLI and verify immediately afterward:
+```bash
+docker exec hermes_{tenant-id} mnemosyne remember "$(cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)"
+docker exec hermes_{tenant-id} mnemosyne remember "$(cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)"
+docker exec hermes_{tenant-id} hermes memory status
+docker exec hermes_{tenant-id} hermes mnemosyne stats
+docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"
+```
 
-Verify seeding:
-docker exec hermes_{tenant-id} hermes memory list
+If `hermes mnemosyne` is unavailable in the installed version, use the fallback
+command name shown by Mnemosyne's integration docs, `hermes hermes-mnemosyne`.
 
 ## Step 9: Update tenants.yaml
 
@@ -771,7 +791,7 @@ Update a tenant's config, secrets, brand context, or add a new channel.
    For brand/owner (re-seed Mnemosyne):
      Update memories/MEMORY.md or memories/USER.md
      Then re-seed:
-     docker exec hermes_{id} hermes memory add "{updated content}"
+     docker exec hermes_{id} mnemosyne remember "{updated content}"
 
    For new channel:
      Add token to .env
