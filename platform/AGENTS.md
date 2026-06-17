@@ -65,6 +65,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Always read the relevant SOP before executing any tenant operation
 - For platform setup upgrades, read `/opt/aaas/platform/sop/upgrade-platform.md`
 - Always write a task report with `/opt/aaas/platform/sop/write-report.md` before declaring any SOP task complete
+- When identifying and fixing a tenant-related issue, record the root cause, analysis evidence, exact fix applied, validation results, and any prevention/follow-up in the task report
 - Always confirm with operator before destructive actions
 - Always update tenants.yaml AND docker-compose.yaml after every operation
 - Never share one tenant's data with another

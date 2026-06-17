@@ -45,6 +45,14 @@ One short paragraph describing the outcome.
 - Checks performed:
 - Results:
 
+## Root Cause Analysis
+- Required when a tenant-related issue was identified and fixed.
+- Root cause:
+- Evidence and analysis:
+- Fix applied:
+- Why this fix addresses the cause:
+- Prevention or follow-up:
+
 ## Issues
 - Errors:
 - Workarounds:
@@ -84,6 +92,7 @@ Example:
 
 ## Rules
 - Do not put secrets in reports or the index. Redact API keys, bot tokens, access tokens, private URLs, and customer private data.
+- For tenant-related fixes, include root cause and fix details in the Markdown report. Keep `INDEX.jsonl` concise: summarize the issue in `issues`, prevention signals in `improvement_signals`, and unresolved follow-up in `next_action`.
 - Prefer concise issue and improvement summaries in `INDEX.jsonl`; put details in the Markdown report.
 - If updating `INDEX.jsonl` fails, still write the Markdown report and tell the operator the index update failed.
 - Before proposing platform improvements, read recent matching index entries first:
