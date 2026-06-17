@@ -8,13 +8,13 @@
 
 ## Overview
 
-This is a **one-time manual setup** done inside your WSL2 Ubuntu environment.
+This is a **one-time manual setup** done inside your Ubuntu/Linux environment.
 Once complete, OpenCode takes over all ongoing operations.
 
 **Assumptions:**
-- WSL2 is already installed on Windows
-- Ubuntu distro is already created and running
-- You are running commands from inside Ubuntu terminal
+- Ubuntu/Linux is already installed and running
+- You are running commands from a Linux terminal
+- Your user has sudo access
 
 **Sequence:**
 ```
@@ -26,39 +26,23 @@ Plan 0 (this document)  →  Plan A (OpenCode setup)  →  Plan B (Hermes tenant
 ## What the Setup Script Covers
 
 ```
-✅ Windows PATH isolation  — disables appendWindowsPath in /etc/wsl.conf
 ✅ Ubuntu package updates
-✅ Native WSL2 git (guards against Windows git leaking in via PATH)
+✅ Git installation and identity bootstrap
 ✅ SSH key generation (ed25519) for later Git integration
-✅ Node.js + npm installed natively in WSL2 via nvm
-✅ Docker Engine installation inside WSL2
-✅ OpenCode installation (uses WSL-native npm — not Windows npm)
+✅ Node.js + npm installed via nvm
+✅ Docker Engine installation
+✅ OpenCode installation
 ✅ /opt/aaas/ folder structure creation
 ✅ tenants.yaml initialisation
 ✅ docker-compose.yaml initialisation
 
-❌ WSL2 installation        (Windows-level, out of scope)
-❌ Ubuntu distro creation   (Windows-level, out of scope)
-❌ .wslconfig tuning        (Windows-level, out of scope)
 ❌ Hermes binary install    (runs inside Docker, not on host)
 ```
 
-> **Why disable appendWindowsPath?**
-> By default WSL2 injects the entire Windows `PATH` into every Linux
-> session. This means Windows-installed tools (`node`, `npm`, `git`,
-> `python`) appear in WSL as `/mnt/c/...` entries and can shadow or
-> conflict with their native Linux counterparts. Setting
-> `appendWindowsPath = false` in `/etc/wsl.conf` stops this entirely.
-> The script also scrubs `/mnt/c` entries from the current session
-> immediately so the rest of setup runs clean without needing a restart —
-> but a `wsl --shutdown` is still required afterward for the setting to
-> persist across future sessions.
-
 > **Why nvm (not apt node)?**
 > The apt `nodejs` package is often outdated. nvm installs the current
-> LTS release natively in WSL, placing it in `~/.nvm/...` which appears
-> in PATH before any Windows entries. If Windows also had Node.js
-> installed, nvm ensures the WSL-native binary always wins.
+> LTS release under `~/.nvm/...` and keeps Node.js independent from the
+> system package manager.
 
 ---
 
@@ -85,49 +69,6 @@ The script is idempotent — safe to run multiple times.
 
 ## Manual Steps (if you prefer step-by-step)
 
-### Step 0: Isolate WSL2 from Windows PATH
-
-The script checks if `appendWindowsPath = false` is already set and skips if so.
-Otherwise it creates or patches `/etc/wsl.conf` — it will not overwrite an existing
-file but will add or update only the `[interop]` block.
-
-It also immediately scrubs `/mnt/c` entries from the current session PATH so the
-rest of setup runs against WSL-native binaries without requiring a restart.
-
-To do this manually:
-
-```bash
-# If /etc/wsl.conf does not exist yet:
-sudo tee /etc/wsl.conf > /dev/null << 'EOF'
-[interop]
-appendWindowsPath = false
-EOF
-```
-
-If `/etc/wsl.conf` already exists with other settings, add only the `[interop]`
-block rather than overwriting the whole file.
-
-Scrub Windows PATH entries from the current session immediately:
-
-```bash
-export PATH=$(echo "$PATH" | tr ':' '\n' | grep -v "^/mnt/c" | tr '\n' ':' | sed 's/:$//')
-```
-
-**Then restart WSL from PowerShell for the wsl.conf change to persist:**
-```powershell
-wsl --shutdown
-```
-
-Then reopen your Ubuntu terminal and verify:
-```bash
-echo $PATH | tr ':' '\n' | grep /mnt/c
-# should return nothing
-```
-
-> If you need to access a specific Windows tool from WSL in future (e.g.
-> `explorer.exe` or `code`), add it explicitly to your `~/.bashrc` PATH
-> rather than re-enabling `appendWindowsPath`.
-
 ### Step 1: Update Ubuntu
 
 ```bash
@@ -138,15 +79,15 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install -y curl git unzip build-essential openssh-client
 ```
 
-### Step 2: Verify native WSL2 Git
+### Step 2: Verify Git
 
-Check git doesn't resolve to Windows:
+Check git is installed:
 
 ```bash
 which git
 ```
 
-If the output contains `/mnt/c/`, force the WSL-native one:
+If the command is missing, install it:
 
 ```bash
 sudo apt install -y git
@@ -191,7 +132,7 @@ Copy the output and add it to:
 - **GitHub**: Settings → SSH and GPG keys → New SSH key
 - **GitLab**: Preferences → SSH Keys → Add new key
 
-### Step 4: Install Node.js natively in WSL2 via nvm
+### Step 4: Install Node.js via nvm
 
 > **Important:** Do NOT use `apt install nodejs` — the apt version is
 > often outdated. Use nvm to get a current LTS release.
@@ -222,7 +163,7 @@ nvm use --lts
 nvm alias default 'lts/*'
 ```
 
-Verify WSL-native binaries (must NOT contain `/mnt/c/`):
+Verify Node.js and npm:
 
 ```bash
 which node && node --version
@@ -243,12 +184,12 @@ sudo usermod -aG docker $USER
 newgrp docker
 ```
 
-Configure Docker to start automatically on WSL2 launch:
+Configure Docker to start automatically for interactive shells:
 
 ```bash
 cat >> ~/.bashrc << 'EOF'
 
-# Start Docker on WSL2 launch
+# Start Docker service (AaaS)
 if sudo service docker status 2>&1 | grep -q "not running"; then
   sudo service docker start > /dev/null 2>&1
 fi
@@ -273,8 +214,8 @@ docker run hello-world
 
 ### Step 6: Install OpenCode
 
-> **nvm must be loaded** (from Step 4) before running this — it ensures
-> the installer picks up WSL-native npm, not Windows npm.
+> **nvm must be loaded** (from Step 4) before running this so npm-based
+> installs use the nvm-managed Node.js.
 
 ```bash
 curl -fsSL https://opencode.ai/install | bash
@@ -294,20 +235,11 @@ Verify:
 opencode --version
 ```
 
-Confirm opencode is a WSL binary (output must NOT contain `/mnt/c/`):
+Confirm opencode is on PATH:
 
 ```bash
 which opencode
 ```
-
-> If opencode is found but points to `/mnt/c/...` (a previously installed Windows
-> version), the script reinstalls it via `npm install -g opencode-ai` using the
-> nvm-managed npm. Manual fix if this persists:
-> ```powershell
-> # In Windows PowerShell:
-> npm uninstall -g opencode-ai
-> ```
-> Then re-run the script.
 
 ### Step 7: Create Platform Folder Structure
 
@@ -357,10 +289,10 @@ EOF
 
 ```bash
 git --version
-node --version && which node   # must NOT be /mnt/c/...
-npm --version  && which npm    # must NOT be /mnt/c/...
+node --version && which node
+npm --version  && which npm
 docker --version
-opencode --version && which opencode  # must NOT be /mnt/c/...
+opencode --version && which opencode
 cat ~/.ssh/id_ed25519.pub
 find /opt/aaas -type d
 ```
@@ -371,19 +303,16 @@ find /opt/aaas -type d
 
 Before proceeding to Plan A:
 
-- [ ] `/etc/wsl.conf` contains `appendWindowsPath = false`
-- [ ] WSL restarted (`wsl --shutdown` from PowerShell) and reopened
-- [ ] `echo $PATH | tr ':' '\n' | grep /mnt/c` returns nothing
-- [ ] `git --version` returns WSL-native git (not `/mnt/c/...`)
+- [ ] `git --version` returns successfully
 - [ ] Git identity configured (`git config --global user.name` and `user.email`)
 - [ ] `cat ~/.ssh/id_ed25519.pub` prints your public key
 - [ ] SSH public key added to GitHub/GitLab
-- [ ] `which node` returns a path under `~/.nvm/` (not `/mnt/c/...`)
-- [ ] `which npm` returns a path under `~/.nvm/` (not `/mnt/c/...`)
+- [ ] `which node` returns a path under `~/.nvm/`
+- [ ] `which npm` returns a path under `~/.nvm/`
 - [ ] `docker --version` returns successfully
 - [ ] `docker run hello-world` runs successfully
 - [ ] `opencode --version` returns successfully
-- [ ] `which opencode` does NOT contain `/mnt/c/`
+- [ ] `which opencode` returns successfully
 - [ ] `/opt/aaas/` folder structure created correctly
 - [ ] `/opt/aaas/platform/tenants.yaml` initialised
 - [ ] `/opt/aaas/platform/docker/docker-compose.yaml` initialised
@@ -391,16 +320,6 @@ Before proceeding to Plan A:
 ---
 
 ## Troubleshooting
-
-**Windows npm/node still showing up after nvm install:**
-```bash
-# Check PATH ordering — nvm dirs must come before /mnt/c/...
-echo $PATH | tr ':' '\n' | head -20
-# Load nvm explicitly and re-check
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-which npm
-```
 
 **nvm command not found after install:**
 ```bash

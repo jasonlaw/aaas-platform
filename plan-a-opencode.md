@@ -19,7 +19,7 @@ health, and handling suspend/reactivate/offboard operations via structured SOP s
 ## Prerequisites
 
 - Plan 0 completed and validated ✅
-- Docker Engine running inside WSL2 ✅
+- Docker Engine running on Ubuntu/Linux ✅
 - OpenCode installed ✅
 - `/opt/aaas/` folder structure created ✅
 - `/opt/aaas/platform/tenants.yaml` initialised ✅
@@ -29,7 +29,7 @@ health, and handling suspend/reactivate/offboard operations via structured SOP s
 
 ## Quick Setup
 
-Plan A is automated by a one-line installer. Run this from inside WSL2 Ubuntu
+Plan A is automated by a one-line installer. Run this from inside Ubuntu/Linux
 after Plan 0 has completed:
 
 ```bash

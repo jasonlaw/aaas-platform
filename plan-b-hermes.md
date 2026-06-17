@@ -724,7 +724,7 @@ Before declaring POC complete:
 
 | POC | v1 Production |
 |---|---|
-| Docker on WSL2 | Docker on Linux VPS (Hetzner/DigitalOcean) |
+| Docker on local Ubuntu/Linux | Docker on Linux VPS (Hetzner/DigitalOcean) |
 | Manual logo upload | Upload via Telegram directly |
 | No backup | GitHub for config + Cloudflare R2 for files |
 | Single operator via CLI | Admin web form for non-technical staff |

@@ -4,21 +4,13 @@ AaaS Platform is an OpenCode-managed Agent as a Service operations platform for 
 
 ## Install
 
-Run the full installer inside WSL2 Ubuntu:
+Run the full installer inside Ubuntu/Linux:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash
 ```
 
 The installer combines the prerequisite bootstrap and OpenCode platform setup, then always builds the `hermes-tenant:latest` Docker image.
-
-After setup, if the script asks you to restart WSL, run this from Windows PowerShell:
-
-```powershell
-wsl --shutdown
-```
-
-Then reopen WSL.
 
 ## Use OpenCode
 

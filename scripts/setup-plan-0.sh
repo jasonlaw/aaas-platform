@@ -2,8 +2,8 @@
 # =============================================================================
 # AaaS Platform — Bootstrap Setup Script
 # Version: 1.0
-# Run this once inside your WSL2 Ubuntu terminal
-# Assumptions: WSL2 + Ubuntu already running
+# Run this once inside your Ubuntu/Linux terminal
+# Assumptions: Ubuntu/Linux host is already running
 # =============================================================================
 
 set -e  # Exit on any error
@@ -27,54 +27,6 @@ echo "=============================================="
 echo ""
 
 # ------------------------------------------------------------------------------
-# Step 0: Disable appendWindowsPath in WSL2
-# By default WSL2 injects the entire Windows PATH into every Linux session,
-# meaning Windows-installed tools (node, npm, git, python) appear as /mnt/c/...
-# entries and can shadow or conflict with their native Linux counterparts.
-# Setting appendWindowsPath = false in /etc/wsl.conf stops this entirely.
-# The PATH scrub below takes effect immediately for this session so the rest
-# of setup runs clean — but a 'wsl --shutdown' is still required afterward
-# for the setting to persist across future sessions.
-# ------------------------------------------------------------------------------
-log "Step 0: Disabling appendWindowsPath in WSL2..."
-
-WSL_CONF="/etc/wsl.conf"
-
-# Check if appendWindowsPath = false is already correctly set — if so, skip
-if grep -q "^[[:space:]]*appendWindowsPath[[:space:]]*=[[:space:]]*false" "$WSL_CONF" 2>/dev/null; then
-  warn "appendWindowsPath already set to false in $WSL_CONF — skipping"
-else
-  # Write or patch /etc/wsl.conf
-  if [ ! -f "$WSL_CONF" ]; then
-    sudo tee "$WSL_CONF" > /dev/null << 'EOF'
-[interop]
-appendWindowsPath = false
-EOF
-    success "Created $WSL_CONF with appendWindowsPath = false"
-  elif grep -q "appendWindowsPath" "$WSL_CONF"; then
-    sudo sed -i 's/appendWindowsPath[[:space:]]*=.*/appendWindowsPath = false/' "$WSL_CONF"
-    success "Updated appendWindowsPath to false in $WSL_CONF"
-  elif grep -q "\[interop\]" "$WSL_CONF"; then
-    sudo sed -i '/\[interop\]/a appendWindowsPath = false' "$WSL_CONF"
-    success "Added appendWindowsPath = false under existing [interop] section"
-  else
-    sudo tee -a "$WSL_CONF" > /dev/null << 'EOF'
-
-[interop]
-appendWindowsPath = false
-EOF
-    success "Appended [interop] + appendWindowsPath = false to $WSL_CONF"
-  fi
-  warn "Run 'wsl --shutdown' from PowerShell after setup to make this permanent"
-fi
-
-# Scrub /mnt/c entries from the current session PATH immediately
-# so the rest of this script runs against WSL-native binaries
-CLEANED_PATH=$(echo "$PATH" | tr ':' '\n' | grep -v "^/mnt/c" | tr '\n' ':' | sed 's/:$//')
-export PATH="$CLEANED_PATH"
-success "Windows /mnt/c entries removed from PATH for this session"
-
-# ------------------------------------------------------------------------------
 # Step 1: Update Ubuntu
 # ------------------------------------------------------------------------------
 log "Step 1: Updating Ubuntu packages..."
@@ -85,18 +37,13 @@ sudo apt install -y -q curl git unzip build-essential openssh-client
 success "Ubuntu packages updated"
 
 # ------------------------------------------------------------------------------
-# Step 2: Install Git (ensure native WSL git, not Windows git)
+# Step 2: Install Git
 # ------------------------------------------------------------------------------
-log "Step 2: Verifying native WSL2 Git..."
+log "Step 2: Verifying Git..."
 
-# Confirm git resolves to the WSL binary, not Windows
 GIT_PATH=$(which git 2>/dev/null || true)
 if [ -z "$GIT_PATH" ]; then
   error "git not found after apt install — check your apt sources"
-fi
-if echo "$GIT_PATH" | grep -qi "/mnt/c"; then
-  warn "Detected Windows git at $GIT_PATH — forcing WSL native git"
-  sudo apt install -y -q git
 fi
 
 GIT_PATH=$(which git 2>/dev/null || true)
@@ -158,19 +105,9 @@ echo "======================================================"
 echo ""
 
 # ------------------------------------------------------------------------------
-# Step 4: Install Node.js natively inside WSL2 via nvm
-# (Prevents OpenCode from using Windows npm when WSL PATH leaks through)
+# Step 4: Install Node.js via nvm
 # ------------------------------------------------------------------------------
-log "Step 4: Installing Node.js natively in WSL2 via nvm..."
-
-# Check if Windows npm is being picked up (the root cause of the bug)
-if command -v npm &> /dev/null; then
-  NPM_PATH=$(which npm)
-  if echo "$NPM_PATH" | grep -qi "/mnt/c"; then
-    warn "Detected Windows npm at $NPM_PATH — this causes OpenCode to run on Windows"
-    warn "Installing native WSL node via nvm to fix this..."
-  fi
-fi
+log "Step 4: Installing Node.js via nvm..."
 
 # Install nvm if not present
 export NVM_DIR="$HOME/.nvm"
@@ -193,11 +130,10 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
 
 # Add nvm to .bashrc if not already there (nvm installer usually does this,
-# but we ensure it comes BEFORE any Windows PATH entries)
 if ! grep -q "NVM_DIR" ~/.bashrc; then
   cat >> ~/.bashrc << 'EOF'
 
-# nvm — Node Version Manager (WSL native)
+# nvm - Node Version Manager
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
@@ -217,19 +153,11 @@ nvm install --lts
 nvm use --lts
 nvm alias default 'lts/*'
 
-# Verify we're now using WSL-native node and npm
 NODE_PATH=$(which node)
 NPM_PATH=$(which npm)
 
-if echo "$NODE_PATH" | grep -qi "/mnt/c"; then
-  error "node is still resolving to Windows path: $NODE_PATH — check your PATH ordering in .bashrc"
-fi
-if echo "$NPM_PATH" | grep -qi "/mnt/c"; then
-  error "npm is still resolving to Windows path: $NPM_PATH — check your PATH ordering in .bashrc"
-fi
-
-success "Node.js ready (WSL native): $NODE_PATH — $(node --version)"
-success "npm ready   (WSL native): $NPM_PATH — $(npm --version)"
+success "Node.js ready: $NODE_PATH — $(node --version)"
+success "npm ready: $NPM_PATH — $(npm --version)"
 
 # ------------------------------------------------------------------------------
 # Step 5: Install Docker Engine
@@ -249,10 +177,10 @@ fi
 sudo service docker start > /dev/null 2>&1 || true
 
 # Add Docker auto-start to .bashrc (idempotent check)
-if ! grep -q "Start Docker on WSL2 launch" ~/.bashrc; then
+if ! grep -q "Start Docker service (AaaS)" ~/.bashrc; then
   cat >> ~/.bashrc << 'EOF'
 
-# Start Docker on WSL2 launch
+# Start Docker service (AaaS)
 if sudo service docker status 2>&1 | grep -q "not running"; then
   sudo service docker start > /dev/null 2>&1
 fi
@@ -267,28 +195,14 @@ docker --version || error "Docker installation failed"
 success "Docker Engine ready"
 
 # ------------------------------------------------------------------------------
-# Step 6: Install OpenCode (WSL-native)
-# nvm is loaded above — installer will use WSL-native npm/node.
-# If OpenCode is already installed but points to a Windows path (common when
-# it was previously installed on Windows via npm), we force a WSL reinstall.
+# Step 6: Install OpenCode
+# nvm is loaded above, so npm-based installs use the nvm-managed Node.js.
 # ------------------------------------------------------------------------------
-log "Step 6: Installing OpenCode (WSL-native)..."
+log "Step 6: Installing OpenCode..."
 
 OPENCODE_PATH=$(which opencode 2>/dev/null || true)
 
-if [ -n "$OPENCODE_PATH" ] && echo "$OPENCODE_PATH" | grep -qi "/mnt/c"; then
-  warn "OpenCode found but running from Windows: $OPENCODE_PATH"
-  warn "Reinstalling natively inside WSL2..."
-  # Install into WSL using npm global (now backed by nvm's native node)
-  npm install -g opencode-ai
-  # npm global bin is managed by nvm; ensure it's on PATH for this session
-  NVM_NPM_BIN="$(npm config get prefix 2>/dev/null || true)/bin"
-  [ -d "$NVM_NPM_BIN" ] && export PATH="$NVM_NPM_BIN:$PATH"
-  export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
-  source ~/.bashrc 2>/dev/null || true
-  success "OpenCode reinstalled via WSL-native npm"
-
-elif [ -z "$OPENCODE_PATH" ]; then
+if [ -z "$OPENCODE_PATH" ]; then
   log "OpenCode not found — installing..."
   curl -fsSL https://opencode.ai/install | bash
   # The installer writes to ~/.bashrc but source ~/.bashrc is unreliable in
@@ -299,21 +213,13 @@ elif [ -z "$OPENCODE_PATH" ]; then
   success "OpenCode installed"
 
 else
-  warn "OpenCode already installed at WSL-native path: $OPENCODE_PATH — skipping"
+  warn "OpenCode already installed at: $OPENCODE_PATH — skipping"
 fi
 
 opencode --version || error "OpenCode installation failed"
 
-# Final guard — must not be a Windows path
 OPENCODE_PATH=$(which opencode 2>/dev/null || true)
-if echo "$OPENCODE_PATH" | grep -qi "/mnt/c"; then
-  error "opencode still resolves to Windows path: $OPENCODE_PATH
-  Manual fix required:
-    1. Uninstall from Windows: open PowerShell and run: npm uninstall -g opencode-ai
-    2. Re-run this script"
-fi
-
-success "OpenCode ready (WSL native): $OPENCODE_PATH"
+success "OpenCode ready: $OPENCODE_PATH"
 
 # ------------------------------------------------------------------------------
 # Step 7: Create Platform Folder Structure
@@ -410,11 +316,6 @@ echo -e "  ${GREEN}✅ AaaS Platform Bootstrap Complete!${NC}"
 echo "=============================================="
 echo ""
 echo "Next steps:"
-echo ""
-echo "  0. In PowerShell (Windows), run:"
-echo "       wsl --shutdown"
-echo "     then reopen WSL — this makes appendWindowsPath=false permanent."
-echo "     (The current session already has Windows PATH entries scrubbed.)"
 echo ""
 echo "  1. Copy the SSH public key above and add it to GitHub/GitLab:"
 echo "     GitHub  → Settings → SSH and GPG keys → New SSH key"

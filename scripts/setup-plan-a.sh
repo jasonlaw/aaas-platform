@@ -2,7 +2,7 @@
 # =============================================================================
 # AaaS Platform - Plan A OpenCode Admin Agent Setup
 # Version: 1.0
-# Run after scripts/setup-plan-0.sh / Plan 0 has completed inside WSL2 Ubuntu.
+# Run after scripts/setup-plan-0.sh / Plan 0 has completed inside Ubuntu/Linux.
 # =============================================================================
 
 set -euo pipefail
@@ -158,7 +158,7 @@ ensure_plan0_ready() {
   [ -d "$PLATFORM_ROOT" ] || error "$PLATFORM_ROOT does not exist. Run scripts/setup-plan-0.sh first."
 
   docker --version >/dev/null
-  docker info >/dev/null 2>&1 || error "Docker Engine is not reachable. Start Docker inside WSL2, then rerun Plan A."
+  docker info >/dev/null 2>&1 || error "Docker Engine is not reachable. Start Docker, then rerun Plan A."
   opencode --version >/dev/null
   success "Plan 0 tools and folders are present"
 }

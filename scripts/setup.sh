@@ -2,7 +2,7 @@
 # =============================================================================
 # AaaS Platform - Full Setup Script
 # Version: 1.0
-# Run once inside WSL2 Ubuntu. This combines Plan 0 prerequisites and Plan A
+# Run once inside Ubuntu/Linux. This combines Plan 0 prerequisites and Plan A
 # OpenCode platform setup, then always builds the Hermes tenant Docker image.
 # =============================================================================
 
@@ -117,14 +117,10 @@ echo -e "  ${GREEN}AaaS Platform full setup complete${NC}"
 echo "=============================================="
 echo ""
 echo "Next steps:"
-echo "  1. If Plan 0 changed /etc/wsl.conf, run this in PowerShell:"
-echo "       wsl --shutdown"
-echo "     then reopen WSL."
-echo ""
-echo "  2. Open the platform path before starting OpenCode:"
+echo "  1. Open the platform path before starting OpenCode:"
 echo "       cd /opt/aaas/platform"
 echo "       opencode"
 echo ""
-echo "  3. Ask OpenCode to onboard tenants, build or upgrade images, monitor health,"
+echo "  2. Ask OpenCode to onboard tenants, build or upgrade images, monitor health,"
 echo "     review logs, suspend/reactivate tenants, or update tenant configuration."
 echo ""
