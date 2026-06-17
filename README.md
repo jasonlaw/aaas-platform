@@ -1,6 +1,6 @@
 # AaaS Platform
 
-AaaS Platform is an OpenCode-managed Agent as a Service operations platform for running Hermes tenant agents in Docker. It installs a platform workspace under `/opt/aaas/platform`, keeps tenant data under `/opt/aaas/tenants`, and gives the OpenCode admin agent SOPs for building images, onboarding tenants, monitoring health, reviewing logs, upgrading tenants, and managing tenant lifecycle tasks.
+AaaS Platform is an Agent as a Service operations platform for running Hermes tenant agents in Docker. It installs a platform workspace under `/opt/aaas/platform`, keeps tenant data under `/opt/aaas/tenants`, and gives OpenCode SOPs for building images, onboarding tenants, monitoring health, reviewing logs, upgrading tenants, and managing tenant lifecycle tasks.
 
 ## Install
 
@@ -11,9 +11,9 @@ curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts
 ```
 
 Use the same command for fresh installs and platform setup upgrades. On a fresh
-machine it runs the prerequisite bootstrap, installs the OpenCode platform setup,
+machine it runs the prerequisite bootstrap, installs the platform setup,
 and builds `hermes-tenant:latest`. On an existing installation it refreshes the
-OpenCode platform setup and skips the image build by default.
+platform setup and skips the image build by default.
 
 To force an image rebuild during setup or upgrade:
 
@@ -39,11 +39,16 @@ From there, OpenCode can use the platform SOPs to help you:
 - Upgrade tenants to a newer image
 - Update tenant configuration safely
 
-Ask OpenCode what skills are available, then tell it the tenant operation you want to perform.
+Ask the admin agent what skills are available, then tell it the tenant operation you want to perform.
+
+Hermes admin support is optional. To set up Hermes as an admin dashboard later,
+start OpenCode and ask it to use the `setup-admin-hermes` skill. The base setup
+ships managed Hermes admin templates under `/opt/aaas/platform/admin-hermes`,
+but it does not activate or configure Hermes automatically.
 
 ## Task Reports
 
-After every SOP task, OpenCode must write a report before declaring completion.
+After every SOP task, the admin agent must write a report before declaring completion.
 Full reports live under `/opt/aaas/platform/reports/{sop-name}/`, and compact
 AI-readable summaries are appended to `/opt/aaas/platform/reports/INDEX.jsonl`.
 
@@ -54,15 +59,15 @@ bot tokens, access tokens, private URLs, and customer private data.
 
 ## Upgrade Platform Setup
 
-To upgrade an existing `/opt/aaas/platform` installation to the latest OpenCode
+To upgrade an existing `/opt/aaas/platform` installation to the latest
 platform setup, rerun the same setup link:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash
 ```
 
-This refreshes managed OpenCode assets: `AGENTS.md`, `VERSION`, SOPs, skills,
-templates, and `platform/docker/Dockerfile`.
+This refreshes managed platform assets: `AGENTS.md`, `VERSION`, SOPs, skills,
+templates, Hermes admin templates, and `platform/docker/Dockerfile`.
 
 It preserves:
 
@@ -84,15 +89,15 @@ cancel. After upgrading, validate the installed setup:
 curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash -s -- --validate-only
 ```
 
-Use `/opt/aaas/platform/sop/upgrade-platform.md` when asking OpenCode to perform
+Use `/opt/aaas/platform/sop/upgrade-platform.md` when asking the admin agent to perform
 or review a platform setup upgrade. Rebuild the tenant Docker image separately
 only when the upgrade notes or Dockerfile changes require it.
 
 ## Versioning
 
-The OpenCode platform setup version is manually tracked in `platform/VERSION`.
-This version covers the installed OpenCode operating assets: `AGENTS.md`, SOPs,
-skills, templates, setup validation, and platform docs.
+The platform setup version is manually tracked in `platform/VERSION`.
+This version covers the installed operating assets: `AGENTS.md`, SOPs,
+skills, templates, Hermes admin templates, setup validation, and platform docs.
 
 Bump `platform/VERSION` in the same change whenever platform behavior changes:
 
@@ -102,4 +107,4 @@ Bump `platform/VERSION` in the same change whenever platform behavior changes:
 
 Do not bump `platform/VERSION` for tenant Docker image rebuilds only, tenant config
 data changes only, typo-only edits, or tool version checks such as `docker --version`.
-Those have separate meanings from the OpenCode platform setup version.
+Those have separate meanings from the platform setup version.

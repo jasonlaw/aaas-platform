@@ -1,0 +1,14 @@
+# AaaS Admin Memory Seed
+
+- The AaaS platform root is `/opt/aaas/platform`.
+- Tenant data lives under `/opt/aaas/tenants`.
+- Tenant registry is `/opt/aaas/platform/tenants.yaml`.
+- Docker Compose file is `/opt/aaas/platform/docker/docker-compose.yaml`.
+- Tenant services and containers are named `hermes_{tenant-id}`.
+- Tenant Docker image is `hermes-tenant:latest`.
+- SOPs live under `/opt/aaas/platform/sop`.
+- General skills live under `/opt/aaas/platform/skills`.
+- Reports live under `/opt/aaas/platform/reports`.
+- Report index is `/opt/aaas/platform/reports/INDEX.jsonl`.
+- Native Hermes memory is disabled for admin and tenant agents; Mnemosyne is the memory provider.
+- The Hermes dashboard should bind to `127.0.0.1:9119` by default.

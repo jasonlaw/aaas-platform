@@ -1,4 +1,4 @@
-# Plan B: Hermes Tenant Agent Reference & Validation
+# Hermes Tenant Agent Reference & Validation
 > **AaaS Platform — Tenant Agent Reference & Validation Plan**
 > Platform version is tracked in `platform/VERSION`
 > Last Updated: 2026-06-15
@@ -14,21 +14,21 @@ with their brand identity via Mnemosyne memory, and accessible via their own
 Telegram bot.
 
 This document is primarily a **reference and validation runbook**. In normal use,
-the OpenCode admin agent from Plan A performs Hermes tenant setup by following the
-Plan A SOPs. Plan B documents what a correctly onboarded tenant should look like
+OpenCode performs Hermes tenant setup by following the
+Platform setup SOPs. Tenant reference documents what a correctly onboarded tenant should look like
 and how to validate the full tenant experience end-to-end, from container startup
 to content generation.
 
-**Prerequisites:** Plan A (OpenCode Admin Agent Setup) fully completed and validated.
+**Prerequisites:** Platform setup fully completed and validated with OpenCode.
 
 ---
 
 ## Prerequisites
 
-- Plan 0 completed ✅
-- Plan A completed ✅
+- Prerequisite setup completed ✅
+- Platform setup completed ✅
 - `hermes-tenant:latest` Docker image built ✅
-- OpenCode admin agent operational ✅
+- OpenCode operational ✅
 - At least one Telegram bot token ready (from @BotFather)
 - A test LLM API key (BYOK — your own for testing)
 
@@ -70,7 +70,7 @@ The expected first test tenant can use:
 - Before welcome delivery: each allowed user should open the bot and send `/start`
 - LLM provider/model/API key: your test BYOK values
 
-OpenCode should follow `/opt/aaas/platform/sop/onboard-tenant.md`, generate the
+The admin agent should follow `/opt/aaas/platform/sop/onboard-tenant.md`, generate the
 tenant files from templates, update `docker-compose.yaml` and `tenants.yaml`,
 start only the new tenant container, seed Mnemosyne, and send the welcome message
 to every allowed Telegram user ID.
@@ -111,7 +111,7 @@ HOST                                          CONTAINER
 
 ## Phase 1: Verify First Tenant Files
 
-After OpenCode finishes onboarding, verify the generated tenant directory. The
+After the admin agent finishes onboarding, verify the generated tenant directory. The
 manual snippets below are expected output references and fallback debugging notes;
 they are not the normal setup path.
 
@@ -272,7 +272,7 @@ Technical skill level: non-technical — use simple language, no jargon
 
 ### 2.1 Verify service in docker-compose.yaml
 
-OpenCode should add the following service under the top-level `services:` mapping
+The admin agent should add the following service under the top-level `services:` mapping
 in `/opt/aaas/platform/docker/docker-compose.yaml`:
 
 ```yaml
@@ -319,7 +319,7 @@ Look for:
 
 ## Phase 3: Verify Mnemosyne Memory
 
-OpenCode should seed Mnemosyne during onboarding. Use these checks to verify the
+The admin agent should seed Mnemosyne during onboarding. Use these checks to verify the
 seed succeeded and persists.
 
 ### 3.1 Wait for container to fully initialise
@@ -340,18 +340,18 @@ Expected: brand facts and owner profile listed in Mnemosyne.
 
 ### 3.3 Optional fallback: re-seed brand context
 
-OpenCode should already have seeded these memories. If `hermes mnemosyne inspect`
+The admin agent should already have seeded these memories. If `hermes mnemosyne inspect`
 does not show the expected brand and owner facts, re-seed them manually for
 debugging:
 
 Seed brand facts:
 ```bash
-docker exec hermes_test-restaurant mnemosyne remember "$(cat /opt/aaas/tenants/test-restaurant/memories/MEMORY.md)"
+docker exec hermes_test-restaurant mnemosyne store "$(sudo cat /opt/aaas/tenants/test-restaurant/memories/MEMORY.md)" "tenant-memory" 0.8
 ```
 
 Seed owner profile:
 ```bash
-docker exec hermes_test-restaurant mnemosyne remember "$(cat /opt/aaas/tenants/test-restaurant/memories/USER.md)"
+docker exec hermes_test-restaurant mnemosyne store "$(sudo cat /opt/aaas/tenants/test-restaurant/memories/USER.md)" "tenant-user" 0.8
 ```
 
 ### 3.4 Verify Mnemosyne SQLite DB location
@@ -385,7 +385,7 @@ volumes:
   - /opt/aaas/tenants/test-restaurant/mnemosyne.db:{actual-db-path}
 ```
 
-Update `onboard-tenant.md` in Plan A if third mount is needed.
+Update `onboard-tenant.md` in Platform setup if third mount is needed.
 
 > 📝 Record actual DB path in Improvement Notes below.
 
@@ -486,7 +486,7 @@ Expected: Promotional post with urgency and brand tone.
 
 Send:
 ```
-Plan a Father's Day campaign for next Sunday
+Platform setup Father's Day campaign for next Sunday
 ```
 
 Expected: Themed post ideas with seasonal relevance.
@@ -630,7 +630,7 @@ Inside OpenCode:
 run a health check on all tenants
 ```
 
-Verify OpenCode reports both tenants' status correctly.
+Verify the admin agent reports both tenants' status correctly.
 
 ### 7.4 Test log review
 

@@ -1,0 +1,11 @@
+# AaaS Operator Profile
+
+The operator manages the AaaS platform from `/opt/aaas/platform`.
+
+Default preferences:
+
+- Prefer safe, reversible platform changes.
+- Preserve tenant data, tenant registry, Docker Compose state, reports, and backups during setup upgrades.
+- Explain risky operations before asking for approval.
+- Keep secrets out of reports, logs, and committed files.
+- Use task reports as the durable audit trail.

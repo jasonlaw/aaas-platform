@@ -1,7 +1,7 @@
-# SOP: Upgrade OpenCode Platform Setup
+# SOP: Upgrade Platform Setup
 
 ## Purpose
-Upgrade the installed OpenCode platform assets to the latest repository version while preserving tenant data, tenant registry, Docker Compose services, and historical reports.
+Upgrade the installed platform assets to the latest repository version while preserving tenant data, tenant registry, Docker Compose services, and historical reports.
 
 ## What This Upgrades
 - `/opt/aaas/platform/AGENTS.md`
@@ -24,8 +24,8 @@ Upgrade the installed OpenCode platform assets to the latest repository version 
    `cat /opt/aaas/platform/VERSION 2>/dev/null || echo "unknown"`
 2. Read recent platform upgrade reports before proceeding:
    `grep '"sop":"upgrade-platform"' /opt/aaas/platform/reports/INDEX.jsonl | tail -n 10`
-3. Explain to the operator that this upgrades OpenCode platform assets only. It does not migrate tenant data, rebuild the tenant Docker image, or restart tenant containers unless explicitly requested.
-4. Ask for confirmation: "Proceed with OpenCode platform upgrade? (y/n)"
+3. Explain to the operator that this upgrades platform assets only. It does not migrate tenant data, rebuild the tenant Docker image, or restart tenant containers unless explicitly requested.
+4. Ask for confirmation: "Proceed with platform upgrade? (y/n)"
 5. Run the latest setup installer. On an existing platform it auto-detects upgrade mode and skips image rebuild by default. If the installed `VERSION` already matches the repository `VERSION`, choose whether to continue with a backup, continue without a backup, or cancel:
    `curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash`
 6. Validate the installed platform:

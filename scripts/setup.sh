@@ -38,7 +38,7 @@ Without --fresh or --upgrade, the installer auto-detects:
   - Fresh mode when /opt/aaas/platform is missing.
   - Upgrade mode when /opt/aaas/platform exists.
 
-Fresh mode runs Plan 0 and builds hermes-tenant:latest by default.
+Fresh mode runs prerequisite setup and builds hermes-tenant:latest by default.
 Upgrade mode refreshes managed platform assets and skips image build by default.
 EOF
 }
@@ -46,6 +46,8 @@ EOF
 MODE="auto"
 BUILD_IMAGE=false
 VALIDATE_ONLY=false
+
+export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
 
 while [ "${1:-}" != "" ]; do
   case "$1" in
@@ -73,8 +75,8 @@ trap cleanup EXIT
 
 resolve_repo_root() {
   if [ -n "$SCRIPT_DIR" ] \
-    && [ -f "$SCRIPT_DIR/setup-plan-0.sh" ] \
-    && [ -f "$SCRIPT_DIR/setup-plan-a.sh" ] \
+    && [ -f "$SCRIPT_DIR/setup-prerequisites.sh" ] \
+    && [ -f "$SCRIPT_DIR/setup-platform.sh" ] \
     && [ -d "$SCRIPT_DIR/../platform" ]; then
     REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
     success "Using local repository at $REPO_ROOT"
@@ -89,8 +91,8 @@ resolve_repo_root() {
   curl -fsSL "$REPO_ARCHIVE_URL" | tar -xz -C "$TMP_REPO_DIR"
   REPO_ROOT="$TMP_REPO_DIR/aaas-platform-main"
 
-  [ -f "$REPO_ROOT/scripts/setup-plan-0.sh" ] || error "Downloaded archive is missing scripts/setup-plan-0.sh"
-  [ -f "$REPO_ROOT/scripts/setup-plan-a.sh" ] || error "Downloaded archive is missing scripts/setup-plan-a.sh"
+  [ -f "$REPO_ROOT/scripts/setup-prerequisites.sh" ] || error "Downloaded archive is missing scripts/setup-prerequisites.sh"
+  [ -f "$REPO_ROOT/scripts/setup-platform.sh" ] || error "Downloaded archive is missing scripts/setup-platform.sh"
   [ -d "$REPO_ROOT/platform" ] || error "Downloaded archive is missing platform assets"
 
   success "Downloaded setup assets from $REPO_URL"
@@ -123,10 +125,10 @@ fi
 if [ "$VALIDATE_ONLY" = true ]; then
   log "Validate-only mode selected"
 elif [ "$MODE" = "fresh" ]; then
-  log "Running Plan 0 prerequisite bootstrap..."
-  bash "$REPO_ROOT/scripts/setup-plan-0.sh"
+  log "Running prerequisite bootstrap..."
+  bash "$REPO_ROOT/scripts/setup-prerequisites.sh"
 else
-  log "Existing platform detected; running platform upgrade without Plan 0 bootstrap"
+  log "Existing platform detected; running platform upgrade without prerequisite bootstrap"
 fi
 
 PLAN_A_ARGS=()
@@ -143,11 +145,11 @@ if [ "$BUILD_IMAGE" = true ] && [ "$VALIDATE_ONLY" = false ]; then
 fi
 
 if [ "$MODE" = "upgrade" ]; then
-  log "Running Plan A OpenCode platform upgrade..."
+  log "Running platform upgrade..."
 else
-  log "Running Plan A OpenCode platform setup..."
+  log "Running platform setup..."
 fi
-bash "$REPO_ROOT/scripts/setup-plan-a.sh" "${PLAN_A_ARGS[@]}"
+bash "$REPO_ROOT/scripts/setup-platform.sh" "${PLAN_A_ARGS[@]}"
 
 echo ""
 echo "=============================================="

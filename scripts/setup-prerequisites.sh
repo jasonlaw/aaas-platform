@@ -15,9 +15,26 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 log()    { echo -e "${BLUE}[AaaS]${NC} $1"; }
-success(){ echo -e "${GREEN}[✅ OK]${NC} $1"; }
-warn()   { echo -e "${YELLOW}[⚠️  WARN]${NC} $1"; }
-error()  { echo -e "${RED}[❌ ERROR]${NC} $1"; exit 1; }
+success(){ echo -e "${GREEN}[OK]${NC} $1"; }
+warn()   { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error()  { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+
+usage() {
+  cat <<EOF
+Usage: $0 [options]
+
+Options:
+  -h, --help  Show this help.
+EOF
+}
+
+while [ "${1:-}" != "" ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    *) error "Unknown option: $1" ;;
+  esac
+  shift
+done
 
 echo ""
 echo "=============================================="
@@ -25,13 +42,36 @@ echo "  AaaS Platform — Bootstrap Setup"
 echo "=============================================="
 echo ""
 
+install_opencode() {
+  OPENCODE_PATH=$(which opencode 2>/dev/null || true)
+
+  if [ -z "$OPENCODE_PATH" ]; then
+    log "OpenCode not found — installing..."
+    curl -fsSL https://opencode.ai/install | bash
+    # The installer writes to ~/.bashrc but source ~/.bashrc is unreliable in
+    # non-interactive scripts. Explicitly prepend known install locations
+    # so opencode is available for the rest of this session.
+    export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
+    source ~/.bashrc 2>/dev/null || true
+    success "OpenCode installed"
+
+  else
+    warn "OpenCode already installed at: $OPENCODE_PATH — skipping"
+  fi
+
+  opencode --version || error "OpenCode installation failed"
+
+  OPENCODE_PATH=$(which opencode 2>/dev/null || true)
+  success "OpenCode ready: $OPENCODE_PATH"
+}
+
 # ------------------------------------------------------------------------------
 # Step 1: Update Ubuntu
 # ------------------------------------------------------------------------------
 log "Step 1: Updating Ubuntu packages..."
 
 sudo apt update -q && sudo apt upgrade -y -q
-sudo apt install -y -q curl git unzip build-essential openssh-client
+sudo apt install -y -q curl git unzip build-essential openssh-client python3 python3-pip python3-venv
 
 success "Ubuntu packages updated"
 
@@ -97,7 +137,7 @@ fi
 
 echo ""
 echo "======================================================"
-echo -e "  ${GREEN}📋 Your SSH PUBLIC KEY (add this to GitHub/GitLab):${NC}"
+echo -e "  ${GREEN}Your SSH PUBLIC KEY (add this to GitHub/GitLab):${NC}"
 echo "======================================================"
 cat "$SSH_KEY.pub"
 echo "======================================================"
@@ -194,31 +234,11 @@ docker --version || error "Docker installation failed"
 success "Docker Engine ready"
 
 # ------------------------------------------------------------------------------
-# Step 6: Install OpenCode
+# Step 6: Install OpenCode admin agent
 # nvm is loaded above, so npm-based installs use the nvm-managed Node.js.
 # ------------------------------------------------------------------------------
-log "Step 6: Installing OpenCode..."
-
-OPENCODE_PATH=$(which opencode 2>/dev/null || true)
-
-if [ -z "$OPENCODE_PATH" ]; then
-  log "OpenCode not found — installing..."
-  curl -fsSL https://opencode.ai/install | bash
-  # The installer writes to ~/.bashrc but source ~/.bashrc is unreliable in
-  # non-interactive scripts. Explicitly prepend known install locations
-  # so opencode is available for the rest of this session.
-  export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
-  source ~/.bashrc 2>/dev/null || true
-  success "OpenCode installed"
-
-else
-  warn "OpenCode already installed at: $OPENCODE_PATH — skipping"
-fi
-
-opencode --version || error "OpenCode installation failed"
-
-OPENCODE_PATH=$(which opencode 2>/dev/null || true)
-success "OpenCode ready: $OPENCODE_PATH"
+log "Step 6: Installing OpenCode admin agent..."
+install_opencode
 
 # ------------------------------------------------------------------------------
 # Step 7: Create Platform Folder Structure
@@ -270,13 +290,13 @@ log "Step 9: Initialising docker-compose.yaml..."
 if [ ! -f /opt/aaas/platform/docker/docker-compose.yaml ]; then
   cat > /opt/aaas/platform/docker/docker-compose.yaml << 'EOF'
 # AaaS Platform — Tenant Container Registry
-# Managed by OpenCode admin agent
-# OpenCode adds one service block per tenant under services:
+# Managed by the AaaS admin agent
+# The admin agent adds one service block per tenant under services:
 # Always specify service name when running docker compose commands
 # to avoid affecting ALL tenants unintentionally
 
 services:
-  # Tenant services are added here by OpenCode during onboarding.
+  # Tenant services are added here by the admin agent during onboarding.
 EOF
   success "docker-compose.yaml created"
 else
@@ -318,9 +338,10 @@ echo ""
 # ------------------------------------------------------------------------------
 echo ""
 echo "=============================================="
-echo -e "  ${GREEN}✅ AaaS Platform Bootstrap Complete!${NC}"
+echo -e "  ${GREEN}AaaS Platform Bootstrap Complete!${NC}"
 echo "=============================================="
 echo ""
+echo "Admin agent: OpenCode"
 echo "Next steps:"
 echo ""
 echo "  1. Copy the SSH public key above and add it to GitHub/GitLab:"

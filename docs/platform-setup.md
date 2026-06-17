@@ -1,4 +1,4 @@
-# Plan A: OpenCode Admin Agent Setup
+# Platform Setup
 > **AaaS Platform — Admin Agent Implementation Plan**
 > Platform version is tracked in `platform/VERSION`
 > Last Updated: 2026-06-15
@@ -8,19 +8,21 @@
 
 ## Overview
 
-OpenCode is the **admin brain** of the AaaS platform. It manages the full lifecycle
+OpenCode is the default **admin brain** of the AaaS platform. It manages the full lifecycle
 of Hermes tenant agents — building the Docker image, onboarding tenants, monitoring
 health, and handling suspend/reactivate/offboard operations via structured SOP skills.
+Hermes admin dashboard support is optional and is configured later from OpenCode
+with the `setup-admin-hermes` skill.
 
-**Prerequisites:** Plan 0 (Prerequisites & Bootstrap) must be fully completed first.
+**Prerequisites:** Prerequisite setup (Prerequisites & Bootstrap) must be fully completed first.
 
 ---
 
 ## Prerequisites
 
-- Plan 0 completed and validated ✅
+- Prerequisite setup completed and validated ✅
 - Docker Engine running on Ubuntu/Linux ✅
-- OpenCode installed ✅
+- OpenCode admin agent installed ✅
 - `/opt/aaas/` folder structure created ✅
 - `/opt/aaas/platform/tenants.yaml` initialised ✅
 - `/opt/aaas/platform/docker/docker-compose.yaml` initialised ✅
@@ -55,7 +57,7 @@ archive to a temporary folder first, then installs the same versioned assets. It
 validates the required SOPs/templates and leaves existing `tenants.yaml`,
 `docker-compose.yaml`, tenant data, and reports untouched if they already exist.
 
-Manually bump `platform/VERSION` when the OpenCode platform behavior changes,
+Manually bump `platform/VERSION` when the platform behavior changes,
 especially when SOPs, templates, skills, setup validation, or AGENTS.md rules
 change. Do not use the script header comments as version markers.
 
@@ -66,10 +68,11 @@ change. Do not use the script header comments as version markers.
 ```
 /opt/aaas/
 ├── platform/
-│   ├── AGENTS.md                        # OpenCode skill index
+│   ├── AGENTS.md                        # Admin agent skill index
 │   ├── tenants.yaml                     # Business metadata (no secrets)
-│   ├── VERSION                          # Installed OpenCode platform version
+│   ├── VERSION                          # Installed platform version
 │   ├── backups/                         # Managed asset backups before upgrades
+│   ├── admin-hermes/                    # Optional Hermes admin profile templates
 │   ├── sop/                             # SOP skill files
 │   │   ├── build-image.md
 │   │   ├── upgrade-platform.md
@@ -84,6 +87,9 @@ change. Do not use the script header comments as version markers.
 │   │   └── write-report.md
 │   ├── reports/
 │   │   └── INDEX.jsonl                  # AI-readable task report summaries
+│   ├── skills/
+│   │   ├── grill-me.md
+│   │   └── setup-admin-hermes.md
 │   ├── templates/
 │   │   ├── _base/                       # Universal defaults
 │   │   │   ├── config.yaml.template
@@ -120,7 +126,7 @@ change. Do not use the script header comments as version markers.
 
 ## Phase 1: Dockerfile & Docker Image
 
-OpenCode owns the Dockerfile and is responsible for building and maintaining
+The admin agent owns the Dockerfile and is responsible for building and maintaining
 the Hermes Docker image. The image is built once and reused for every tenant.
 The automation script copies the repository Dockerfile to
 `/opt/aaas/platform/docker/Dockerfile`.
@@ -312,7 +318,7 @@ Technical skill level: non-technical — use simple language, no jargon
 
 ---
 
-## Phase 3: AGENTS.md — OpenCode Skill Index
+## Phase 3: AGENTS.md — Admin agent skill index
 
 The automation script copies the repository `platform/AGENTS.md` to
 `/opt/aaas/platform/AGENTS.md`.
@@ -320,7 +326,7 @@ The automation script copies the repository `platform/AGENTS.md` to
 Create `/opt/aaas/platform/AGENTS.md`:
 
 ```markdown
-# AaaS Platform — OpenCode Admin Agent
+# AaaS Platform — OpenCode admin agent
 
 You are the OpenCode admin agent for the AaaS (Agent as a Service) platform.
 You manage Hermes tenant agents running as Docker containers.
@@ -334,6 +340,7 @@ You manage Hermes tenant agents running as Docker containers.
 - SOP skills:         /opt/aaas/platform/sop/
 - General skills:     /opt/aaas/platform/skills/
 - Templates:          /opt/aaas/platform/templates/
+- Hermes admin templates: /opt/aaas/platform/admin-hermes/
 - Task reports:       /opt/aaas/platform/reports/
 - Platform backups:   /opt/aaas/platform/backups/
 
@@ -380,6 +387,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 
 ### General Skills
 - Grill me:         /opt/aaas/platform/skills/grill-me.md
+- Setup Hermes admin: /opt/aaas/platform/skills/setup-admin-hermes.md
 
 ## Rules
 - Always read the relevant SOP before executing any tenant operation
@@ -395,7 +403,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Use `mnemosyne store`, not `mnemosyne remember`, when seeding memory
 - Telegram `chat not found` usually means the user has not opened the bot and sent `/start`
 - Use `/opt/aaas/platform/reports/INDEX.jsonl` for AI-readable report summaries; read recent matching entries before proposing platform improvements
-- Platform upgrades refresh managed OpenCode assets only; preserve tenant data, tenants.yaml, docker-compose.yaml, and reports
+- Platform upgrades refresh managed platform assets only; preserve tenant data, tenants.yaml, docker-compose.yaml, and reports
 ```
 
 ---
@@ -403,8 +411,9 @@ Always read the relevant SOP before executing ANY tenant operation.
 ## Phase 4: SOP Skill Files
 
 The automation script copies the repository SOP files from `platform/sop/` to
-`/opt/aaas/platform/sop/`, and general skill files from `platform/skills/` to
-`/opt/aaas/platform/skills/`.
+`/opt/aaas/platform/sop/`, general skill files from `platform/skills/` to
+`/opt/aaas/platform/skills/`, and optional Hermes admin templates from
+`platform/admin-hermes/` to `/opt/aaas/platform/admin-hermes/`.
 
 When rerun on an existing install, the automation script treats this as a
 platform setup upgrade: it backs up managed assets under
@@ -454,7 +463,7 @@ Base image (nousresearch/hermes-agent) is maintained by Nous Research.
 
 Create `/opt/aaas/platform/sop/upgrade-platform.md`.
 
-This SOP upgrades an old OpenCode platform setup by rerunning the latest Plan A
+This SOP upgrades an old platform setup by rerunning the latest Platform setup
 installer, validating the result, preserving tenant state, and writing an
 `upgrade-platform` task report. It must not rebuild tenant images or restart
 tenant containers unless the operator explicitly requests that as separate work.
@@ -650,7 +659,7 @@ Here's what I can help you with:
 To get started, just send me a photo of your dish and tell
 me a little about it. I'll take care of the rest! 🍜"
 
-Implementation note for OpenCode:
+Implementation note for the admin agent:
 ```bash
 set -a
 . /opt/aaas/tenants/{tenant-id}/.env
@@ -946,7 +955,7 @@ This SOP is required after every SOP task. It writes:
 - One compact AI-readable JSON object per task in `/opt/aaas/platform/reports/INDEX.jsonl`
 
 The JSONL index prevents future improvement work from rereading every full
-Markdown report. OpenCode should scan recent matching index entries first, then
+Markdown report. The admin agent should scan recent matching index entries first, then
 open full reports only when details are needed.
 
 ---
@@ -969,7 +978,7 @@ Inside OpenCode, type:
 what skills do you have available?
 ```
 
-OpenCode should list all available SOPs from AGENTS.md.
+The admin agent should list all available SOPs from AGENTS.md.
 
 ### 5.3 Test image build via OpenCode
 
@@ -990,7 +999,7 @@ Inside OpenCode, type:
 summarize the onboarding, suspend, reactivate, health, and log review SOPs
 ```
 
-OpenCode should read the SOP files from `/opt/aaas/platform/sop/` and summarize
+The admin agent should read the SOP files from `/opt/aaas/platform/sop/` and summarize
 the expected tenant lifecycle operations without creating a tenant yet.
 
 ### 5.5 Test health monitoring with no tenants
@@ -1000,23 +1009,23 @@ Inside OpenCode, type:
 run a health check on all tenants
 ```
 
-Expected: OpenCode reads `tenants.yaml`, sees no active tenants, and reports a
-clean empty state. Tenant onboarding and lifecycle validation happen in Plan B.
+Expected: The admin agent reads `tenants.yaml`, sees no active tenants, and reports a
+clean empty state. Tenant onboarding and lifecycle validation happen in Tenant reference.
 
 ---
 
 ## Validation Checklist
 
-Before proceeding to Plan B:
+Before proceeding to Tenant reference:
 
 - [ ] Docker image `hermes-tenant:latest` built successfully
-- [ ] OpenCode reads AGENTS.md and describes all skills
+- [ ] The admin agent reads AGENTS.md and describes all skills
 - [ ] All SOP files created in `/opt/aaas/platform/sop/`
 - [ ] All templates created in `/opt/aaas/platform/templates/`
 - [ ] Dockerfile installed at `/opt/aaas/platform/docker/Dockerfile`
 - [ ] docker-compose.yaml placeholder exists and is valid YAML
 - [ ] Health check SOP handles the empty tenant registry cleanly
-- [ ] Plan B is ready for first tenant onboarding and validation
+- [ ] Tenant reference is ready for first tenant onboarding and validation
 
 ---
 
@@ -1029,9 +1038,10 @@ Before proceeding to Plan B:
 
 ---
 
-## Future Architecture Note
+## Optional Hermes Admin Note
 
-In v2, OpenCode can co-work with a dedicated Hermes admin agent:
+OpenCode can set up a dedicated Hermes admin agent later with the
+`setup-admin-hermes` skill:
 
 ```
 OpenCode (infra brain)          Hermes Admin Agent (ops brain)
@@ -1048,7 +1058,8 @@ same templates, same tenants.yaml. The split is clean:
 - Hermes admin owns anything conversational or tenant-facing
 - Shared files are read by both, written by OpenCode only
 
-No architectural changes needed now — current structure already supports this.
+The base installer does not activate Hermes admin automatically. It only ships
+the managed templates under `/opt/aaas/platform/admin-hermes`.
 
 ---
 

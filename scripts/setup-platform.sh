@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
-# AaaS Platform - Plan A OpenCode Admin Agent Setup
+# AaaS Platform - Platform Asset Setup
 # Platform version is read from platform/VERSION.
-# Run after scripts/setup-plan-0.sh / Plan 0 has completed inside Ubuntu/Linux.
+# Run after scripts/setup-prerequisites.sh has completed inside Ubuntu/Linux.
 # =============================================================================
 
 set -euo pipefail
@@ -34,7 +34,7 @@ usage() {
   cat <<EOF
 Usage: $0 [options]
 
-Installs or upgrades managed OpenCode platform assets while preserving tenant
+Installs or upgrades managed platform assets while preserving tenant
 data, tenants.yaml, docker-compose.yaml, reports, and report index history.
 
 Options:
@@ -55,7 +55,7 @@ while [ "${1:-}" != "" ]; do
 done
 
 require_command() {
-  command -v "$1" >/dev/null 2>&1 || error "$1 is required. Complete Plan 0 first."
+  command -v "$1" >/dev/null 2>&1 || error "$1 is required. Complete prerequisite setup first."
 }
 
 copy_tree() {
@@ -178,8 +178,14 @@ validate_asset_source() {
   local required=(
     "$ASSET_ROOT/AGENTS.md"
     "$ASSET_ROOT/VERSION"
+    "$ASSET_ROOT/admin-hermes/SOUL.md.template"
+    "$ASSET_ROOT/admin-hermes/USER.md.template"
+    "$ASSET_ROOT/admin-hermes/MEMORY.md.template"
+    "$ASSET_ROOT/admin-hermes/config.yaml.template"
+    "$ASSET_ROOT/admin-hermes/env.template"
     "$ASSET_ROOT/docker/Dockerfile"
     "$ASSET_ROOT/skills/grill-me.md"
+    "$ASSET_ROOT/skills/setup-admin-hermes.md"
     "$ASSET_ROOT/sop/build-image.md"
     "$ASSET_ROOT/sop/upgrade-platform.md"
     "$ASSET_ROOT/sop/onboard-tenant.md"
@@ -211,8 +217,14 @@ validate_installed_matches_source() {
   local relative_paths=(
     "AGENTS.md"
     "VERSION"
+    "admin-hermes/SOUL.md.template"
+    "admin-hermes/USER.md.template"
+    "admin-hermes/MEMORY.md.template"
+    "admin-hermes/config.yaml.template"
+    "admin-hermes/env.template"
     "docker/Dockerfile"
     "skills/grill-me.md"
+    "skills/setup-admin-hermes.md"
     "sop/build-image.md"
     "sop/upgrade-platform.md"
     "sop/onboard-tenant.md"
@@ -247,6 +259,7 @@ backup_managed_assets() {
   local paths=(
     "AGENTS.md"
     "VERSION"
+    "admin-hermes"
     "docker/Dockerfile"
     "sop"
     "skills"
@@ -306,22 +319,22 @@ resolve_asset_root() {
 }
 
 ensure_plan0_ready() {
-  log "Checking Plan 0 prerequisites..."
+  log "Checking prerequisite setup..."
   require_command git
   require_command docker
   require_command opencode
 
-  [ -d "$INSTALL_ROOT" ] || error "$INSTALL_ROOT does not exist. Run scripts/setup-plan-0.sh first."
-  [ -d "$PLATFORM_ROOT" ] || error "$PLATFORM_ROOT does not exist. Run scripts/setup-plan-0.sh first."
+  [ -d "$INSTALL_ROOT" ] || error "$INSTALL_ROOT does not exist. Run scripts/setup-prerequisites.sh first."
+  [ -d "$PLATFORM_ROOT" ] || error "$PLATFORM_ROOT does not exist. Run scripts/setup-prerequisites.sh first."
 
   docker --version >/dev/null
-  docker info >/dev/null 2>&1 || error "Docker Engine is not reachable. Start Docker, then rerun Plan A."
+  docker info >/dev/null 2>&1 || error "Docker Engine is not reachable. Start Docker, then rerun platform setup."
   opencode --version >/dev/null
-  success "Plan 0 tools and folders are present"
+  success "Prerequisite tools and folders are present"
 }
 
 install_assets() {
-  log "Installing Plan A OpenCode admin assets..."
+  log "Installing platform assets..."
   validate_asset_source
   decide_install_strategy
 
@@ -331,6 +344,7 @@ install_assets() {
   mkdir -p "$PLATFORM_ROOT/backups"
   mkdir -p "$PLATFORM_ROOT/templates"
   mkdir -p "$PLATFORM_ROOT/docker"
+  mkdir -p "$PLATFORM_ROOT/admin-hermes"
   mkdir -p "$INSTALL_ROOT/tenants"
 
   if [ "$BACKUP_BEFORE_INSTALL" = true ]; then
@@ -342,6 +356,7 @@ install_assets() {
   copy_tree "$ASSET_ROOT/sop" "$PLATFORM_ROOT/sop"
   copy_tree "$ASSET_ROOT/skills" "$PLATFORM_ROOT/skills"
   copy_tree "$ASSET_ROOT/templates" "$PLATFORM_ROOT/templates"
+  copy_tree "$ASSET_ROOT/admin-hermes" "$PLATFORM_ROOT/admin-hermes"
   cp "$ASSET_ROOT/AGENTS.md" "$PLATFORM_ROOT/AGENTS.md"
   cp "$ASSET_ROOT/VERSION" "$PLATFORM_ROOT/VERSION"
   cp "$ASSET_ROOT/docker/Dockerfile" "$PLATFORM_ROOT/docker/Dockerfile"
@@ -363,13 +378,13 @@ EOF
   if [ ! -f "$PLATFORM_ROOT/docker/docker-compose.yaml" ]; then
     cat > "$PLATFORM_ROOT/docker/docker-compose.yaml" <<'EOF'
 # AaaS Platform - Tenant Container Registry
-# Managed by OpenCode admin agent
-# OpenCode adds one service block per tenant under services:
+# Managed by the AaaS admin agent
+# The admin agent adds one service block per tenant under services:
 # Always specify service name when running docker compose commands
 # to avoid affecting ALL tenants unintentionally
 
 services:
-  # Tenant services are added here by OpenCode during onboarding.
+  # Tenant services are added here by the admin agent during onboarding.
 EOF
     success "Created docker-compose.yaml"
   else
@@ -383,13 +398,13 @@ EOF
     warn "reports/INDEX.jsonl already exists - leaving it unchanged"
   fi
 
-  success "Plan A assets installed under $PLATFORM_ROOT"
+  success "Platform assets installed under $PLATFORM_ROOT"
 }
 
 build_image() {
   log "Building Hermes tenant Docker image..."
   require_command docker
-  [ -f "$PLATFORM_ROOT/docker/Dockerfile" ] || error "Missing Dockerfile. Run Plan A install before --build-image."
+  [ -f "$PLATFORM_ROOT/docker/Dockerfile" ] || error "Missing Dockerfile. Run platform setup before --build-image."
   cd "$PLATFORM_ROOT/docker"
   docker pull nousresearch/hermes-agent:latest
   docker build -t hermes-tenant:latest .
@@ -399,13 +414,19 @@ build_image() {
 }
 
 validate_install() {
-  log "Validating Plan A files..."
+  log "Validating platform files..."
 
   local required=(
     "$PLATFORM_ROOT/AGENTS.md"
     "$PLATFORM_ROOT/VERSION"
+    "$PLATFORM_ROOT/admin-hermes/SOUL.md.template"
+    "$PLATFORM_ROOT/admin-hermes/USER.md.template"
+    "$PLATFORM_ROOT/admin-hermes/MEMORY.md.template"
+    "$PLATFORM_ROOT/admin-hermes/config.yaml.template"
+    "$PLATFORM_ROOT/admin-hermes/env.template"
     "$PLATFORM_ROOT/docker/Dockerfile"
     "$PLATFORM_ROOT/skills/grill-me.md"
+    "$PLATFORM_ROOT/skills/setup-admin-hermes.md"
     "$PLATFORM_ROOT/sop/build-image.md"
     "$PLATFORM_ROOT/sop/upgrade-platform.md"
     "$PLATFORM_ROOT/sop/onboard-tenant.md"
@@ -439,6 +460,12 @@ validate_install() {
     || error "Base config template must set memory.provider to mnemosyne"
   grep -q "home_chat_id: \"\"" "$PLATFORM_ROOT/templates/_base/config.yaml.template" \
     || error "Base config template must leave Telegram home_chat_id empty"
+  grep -q "memory_enabled: false" "$PLATFORM_ROOT/admin-hermes/config.yaml.template" \
+    || error "Hermes admin config template must disable native Hermes memory"
+  grep -q "provider: mnemosyne" "$PLATFORM_ROOT/admin-hermes/config.yaml.template" \
+    || error "Hermes admin config template must set memory.provider to mnemosyne"
+  grep -q "MNEMOSYNE_DATA_DIR=/opt/aaas/platform/admin/mnemosyne/data" "$PLATFORM_ROOT/admin-hermes/env.template" \
+    || error "Hermes admin env template must keep Mnemosyne data inside the admin profile"
   grep -q "TELEGRAM_ALLOWED_USERS=" "$PLATFORM_ROOT/templates/_base/env.template" \
     || error "Base env template must document TELEGRAM_ALLOWED_USERS"
   grep -q "MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data" "$PLATFORM_ROOT/templates/_base/env.template" \
@@ -471,12 +498,12 @@ validate_install() {
     || error "Platform upgrade SOP must document preserved files"
   validate_installed_matches_source
 
-  success "Plan A validation passed"
+  success "Platform validation passed"
 }
 
 echo ""
 echo "=============================================="
-echo "  AaaS Platform - Plan A OpenCode Setup"
+echo "  AaaS Platform - Platform Setup"
 echo "=============================================="
 echo ""
 
@@ -499,7 +526,7 @@ fi
 
 echo ""
 echo "=============================================="
-echo -e "  ${GREEN}Plan A OpenCode setup complete${NC}"
+echo -e "  ${GREEN}Platform setup complete${NC}"
 echo "=============================================="
 echo ""
 echo "Installed platform version: $(cat "$PLATFORM_ROOT/VERSION")"

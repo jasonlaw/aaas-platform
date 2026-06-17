@@ -1,4 +1,4 @@
-# Plan 0: Prerequisites & Bootstrap
+# Prerequisites & Bootstrap
 > **AaaS Platform — One-Time Manual Setup**
 > Platform version is tracked in `platform/VERSION`
 > Last Updated: 2026-06-16
@@ -9,7 +9,7 @@
 ## Overview
 
 This is a **one-time manual setup** done inside your Ubuntu/Linux environment.
-Once complete, OpenCode takes over all ongoing operations.
+Once complete, OpenCode takes over all ongoing platform operations.
 
 **Assumptions:**
 - Ubuntu/Linux is already installed and running
@@ -18,7 +18,7 @@ Once complete, OpenCode takes over all ongoing operations.
 
 **Sequence:**
 ```
-Plan 0 (this document)  →  Plan A (OpenCode setup)  →  Plan B (Hermes tenant reference & validation)
+Prerequisites -> Platform setup -> Hermes tenant reference and validation
 ```
 
 ---
@@ -31,7 +31,7 @@ Plan 0 (this document)  →  Plan A (OpenCode setup)  →  Plan B (Hermes tenant
 ✅ SSH key generation (ed25519) for later Git integration
 ✅ Node.js + npm installed via nvm
 ✅ Docker Engine installation
-✅ OpenCode installation
+✅ OpenCode admin agent installation
 ✅ /opt/aaas/ folder structure creation
 ✅ tenants.yaml initialisation
 ✅ docker-compose.yaml initialisation
@@ -51,7 +51,7 @@ Plan 0 (this document)  →  Plan A (OpenCode setup)  →  Plan B (Hermes tenant
 Download and run the setup script from the actual repository in one command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-0.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-prerequisites.sh | bash
 ```
 
 Or if you have the script locally:
@@ -59,8 +59,8 @@ Or if you have the script locally:
 ```bash
 git clone https://github.com/jasonlaw/aaas-platform.git
 cd aaas-platform
-chmod +x scripts/setup-plan-0.sh
-./scripts/setup-plan-0.sh
+chmod +x scripts/setup-prerequisites.sh
+./scripts/setup-prerequisites.sh
 ```
 
 The script is idempotent — safe to run multiple times.
@@ -212,7 +212,7 @@ docker run hello-world
 > `docker --version` only. Run `docker run hello-world` manually to confirm
 > end-to-end functionality.
 
-### Step 6: Install OpenCode
+### Step 6: Install OpenCode Admin Agent
 
 > **nvm must be loaded** (from Step 4) before running this so npm-based
 > installs use the nvm-managed Node.js.
@@ -275,13 +275,13 @@ EOF
 ```bash
 cat > /opt/aaas/platform/docker/docker-compose.yaml << 'EOF'
 # AaaS Platform — Tenant Container Registry
-# Managed by OpenCode admin agent
-# OpenCode adds one service block per tenant under services:
+# Managed by the AaaS admin agent
+# The admin agent adds one service block per tenant under services:
 # Always specify service name when running docker compose commands
 # to avoid affecting ALL tenants unintentionally
 
 services:
-  # Tenant services are added here by OpenCode during onboarding.
+  # Tenant services are added here by the admin agent during onboarding.
 EOF
 ```
 
@@ -301,7 +301,7 @@ find /opt/aaas -type d
 
 ## Validation Checklist
 
-Before proceeding to Plan A:
+Before proceeding to Platform setup:
 
 - [ ] `git --version` returns successfully
 - [ ] Git identity configured (`git config --global user.name` and `user.email`)
@@ -363,7 +363,7 @@ grep -A4 "SSH agent" ~/.bashrc
 
 ## Next Step
 
-Proceed to **Plan A: OpenCode Admin Agent Setup**:
+Proceed to **Platform Setup**:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash

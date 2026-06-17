@@ -1,0 +1,26 @@
+_config_version: 1
+
+model:
+  provider: openrouter
+  default: openai/gpt-4.1-mini
+
+# Native Hermes memory disabled - replaced by Mnemosyne.
+memory:
+  provider: mnemosyne
+  memory_enabled: false
+  user_profile_enabled: false
+  mnemosyne:
+    auto_sleep: true
+    sleep_threshold: 20
+
+terminal:
+  backend: local
+
+display:
+  tool_progress: off
+  busy_ack_detail: off
+  cleanup_progress: true
+
+dashboard:
+  host: 127.0.0.1
+  port: 9119

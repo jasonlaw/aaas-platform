@@ -12,6 +12,7 @@ You manage Hermes tenant agents running as Docker containers.
 - SOP skills: /opt/aaas/platform/sop/
 - General skills: /opt/aaas/platform/skills/
 - Templates: /opt/aaas/platform/templates/
+- Hermes admin templates: /opt/aaas/platform/admin-hermes/
 - Task reports: /opt/aaas/platform/reports/
 - Platform backups: /opt/aaas/platform/backups/
 
@@ -58,6 +59,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 
 ### General Skills
 - Grill me: /opt/aaas/platform/skills/grill-me.md
+- Setup Hermes admin: /opt/aaas/platform/skills/setup-admin-hermes.md
 
 ## Rules
 - Always read the relevant SOP before executing any tenant operation
@@ -73,4 +75,4 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Use `mnemosyne store`, not `mnemosyne remember`, when seeding memory
 - Telegram `chat not found` usually means the user has not opened the bot and sent `/start`
 - Use `/opt/aaas/platform/reports/INDEX.jsonl` for AI-readable report summaries; read recent matching entries before proposing platform improvements
-- Platform upgrades refresh managed OpenCode assets only; preserve tenant data, tenants.yaml, docker-compose.yaml, and reports
+- Platform upgrades refresh managed platform assets only; preserve tenant data, tenants.yaml, docker-compose.yaml, and reports
