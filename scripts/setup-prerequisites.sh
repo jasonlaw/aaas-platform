@@ -234,6 +234,32 @@ docker --version || error "Docker installation failed"
 success "Docker Engine ready"
 
 # ------------------------------------------------------------------------------
+# Step 5.5: Configure iptables to legacy mode (required for Docker bridge networking)
+# ------------------------------------------------------------------------------
+log "Step 5.5: Configuring iptables to legacy mode..."
+
+CURRENT_IPTABLES=$(iptables --version 2>/dev/null | head -1)
+if echo "$CURRENT_IPTABLES" | grep -q "nf_tables"; then
+  log "Current iptables backend is nftables (incompatible with Docker 29.x)"
+  log "Switching to iptables-legacy..."
+  
+  sudo update-alternatives --set iptables /usr/sbin/iptables-legacy > /dev/null 2>&1 || true
+  sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy > /dev/null 2>&1 || true
+  
+  # Restart Docker to apply the new iptables mode
+  sudo systemctl restart docker
+  sleep 2  # Give Docker daemon time to restart
+  
+  success "iptables switched to legacy mode and Docker restarted"
+else
+  warn "iptables backend is already legacy or compatible — no changes needed"
+fi
+
+# Verify iptables version
+IPTABLES_VERSION=$(iptables --version)
+success "iptables ready: $IPTABLES_VERSION"
+
+# ------------------------------------------------------------------------------
 # Step 6: Install OpenCode admin agent
 # nvm is loaded above, so npm-based installs use the nvm-managed Node.js.
 # ------------------------------------------------------------------------------

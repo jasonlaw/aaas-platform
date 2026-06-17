@@ -70,6 +70,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Never share one tenant's data with another
 - Never delete tenant data without explicit typed confirmation
 - Never run `docker compose up -d` without specifying the service name
+- **iptables must be in legacy mode — this system uses Docker 29.x which has a critical bug with iptables-nftables where bridge networks lose forwarding rules after daemon restart, causing complete network isolation for containers. Verify with `iptables --version` (must show `legacy`). If not set during bootstrap, switch with `sudo update-alternatives --set iptables /usr/sbin/iptables-legacy && sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy && sudo systemctl restart docker`**
 - Onboarding tenant volumes must be owned by UID `10000` before container startup
 - Use `HERMES_HOME=/opt/data mnemosyne-hermes install`; do not use a `--hermes-home` flag
 - Use `mnemosyne store`, not `mnemosyne remember`, when seeding memory

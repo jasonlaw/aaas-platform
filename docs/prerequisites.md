@@ -103,7 +103,37 @@ git config --global user.email "you@yourdomain.com"
 > The script sets placeholder values (`you@example.com` / `AaaS Operator`) if
 > no git identity is configured, and warns you to update them afterward.
 
-### Step 3: Generate SSH key for Git
+### Step 3: Configure iptables to legacy mode
+
+**CRITICAL:** Docker 29.x requires iptables in legacy mode for reliable bridge networking.
+If your system uses `iptables-nft` (nftables backend), Docker may fail to create forwarding rules
+for container networks, causing complete network isolation after daemon restart.
+
+Check your current iptables backend:
+
+```bash
+iptables --version
+```
+
+If the output contains `nf_tables`, switch to legacy mode:
+
+```bash
+sudo update-alternatives --set iptables /usr/sbin/iptables-legacy
+sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy
+sudo systemctl restart docker
+```
+
+Verify the change took effect:
+
+```bash
+iptables --version  # Should show "legacy"
+```
+
+> **Why this matters:** Docker 29.5.3 has a bug where nftables table cleanup fails on daemon
+> restart, leaving the internal state inconsistent. Docker then fails to populate iptables forwarding
+> rules for newly-created bridge networks, resulting in containers having zero outbound connectivity.
+
+### Step 4: Generate SSH key for Git
 
 ```bash
 ssh-keygen -t ed25519 -C "aaas-platform-$(hostname)" -f ~/.ssh/id_ed25519 -N ""
@@ -132,7 +162,7 @@ Copy the output and add it to:
 - **GitHub**: Settings → SSH and GPG keys → New SSH key
 - **GitLab**: Preferences → SSH Keys → Add new key
 
-### Step 4: Install Node.js via nvm
+### Step 5: Install Node.js via nvm
 
 > **Important:** Do NOT use `apt install nodejs` — the apt version is
 > often outdated. Use nvm to get a current LTS release.
