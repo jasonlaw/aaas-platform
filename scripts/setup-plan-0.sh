@@ -1,7 +1,6 @@
 #!/bin/bash
 # =============================================================================
 # AaaS Platform — Bootstrap Setup Script
-# Version: 1.0
 # Run this once inside your Ubuntu/Linux terminal
 # Assumptions: Ubuntu/Linux host is already running
 # =============================================================================
@@ -227,6 +226,9 @@ success "OpenCode ready: $OPENCODE_PATH"
 log "Step 7: Creating platform folder structure..."
 
 sudo mkdir -p /opt/aaas/platform/sop
+sudo mkdir -p /opt/aaas/platform/skills
+sudo mkdir -p /opt/aaas/platform/reports
+sudo mkdir -p /opt/aaas/platform/backups
 sudo mkdir -p /opt/aaas/platform/templates/_base
 sudo mkdir -p /opt/aaas/platform/templates/verticals/fnb
 sudo mkdir -p /opt/aaas/platform/templates/verticals/retail
@@ -234,6 +236,10 @@ sudo mkdir -p /opt/aaas/platform/templates/verticals/services
 sudo mkdir -p /opt/aaas/platform/docker
 sudo mkdir -p /opt/aaas/tenants
 sudo chown -R "$USER":"$USER" /opt/aaas
+
+if [ ! -f /opt/aaas/platform/reports/INDEX.jsonl ]; then
+  touch /opt/aaas/platform/reports/INDEX.jsonl
+fi
 
 success "Folder structure created at /opt/aaas/"
 
@@ -328,9 +334,9 @@ echo ""
 echo "  3. Run 'source ~/.bashrc' or open a new terminal"
 echo "     to activate nvm, Docker auto-start, and SSH agent."
 echo ""
-echo "  4. Proceed to Plan A — OpenCode Admin Agent Setup"
-echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-a.sh | bash"
+echo "  4. Proceed with the main setup entrypoint"
+echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash"
 echo ""
-echo "     Or install Plan A and build the Hermes tenant image immediately:"
-echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-a.sh | bash -s -- --build-image"
+echo "     Or force a Hermes tenant image build:"
+echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash -s -- --build-image"
 echo ""

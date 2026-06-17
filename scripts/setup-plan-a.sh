@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # AaaS Platform - Plan A OpenCode Admin Agent Setup
-# Version: 1.0
+# Platform version is read from platform/VERSION.
 # Run after scripts/setup-plan-0.sh / Plan 0 has completed inside Ubuntu/Linux.
 # =============================================================================
 
@@ -28,10 +28,14 @@ ASSET_ROOT=""
 TMP_ASSET_DIR=""
 BUILD_IMAGE=false
 VALIDATE_ONLY=false
+BACKUP_BEFORE_INSTALL=true
 
 usage() {
   cat <<EOF
 Usage: $0 [options]
+
+Installs or upgrades managed OpenCode platform assets while preserving tenant
+data, tenants.yaml, docker-compose.yaml, reports, and report index history.
 
 Options:
   --build-image     Build and tag hermes-tenant:latest after installing files.
@@ -62,11 +66,122 @@ copy_tree() {
   cp -a "$source"/. "$target"/
 }
 
+read_version() {
+  local path="$1"
+  [ -f "$path" ] || return 1
+  tr -d '[:space:]' < "$path"
+}
+
+version_compare() {
+  local left="$1"
+  local right="$2"
+
+  if [ "$left" = "$right" ]; then
+    echo "equal"
+  elif [ "$(printf '%s\n%s\n' "$left" "$right" | sort -V | head -n 1)" = "$left" ]; then
+    echo "older"
+  else
+    echo "newer"
+  fi
+}
+
+prompt_confirm_install() {
+  local installed_version="$1"
+  local source_version="$2"
+  local answer=""
+
+  if [ "$installed_version" = "$source_version" ]; then
+    warn "Installed platform version already matches repository version: $installed_version"
+    warn "Rerunning setup will overwrite managed assets with the same version."
+  else
+    warn "Installed platform version is $installed_version; repository version is $source_version"
+    warn "Continuing will overwrite managed assets with the repository version."
+  fi
+  echo ""
+  echo "Choose how to continue:"
+  echo "  1. Continue with backup"
+  echo "  2. Continue without backup"
+  echo "  3. Cancel"
+  echo ""
+
+  if [ -r /dev/tty ]; then
+    while true; do
+      printf "Selection [1-3]: " > /dev/tty
+      IFS= read -r answer < /dev/tty || answer=""
+      case "$answer" in
+        1)
+          BACKUP_BEFORE_INSTALL=true
+          log "Continuing with backup for version $source_version"
+          return
+          ;;
+        2)
+          BACKUP_BEFORE_INSTALL=false
+          warn "Continuing without backup for version $source_version"
+          return
+          ;;
+        3)
+          error "Cancelled by operator"
+          ;;
+        *)
+          warn "Enter 1, 2, or 3."
+          ;;
+      esac
+    done
+  fi
+
+  error "Platform version confirmation is required, but no interactive terminal is available."
+}
+
+decide_install_strategy() {
+  local installed_version=""
+  local source_version=""
+  local comparison=""
+
+  source_version="$(read_version "$ASSET_ROOT/VERSION")" \
+    || error "Repository asset missing: $ASSET_ROOT/VERSION"
+
+  if ! grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' "$ASSET_ROOT/VERSION"; then
+    error "Repository VERSION must contain a semantic version like 0.1.0"
+  fi
+
+  if ! installed_version="$(read_version "$PLATFORM_ROOT/VERSION")"; then
+    warn "Installed platform VERSION is missing - installing repository version $source_version"
+    BACKUP_BEFORE_INSTALL=false
+    return
+  fi
+
+  if ! grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' "$PLATFORM_ROOT/VERSION"; then
+    warn "Installed platform VERSION is invalid: $installed_version"
+    warn "Proceeding with backup before installing repository version $source_version"
+    BACKUP_BEFORE_INSTALL=true
+    return
+  fi
+
+  comparison="$(version_compare "$installed_version" "$source_version")"
+  case "$comparison" in
+    older)
+      log "Installed platform version $installed_version is older than repository version $source_version"
+      BACKUP_BEFORE_INSTALL=true
+      ;;
+    equal)
+      prompt_confirm_install "$installed_version" "$source_version"
+      ;;
+    newer)
+      warn "Installed platform version $installed_version is newer than repository version $source_version"
+      warn "This may downgrade managed platform assets."
+      prompt_confirm_install "$installed_version" "$source_version"
+      ;;
+  esac
+}
+
 validate_asset_source() {
   local required=(
     "$ASSET_ROOT/AGENTS.md"
+    "$ASSET_ROOT/VERSION"
     "$ASSET_ROOT/docker/Dockerfile"
+    "$ASSET_ROOT/skills/grill-me.md"
     "$ASSET_ROOT/sop/build-image.md"
+    "$ASSET_ROOT/sop/upgrade-platform.md"
     "$ASSET_ROOT/sop/onboard-tenant.md"
     "$ASSET_ROOT/sop/suspend-tenant.md"
     "$ASSET_ROOT/sop/reactivate-tenant.md"
@@ -75,6 +190,7 @@ validate_asset_source() {
     "$ASSET_ROOT/sop/upgrade-tenants.md"
     "$ASSET_ROOT/sop/monitor-health.md"
     "$ASSET_ROOT/sop/monitor-logs.md"
+    "$ASSET_ROOT/sop/write-report.md"
     "$ASSET_ROOT/templates/_base/config.yaml.template"
     "$ASSET_ROOT/templates/_base/env.template"
     "$ASSET_ROOT/templates/_base/SOUL.md.template"
@@ -94,8 +210,11 @@ validate_installed_matches_source() {
 
   local relative_paths=(
     "AGENTS.md"
+    "VERSION"
     "docker/Dockerfile"
+    "skills/grill-me.md"
     "sop/build-image.md"
+    "sop/upgrade-platform.md"
     "sop/onboard-tenant.md"
     "sop/suspend-tenant.md"
     "sop/reactivate-tenant.md"
@@ -104,6 +223,7 @@ validate_installed_matches_source() {
     "sop/upgrade-tenants.md"
     "sop/monitor-health.md"
     "sop/monitor-logs.md"
+    "sop/write-report.md"
     "templates/_base/config.yaml.template"
     "templates/_base/env.template"
     "templates/_base/SOUL.md.template"
@@ -117,6 +237,43 @@ validate_installed_matches_source() {
     cmp -s "$ASSET_ROOT/$relative_path" "$PLATFORM_ROOT/$relative_path" \
       || error "Installed asset differs from repository asset: $relative_path"
   done
+}
+
+backup_managed_assets() {
+  local existing=false
+  local timestamp=""
+  local backup_dir=""
+  local relative_path=""
+  local paths=(
+    "AGENTS.md"
+    "VERSION"
+    "docker/Dockerfile"
+    "sop"
+    "skills"
+    "templates"
+  )
+
+  for relative_path in "${paths[@]}"; do
+    if [ -e "$PLATFORM_ROOT/$relative_path" ]; then
+      existing=true
+      break
+    fi
+  done
+
+  [ "$existing" = true ] || return
+
+  timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  backup_dir="$PLATFORM_ROOT/backups/platform-assets-$timestamp"
+  mkdir -p "$backup_dir"
+
+  for relative_path in "${paths[@]}"; do
+    if [ -e "$PLATFORM_ROOT/$relative_path" ]; then
+      mkdir -p "$backup_dir/$(dirname "$relative_path")"
+      cp -a "$PLATFORM_ROOT/$relative_path" "$backup_dir/$relative_path"
+    fi
+  done
+
+  success "Backed up existing managed platform assets to $backup_dir"
 }
 
 cleanup() {
@@ -166,15 +323,27 @@ ensure_plan0_ready() {
 install_assets() {
   log "Installing Plan A OpenCode admin assets..."
   validate_asset_source
+  decide_install_strategy
 
   mkdir -p "$PLATFORM_ROOT/sop"
+  mkdir -p "$PLATFORM_ROOT/skills"
+  mkdir -p "$PLATFORM_ROOT/reports"
+  mkdir -p "$PLATFORM_ROOT/backups"
   mkdir -p "$PLATFORM_ROOT/templates"
   mkdir -p "$PLATFORM_ROOT/docker"
   mkdir -p "$INSTALL_ROOT/tenants"
 
+  if [ "$BACKUP_BEFORE_INSTALL" = true ]; then
+    backup_managed_assets
+  else
+    warn "Skipping managed asset backup for this install"
+  fi
+
   copy_tree "$ASSET_ROOT/sop" "$PLATFORM_ROOT/sop"
+  copy_tree "$ASSET_ROOT/skills" "$PLATFORM_ROOT/skills"
   copy_tree "$ASSET_ROOT/templates" "$PLATFORM_ROOT/templates"
   cp "$ASSET_ROOT/AGENTS.md" "$PLATFORM_ROOT/AGENTS.md"
+  cp "$ASSET_ROOT/VERSION" "$PLATFORM_ROOT/VERSION"
   cp "$ASSET_ROOT/docker/Dockerfile" "$PLATFORM_ROOT/docker/Dockerfile"
 
   if [ ! -f "$PLATFORM_ROOT/tenants.yaml" ]; then
@@ -207,6 +376,13 @@ EOF
     warn "docker-compose.yaml already exists - leaving it unchanged"
   fi
 
+  if [ ! -f "$PLATFORM_ROOT/reports/INDEX.jsonl" ]; then
+    touch "$PLATFORM_ROOT/reports/INDEX.jsonl"
+    success "Created reports/INDEX.jsonl"
+  else
+    warn "reports/INDEX.jsonl already exists - leaving it unchanged"
+  fi
+
   success "Plan A assets installed under $PLATFORM_ROOT"
 }
 
@@ -227,8 +403,11 @@ validate_install() {
 
   local required=(
     "$PLATFORM_ROOT/AGENTS.md"
+    "$PLATFORM_ROOT/VERSION"
     "$PLATFORM_ROOT/docker/Dockerfile"
+    "$PLATFORM_ROOT/skills/grill-me.md"
     "$PLATFORM_ROOT/sop/build-image.md"
+    "$PLATFORM_ROOT/sop/upgrade-platform.md"
     "$PLATFORM_ROOT/sop/onboard-tenant.md"
     "$PLATFORM_ROOT/sop/suspend-tenant.md"
     "$PLATFORM_ROOT/sop/reactivate-tenant.md"
@@ -237,6 +416,7 @@ validate_install() {
     "$PLATFORM_ROOT/sop/upgrade-tenants.md"
     "$PLATFORM_ROOT/sop/monitor-health.md"
     "$PLATFORM_ROOT/sop/monitor-logs.md"
+    "$PLATFORM_ROOT/sop/write-report.md"
     "$PLATFORM_ROOT/templates/_base/config.yaml.template"
     "$PLATFORM_ROOT/templates/_base/env.template"
     "$PLATFORM_ROOT/templates/_base/SOUL.md.template"
@@ -246,6 +426,7 @@ validate_install() {
     "$PLATFORM_ROOT/templates/verticals/fnb/USER.md.template"
     "$PLATFORM_ROOT/tenants.yaml"
     "$PLATFORM_ROOT/docker/docker-compose.yaml"
+    "$PLATFORM_ROOT/reports/INDEX.jsonl"
   )
 
   for path in "${required[@]}"; do
@@ -272,6 +453,22 @@ validate_install() {
     || error "docker-compose.yaml must contain a top-level services mapping"
   grep -q "docker compose up -d {service-name}" "$PLATFORM_ROOT/AGENTS.md" \
     || error "AGENTS.md must include the service-specific docker compose safety rule"
+  grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' "$PLATFORM_ROOT/VERSION" \
+    || error "VERSION must contain a semantic version like 0.1.0"
+  grep -q "sudo chown -R 10000:10000" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
+    || error "Onboarding SOP must set tenant volume ownership for Hermes UID 10000"
+  grep -q "HERMES_HOME=/opt/data" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
+    || error "Onboarding SOP must install mnemosyne-hermes via HERMES_HOME env var"
+  grep -q "mnemosyne store" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
+    || error "Onboarding SOP must seed Mnemosyne with the store command"
+  grep -q "chat not found" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
+    || error "Onboarding SOP must document Telegram chat-not-found handling"
+  grep -q "Always write a task report" "$PLATFORM_ROOT/AGENTS.md" \
+    || error "AGENTS.md must require task reports after SOP execution"
+  grep -q "INDEX.jsonl" "$PLATFORM_ROOT/sop/write-report.md" \
+    || error "Report SOP must document AI-readable INDEX.jsonl"
+  grep -q "What This Must Preserve" "$PLATFORM_ROOT/sop/upgrade-platform.md" \
+    || error "Platform upgrade SOP must document preserved files"
   validate_installed_matches_source
 
   success "Plan A validation passed"
@@ -305,10 +502,12 @@ echo "=============================================="
 echo -e "  ${GREEN}Plan A OpenCode setup complete${NC}"
 echo "=============================================="
 echo ""
+echo "Installed platform version: $(cat "$PLATFORM_ROOT/VERSION")"
+echo ""
 echo "Next steps:"
 echo "  1. cd /opt/aaas/platform"
 echo "  2. opencode"
 echo "  3. Ask: what skills do you have available?"
 echo "  4. When ready, build the image with:"
-echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-a.sh | bash -s -- --build-image"
+echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash -s -- --build-image"
 echo ""

@@ -1,6 +1,6 @@
 # Plan 0: Prerequisites & Bootstrap
 > **AaaS Platform — One-Time Manual Setup**
-> Version: 1.0
+> Platform version is tracked in `platform/VERSION`
 > Last Updated: 2026-06-16
 > Status: Living document — improve as you learn
 
@@ -366,5 +366,5 @@ grep -A4 "SSH agent" ~/.bashrc
 Proceed to **Plan A: OpenCode Admin Agent Setup**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-a.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash
 ```

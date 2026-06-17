@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # AaaS Platform - Full Setup Script
-# Version: 1.0
-# Run once inside Ubuntu/Linux. This combines Plan 0 prerequisites and Plan A
-# OpenCode platform setup, then always builds the Hermes tenant Docker image.
+# Single entrypoint for fresh installs and platform setup upgrades.
 # =============================================================================
 
 set -euo pipefail
@@ -30,20 +28,30 @@ usage() {
 Usage: $0 [options]
 
 Options:
-  --skip-plan-0     Skip prerequisite bootstrap and run only platform install.
+  --fresh           Force fresh install mode; fail if /opt/aaas/platform exists.
+  --upgrade         Force upgrade mode; fail if /opt/aaas/platform is missing.
+  --build-image     Build and tag hermes-tenant:latest after platform setup.
   --validate-only   Validate installed platform files without copying assets.
   -h, --help        Show this help.
 
-This installer always builds hermes-tenant:latest after setup.
+Without --fresh or --upgrade, the installer auto-detects:
+  - Fresh mode when /opt/aaas/platform is missing.
+  - Upgrade mode when /opt/aaas/platform exists.
+
+Fresh mode runs Plan 0 and builds hermes-tenant:latest by default.
+Upgrade mode refreshes managed platform assets and skips image build by default.
 EOF
 }
 
-SKIP_PLAN_0=false
+MODE="auto"
+BUILD_IMAGE=false
 VALIDATE_ONLY=false
 
 while [ "${1:-}" != "" ]; do
   case "$1" in
-    --skip-plan-0) SKIP_PLAN_0=true ;;
+    --fresh) MODE="fresh" ;;
+    --upgrade) MODE="upgrade" ;;
+    --build-image) BUILD_IMAGE=true ;;
     --validate-only) VALIDATE_ONLY=true ;;
     -h|--help) usage; exit 0 ;;
     *) error "Unknown option: $1" ;;
@@ -96,25 +104,62 @@ echo ""
 
 resolve_repo_root
 
-if [ "$SKIP_PLAN_0" = false ]; then
+if [ "$MODE" = "auto" ]; then
+  if [ -d /opt/aaas/platform ]; then
+    MODE="upgrade"
+  else
+    MODE="fresh"
+  fi
+fi
+
+if [ "$MODE" = "fresh" ] && [ -d /opt/aaas/platform ] && [ "$VALIDATE_ONLY" = false ]; then
+  error "/opt/aaas/platform already exists. Use --upgrade or omit mode for auto-detection."
+fi
+
+if [ "$MODE" = "upgrade" ] && [ ! -d /opt/aaas/platform ]; then
+  error "/opt/aaas/platform is missing. Use --fresh or omit mode for auto-detection."
+fi
+
+if [ "$VALIDATE_ONLY" = true ]; then
+  log "Validate-only mode selected"
+elif [ "$MODE" = "fresh" ]; then
   log "Running Plan 0 prerequisite bootstrap..."
   bash "$REPO_ROOT/scripts/setup-plan-0.sh"
 else
-  warn "Skipping Plan 0 prerequisite bootstrap"
+  log "Existing platform detected; running platform upgrade without Plan 0 bootstrap"
 fi
 
-PLAN_A_ARGS=(--build-image)
+PLAN_A_ARGS=()
 if [ "$VALIDATE_ONLY" = true ]; then
   PLAN_A_ARGS+=(--validate-only)
 fi
 
-log "Running Plan A OpenCode setup and Docker image build..."
+if [ "$MODE" = "fresh" ] && [ "$VALIDATE_ONLY" = false ]; then
+  BUILD_IMAGE=true
+fi
+
+if [ "$BUILD_IMAGE" = true ] && [ "$VALIDATE_ONLY" = false ]; then
+  PLAN_A_ARGS+=(--build-image)
+fi
+
+if [ "$MODE" = "upgrade" ]; then
+  log "Running Plan A OpenCode platform upgrade..."
+else
+  log "Running Plan A OpenCode platform setup..."
+fi
 bash "$REPO_ROOT/scripts/setup-plan-a.sh" "${PLAN_A_ARGS[@]}"
 
 echo ""
 echo "=============================================="
 echo -e "  ${GREEN}AaaS Platform full setup complete${NC}"
 echo "=============================================="
+echo ""
+echo "Mode: $MODE"
+if [ "$BUILD_IMAGE" = true ] && [ "$VALIDATE_ONLY" = false ]; then
+  echo "Docker image build: completed"
+else
+  echo "Docker image build: skipped"
+fi
 echo ""
 echo "Next steps:"
 echo "  1. Open the platform path before starting OpenCode:"

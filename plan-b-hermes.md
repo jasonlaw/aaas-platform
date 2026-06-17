@@ -1,6 +1,6 @@
 # Plan B: Hermes Tenant Agent Reference & Validation
 > **AaaS Platform — Tenant Agent Reference & Validation Plan**
-> Version: 1.0 (POC)
+> Platform version is tracked in `platform/VERSION`
 > Last Updated: 2026-06-15
 > Status: Living document — improve as you learn
 

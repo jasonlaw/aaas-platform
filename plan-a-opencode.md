@@ -1,6 +1,6 @@
 # Plan A: OpenCode Admin Agent Setup
 > **AaaS Platform — Admin Agent Implementation Plan**
-> Version: 1.0 (POC)
+> Platform version is tracked in `platform/VERSION`
 > Last Updated: 2026-06-15
 > Status: Living document — improve as you learn
 
@@ -29,31 +29,35 @@ health, and handling suspend/reactivate/offboard operations via structured SOP s
 
 ## Quick Setup
 
-Plan A is automated by a one-line installer. Run this from inside Ubuntu/Linux
-after Plan 0 has completed:
+The public setup entrypoint is `scripts/setup.sh`. It auto-detects fresh install
+versus platform upgrade:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-a.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash
 ```
 
-To install the Plan A files and build the Hermes tenant image in one run:
+To force a Hermes tenant image build during setup or upgrade:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup-plan-a.sh | bash -s -- --build-image
+curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash -s -- --build-image
 ```
 
 If you already cloned the repository, you can also run the local script:
 
 ```bash
 git pull
-./scripts/setup-plan-a.sh --build-image
+./scripts/setup.sh
 ```
 
-The script installs the versioned files from this repository into
-`/opt/aaas/platform/`. When run through `curl`, it downloads the repository
+The setup script installs or upgrades the versioned files from this repository
+into `/opt/aaas/platform/`. When run through `curl`, it downloads the repository
 archive to a temporary folder first, then installs the same versioned assets. It
-validates the required SOPs/templates and leaves existing `tenants.yaml` and
-`docker-compose.yaml` untouched if they already exist.
+validates the required SOPs/templates and leaves existing `tenants.yaml`,
+`docker-compose.yaml`, tenant data, and reports untouched if they already exist.
+
+Manually bump `platform/VERSION` when the OpenCode platform behavior changes,
+especially when SOPs, templates, skills, setup validation, or AGENTS.md rules
+change. Do not use the script header comments as version markers.
 
 ---
 
@@ -64,8 +68,11 @@ validates the required SOPs/templates and leaves existing `tenants.yaml` and
 ├── platform/
 │   ├── AGENTS.md                        # OpenCode skill index
 │   ├── tenants.yaml                     # Business metadata (no secrets)
+│   ├── VERSION                          # Installed OpenCode platform version
+│   ├── backups/                         # Managed asset backups before upgrades
 │   ├── sop/                             # SOP skill files
 │   │   ├── build-image.md
+│   │   ├── upgrade-platform.md
 │   │   ├── onboard-tenant.md
 │   │   ├── suspend-tenant.md
 │   │   ├── reactivate-tenant.md
@@ -73,7 +80,10 @@ validates the required SOPs/templates and leaves existing `tenants.yaml` and
 │   │   ├── update-tenant.md
 │   │   ├── upgrade-tenants.md
 │   │   ├── monitor-health.md
-│   │   └── monitor-logs.md
+│   │   ├── monitor-logs.md
+│   │   └── write-report.md
+│   ├── reports/
+│   │   └── INDEX.jsonl                  # AI-readable task report summaries
 │   ├── templates/
 │   │   ├── _base/                       # Universal defaults
 │   │   │   ├── config.yaml.template
@@ -317,11 +327,15 @@ You manage Hermes tenant agents running as Docker containers.
 
 ## Platform Structure
 - Tenant registry:    /opt/aaas/platform/tenants.yaml
+- Platform version:   /opt/aaas/platform/VERSION
 - Tenant configs:     /opt/aaas/tenants/{tenant-id}/
 - Docker image:       hermes-tenant:latest
 - Docker Compose:     /opt/aaas/platform/docker/docker-compose.yaml
 - SOP skills:         /opt/aaas/platform/sop/
+- General skills:     /opt/aaas/platform/skills/
 - Templates:          /opt/aaas/platform/templates/
+- Task reports:       /opt/aaas/platform/reports/
+- Platform backups:   /opt/aaas/platform/backups/
 
 ## Docker Conventions
 - One service per tenant in docker-compose.yaml
@@ -351,7 +365,9 @@ You manage Hermes tenant agents running as Docker containers.
 ## Available Skills
 Always read the relevant SOP before executing ANY tenant operation.
 
+### SOP Skills
 - Build image:      /opt/aaas/platform/sop/build-image.md
+- Upgrade platform: /opt/aaas/platform/sop/upgrade-platform.md
 - Upgrade tenants:  /opt/aaas/platform/sop/upgrade-tenants.md
 - Onboard:          /opt/aaas/platform/sop/onboard-tenant.md
 - Suspend:          /opt/aaas/platform/sop/suspend-tenant.md
@@ -360,14 +376,26 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Update config:    /opt/aaas/platform/sop/update-tenant.md
 - Health check:     /opt/aaas/platform/sop/monitor-health.md
 - Log review:       /opt/aaas/platform/sop/monitor-logs.md
+- Write report:     /opt/aaas/platform/sop/write-report.md
+
+### General Skills
+- Grill me:         /opt/aaas/platform/skills/grill-me.md
 
 ## Rules
 - Always read the relevant SOP before executing any tenant operation
+- For platform setup upgrades, read `/opt/aaas/platform/sop/upgrade-platform.md`
+- Always write a task report with `/opt/aaas/platform/sop/write-report.md` before declaring any SOP task complete
 - Always confirm with operator before destructive actions
 - Always update tenants.yaml AND docker-compose.yaml after every operation
 - Never share one tenant's data with another
 - Never delete tenant data without explicit typed confirmation
 - Never run `docker compose up -d` without specifying the service name
+- Onboarding tenant volumes must be owned by UID `10000` before container startup
+- Use `HERMES_HOME=/opt/data mnemosyne-hermes install`; do not use a `--hermes-home` flag
+- Use `mnemosyne store`, not `mnemosyne remember`, when seeding memory
+- Telegram `chat not found` usually means the user has not opened the bot and sent `/start`
+- Use `/opt/aaas/platform/reports/INDEX.jsonl` for AI-readable report summaries; read recent matching entries before proposing platform improvements
+- Platform upgrades refresh managed OpenCode assets only; preserve tenant data, tenants.yaml, docker-compose.yaml, and reports
 ```
 
 ---
@@ -375,7 +403,13 @@ Always read the relevant SOP before executing ANY tenant operation.
 ## Phase 4: SOP Skill Files
 
 The automation script copies the repository SOP files from `platform/sop/` to
-`/opt/aaas/platform/sop/`.
+`/opt/aaas/platform/sop/`, and general skill files from `platform/skills/` to
+`/opt/aaas/platform/skills/`.
+
+When rerun on an existing install, the automation script treats this as a
+platform setup upgrade: it backs up managed assets under
+`/opt/aaas/platform/backups/`, refreshes SOPs/templates/skills/AGENTS.md, and
+preserves tenant data, `tenants.yaml`, `docker-compose.yaml`, and reports.
 
 ### 4.1 build-image.md
 
@@ -416,7 +450,16 @@ Base image (nousresearch/hermes-agent) is maintained by Nous Research.
 - fastembed download is large (~500MB) on first build — normal
 ```
 
-### 4.2 onboard-tenant.md
+### 4.2 upgrade-platform.md
+
+Create `/opt/aaas/platform/sop/upgrade-platform.md`.
+
+This SOP upgrades an old OpenCode platform setup by rerunning the latest Plan A
+installer, validating the result, preserving tenant state, and writing an
+`upgrade-platform` task report. It must not rebuild tenant images or restart
+tenant containers unless the operator explicitly requests that as separate work.
+
+### 4.3 onboard-tenant.md
 
 Create `/opt/aaas/platform/sop/onboard-tenant.md`:
 
@@ -463,6 +506,11 @@ Ask operator one question at a time:
 
 Show full confirmation summary. Ask: "Proceed with onboarding? (y/n)"
 
+If a public social page blocks unauthenticated access, do not stall onboarding.
+Use web search, public review/blog pages, Instagram bios, Google Business
+snippets, or operator-provided notes as alternate brand sources. Report which
+sources were used in the completion summary.
+
 ## Step 2: Generate tenant ID
 
 Convert business name to lowercase slug:
@@ -502,7 +550,19 @@ Verify:
 - No secrets in config.yaml
 - home_chat_id remains empty; allowed users are controlled by TELEGRAM_ALLOWED_USERS in .env
 
-## Step 5: Add tenant service to docker-compose.yaml
+## Step 5: Set tenant volume ownership
+
+The tenant container runs as the `hermes` user with UID `10000`. Set ownership
+before starting the container so `/opt/data/logs`, Mnemosyne data, and generated
+files are writable:
+
+```bash
+sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/
+```
+
+After this point, host-side file inspection may require `sudo cat`.
+
+## Step 6: Add tenant service to docker-compose.yaml
 
 Update /opt/aaas/platform/docker/docker-compose.yaml structurally under the top-level `services:` mapping.
 If the file only contains the empty placeholder, replace it with a valid services mapping:
@@ -520,17 +580,17 @@ If the file only contains the empty placeholder, replace it with a valid service
     mem_limit: 1g
     cpus: "1.0"
 
-## Step 6: Start tenant container
+## Step 7: Start tenant container
 
 cd /opt/aaas/platform/docker
 docker compose up -d hermes_{tenant-id}
 
-## Step 7: Verify container is running
+## Step 8: Verify container is running
 
 docker ps | grep hermes_{tenant-id}
 docker logs hermes_{tenant-id} --tail 20
 
-## Step 8: Activate and seed Mnemosyne
+## Step 9: Activate and seed Mnemosyne
 
 Wait 10 seconds for container to fully initialise:
 sleep 10
@@ -538,7 +598,7 @@ sleep 10
 Install the Mnemosyne Hermes plugin link into the tenant's `/opt/data` volume,
 then activate the provider:
 ```bash
-docker exec hermes_{tenant-id} mnemosyne-hermes install --hermes-home /opt/data
+docker exec -e HERMES_HOME=/opt/data hermes_{tenant-id} mnemosyne-hermes install
 docker exec hermes_{tenant-id} hermes config set memory.provider mnemosyne
 docker exec hermes_{tenant-id} hermes memory setup
 docker compose restart hermes_{tenant-id}
@@ -547,8 +607,9 @@ docker compose restart hermes_{tenant-id}
 Seed brand and owner context through the active Mnemosyne provider. Prefer the
 installed version's Mnemosyne CLI and verify immediately afterward:
 ```bash
-docker exec hermes_{tenant-id} mnemosyne remember "$(cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)"
-docker exec hermes_{tenant-id} mnemosyne remember "$(cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)"
+docker exec hermes_{tenant-id} mnemosyne --help
+docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8
+docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8
 docker exec hermes_{tenant-id} hermes memory status
 docker exec hermes_{tenant-id} hermes mnemosyne stats
 docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"
@@ -557,7 +618,7 @@ docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"
 If `hermes mnemosyne` is unavailable in the installed version, use the fallback
 command name shown by Mnemosyne's integration docs, `hermes hermes-mnemosyne`.
 
-## Step 9: Update tenants.yaml
+## Step 10: Update tenants.yaml
 
 Add entry to /opt/aaas/platform/tenants.yaml:
   - id: {tenant-id}
@@ -571,11 +632,12 @@ Add entry to /opt/aaas/platform/tenants.yaml:
     created: {today's date}
     last_updated: {today's date}
 
-## Step 10: Send welcome message
+## Step 11: Send welcome message
 
 Send via the tenant's Telegram bot to every numeric user ID in `TELEGRAM_ALLOWED_USERS`.
 Telegram only allows a bot to message users who have already opened the bot and
-sent `/start`; report `403 Forbidden` results as "user must start the bot first".
+sent `/start`; report `400 Bad Request: chat not found` and `403 Forbidden`
+results as "user must start the bot first".
 
 "👋 Hello! I'm your AI marketing assistant for {Business Name}.
 
@@ -602,7 +664,7 @@ for user_id in "${USER_IDS[@]}"; do
 done
 ```
 
-## Step 11: Confirm completion
+## Step 12: Confirm completion
 
 Report to operator:
 - Tenant ID
@@ -610,9 +672,10 @@ Report to operator:
 - Telegram bot link: t.me/{bot-username}
 - Mnemosyne seeded: yes
 - tenants.yaml updated: yes
+- Alternate brand sources used, if any
 ```
 
-### 4.3 suspend-tenant.md
+### 4.4 suspend-tenant.md
 
 Create `/opt/aaas/platform/sop/suspend-tenant.md`:
 
@@ -649,7 +712,7 @@ Container is stopped but NOT removed. Data preserved on host.
 Use offboard-tenant.md for permanent removal only.
 ```
 
-### 4.4 reactivate-tenant.md
+### 4.5 reactivate-tenant.md
 
 Create `/opt/aaas/platform/sop/reactivate-tenant.md`:
 
@@ -680,7 +743,7 @@ Create `/opt/aaas/platform/sop/reactivate-tenant.md`:
 7. Confirm to operator: tenant reactivated successfully.
 ```
 
-### 4.5 offboard-tenant.md
+### 4.6 offboard-tenant.md
 
 Create `/opt/aaas/platform/sop/offboard-tenant.md`:
 
@@ -715,7 +778,7 @@ Create `/opt/aaas/platform/sop/offboard-tenant.md`:
 10. Confirm to operator: tenant offboarded and all data deleted.
 ```
 
-### 4.6 upgrade-tenants.md
+### 4.7 upgrade-tenants.md
 
 Create `/opt/aaas/platform/sop/upgrade-tenants.md`:
 
@@ -757,7 +820,7 @@ Run AFTER build-image.md has completed successfully.
    - Any failures with error details
 ```
 
-### 4.7 update-tenant.md
+### 4.8 update-tenant.md
 
 Create `/opt/aaas/platform/sop/update-tenant.md`:
 
@@ -790,8 +853,9 @@ Update a tenant's config, secrets, brand context, or add a new channel.
 
    For brand/owner (re-seed Mnemosyne):
      Update memories/MEMORY.md or memories/USER.md
-     Then re-seed:
-     docker exec hermes_{id} mnemosyne remember "{updated content}"
+     Then re-seed with the Mnemosyne `store` command:
+     docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8
+     docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8
 
    For new channel:
      Add token to .env
@@ -811,7 +875,7 @@ Update a tenant's config, secrets, brand context, or add a new channel.
 7. Confirm to operator: update applied successfully.
 ```
 
-### 4.8 monitor-health.md
+### 4.9 monitor-health.md
 
 Create `/opt/aaas/platform/sop/monitor-health.md`:
 
@@ -845,7 +909,7 @@ Create `/opt/aaas/platform/sop/monitor-health.md`:
    - All healthy / X issues found
 ```
 
-### 4.9 monitor-logs.md
+### 4.10 monitor-logs.md
 
 Create `/opt/aaas/platform/sop/monitor-logs.md`:
 
@@ -871,6 +935,19 @@ Create `/opt/aaas/platform/sop/monitor-logs.md`:
 
 5. Report findings to operator with recommended actions.
 ```
+
+### 4.11 write-report.md
+
+Create `/opt/aaas/platform/sop/write-report.md`.
+
+This SOP is required after every SOP task. It writes:
+
+- Full Markdown reports under `/opt/aaas/platform/reports/{sop-name}/`
+- One compact AI-readable JSON object per task in `/opt/aaas/platform/reports/INDEX.jsonl`
+
+The JSONL index prevents future improvement work from rereading every full
+Markdown report. OpenCode should scan recent matching index entries first, then
+open full reports only when details are needed.
 
 ---
 
