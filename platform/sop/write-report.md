@@ -1,16 +1,18 @@
 # SOP: Write Task Report
 
 ## Purpose
-Create an operator-readable and AI-readable record after every SOP task, so future improvements can learn from completed work without reprocessing every full report.
+Create an operator-readable and AI-readable record after every SOP task and on-demand troubleshooting or fix task, so future improvements can learn from completed work without reprocessing every full report.
 
 ## When Required
-Run this before declaring any SOP task complete, including successful, partial, failed, cancelled, or validation-only work.
+Run this before declaring any SOP task or operational troubleshooting task complete, including successful, partial, failed, cancelled, or validation-only work.
+
+Use this SOP even when the operator's request did not start from a named SOP, such as "check why tenant X is failing", "inspect this container error", or "fix tenant Y's bot".
 
 ## Report Locations
-- Full report: `/opt/aaas/platform/reports/{sop-name}/{timestamp}_{tenant-or-platform}_{status}.md`
+- Full report: `/opt/aaas/platform/reports/{sop-or-task-name}/{timestamp}_{tenant-or-platform}_{status}.md`
 - AI index: `/opt/aaas/platform/reports/INDEX.jsonl`
 
-Use UTC timestamp format `YYYYMMDDTHHMMSSZ`. Use `platform` when the task is not tenant-specific.
+Use UTC timestamp format `YYYYMMDDTHHMMSSZ`. Use `platform` when the task is not tenant-specific. For on-demand troubleshooting that does not map cleanly to another SOP, use `troubleshoot-tenant` or `troubleshoot-platform` as the task name.
 
 ## Full Report Format
 Write Markdown with this structure:
@@ -20,13 +22,13 @@ Write Markdown with this structure:
 report_version: 1
 timestamp_utc: "{YYYY-MM-DDTHH:MM:SSZ}"
 platform_version: "{contents of /opt/aaas/platform/VERSION}"
-sop: "{sop-name}"
+sop: "{sop-or-task-name}"
 status: "success|partial|failed|cancelled|validation-only"
 tenant_id: "{tenant-id-or-empty}"
 operator_request: "{brief request}"
 ---
 
-# {SOP Name} Report
+# {SOP Or Task Name} Report
 
 ## Summary
 One short paragraph describing the outcome.
