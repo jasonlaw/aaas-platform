@@ -33,6 +33,24 @@ contains() {
   fi
 }
 
+owned_by_hermes() {
+  local path="$1"
+  local name="$2"
+  local owner
+
+  if [ ! -e "$path" ]; then
+    fail "$name:missing:$path"
+    return
+  fi
+
+  owner="$(stat -c '%u:%g' "$path" 2>/dev/null || true)"
+  if [ "$owner" = "10000:10000" ]; then
+    pass "$name"
+  else
+    fail "$name:expected_owner_10000_10000:actual_${owner:-unknown}:$path"
+  fi
+}
+
 if [ -z "$TENANT_ID" ]; then
   echo "Usage: $0 {tenant-id}"
   exit 2
@@ -54,6 +72,10 @@ contains "$CONFIG" 'home_chat_id:[[:space:]]*""' "config_home_chat_empty"
 contains "$HARNESS" '^tenant_harness_version:[[:space:]]*1' "harness_version_1"
 contains "$HARNESS" "^tenant_id:[[:space:]]*\"?$TENANT_ID\"?" "harness_tenant_id_matches"
 contains "$HARNESS" '^verification_profile:' "harness_has_verification_profile"
+
+owned_by_hermes "$TENANT_DIR" "tenant_directory_owner_is_10000"
+owned_by_hermes "$HARNESS" "harness_owner_is_10000"
+owned_by_hermes "$TENANT_DIR/ACCEPTANCE.md" "acceptance_owner_is_10000"
 
 echo ""
 echo "summary fail=$ERRORS"

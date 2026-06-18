@@ -9,6 +9,7 @@ Upgrade all active tenants to the latest Docker image after build-image.md compl
 3. For each active tenant:
    - ensure `/opt/aaas/tenants/{tenant-id}/harness.yaml` exists; if missing, create it from `/opt/aaas/platform/harness/tenant-harness.yaml.template` using known tenant metadata and mark unknown fields clearly
    - ensure `/opt/aaas/tenants/{tenant-id}/ACCEPTANCE.md` exists; if missing, create it from `/opt/aaas/platform/harness/ACCEPTANCE.md.template`
+   - repair ownership after any edits or file creation: `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    - run `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
    - `docker compose stop hermes_{tenant-id}`
    - `docker compose rm -f hermes_{tenant-id}`

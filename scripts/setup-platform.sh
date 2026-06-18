@@ -548,6 +548,14 @@ validate_install() {
     || error "VERSION must contain a semantic version like 0.1.0"
   grep -q "sudo chown -R 10000:10000" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must set tenant volume ownership for Hermes UID 10000"
+  grep -q "sudo chown -R 10000:10000" "$PLATFORM_ROOT/sop/update-tenant.md" \
+    || error "Update tenant SOP must repair tenant volume ownership after edits"
+  grep -q "sudo chown -R 10000:10000" "$PLATFORM_ROOT/sop/upgrade-tenants.md" \
+    || error "Upgrade tenants SOP must repair tenant volume ownership after edits"
+  grep -q "tenant_harness_owner_is_10000" "$PLATFORM_ROOT/harness/check-tenant.sh" \
+    || error "Tenant harness check must verify harness.yaml ownership"
+  grep -q "acceptance_owner_is_10000" "$PLATFORM_ROOT/scripts/validate-tenant-config.sh" \
+    || error "Tenant config validator must verify ACCEPTANCE.md ownership"
   grep -q "HERMES_HOME=/opt/data" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must install mnemosyne-hermes via HERMES_HOME env var"
   grep -q "mnemosyne store" "$PLATFORM_ROOT/sop/onboard-tenant.md" \

@@ -64,6 +64,24 @@ contains() {
   fi
 }
 
+owned_by_hermes() {
+  local path="$1"
+  local name="$2"
+  local owner
+
+  if [ ! -e "$path" ]; then
+    record FAIL "$name" "missing: $path"
+    return
+  fi
+
+  owner="$(stat -c '%u:%g' "$path" 2>/dev/null || true)"
+  if [ "$owner" = "10000:10000" ]; then
+    record PASS "$name"
+  else
+    record FAIL "$name" "expected 10000:10000, got ${owner:-unknown}: $path"
+  fi
+}
+
 if [ -z "$TENANT_ID" ]; then
   usage
   exit 2
@@ -99,6 +117,10 @@ contains "$TENANT_DIR/SOUL.md" '~/files/generated' "soul_directs_generated_files
 contains "$TENANT_DIR/SOUL.md" '~/files/uploads' "soul_directs_uploaded_files"
 contains "$TENANT_DIR/harness.yaml" '^tenant_harness_version:[[:space:]]*1' "manifest_has_harness_version"
 contains "$TENANT_DIR/harness.yaml" '^verification_profile:' "manifest_has_verification_profile"
+
+owned_by_hermes "$TENANT_DIR" "tenant_directory_owner_is_10000"
+owned_by_hermes "$TENANT_DIR/harness.yaml" "tenant_harness_owner_is_10000"
+owned_by_hermes "$TENANT_DIR/ACCEPTANCE.md" "tenant_acceptance_owner_is_10000"
 
 if [ -f "$TENANT_DIR/.env" ] && grep -Eq '(sk-[A-Za-z0-9_-]{12,}|xox[baprs]-|[0-9]{8,}:[A-Za-z0-9_-]{20,})' "$TENANT_DIR/.env.template" 2>/dev/null; then
   record FAIL "env_template_has_secret_like_value" ".env.template must contain keys only"
