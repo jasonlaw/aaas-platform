@@ -15,12 +15,16 @@ Provision a new Hermes tenant agent as a Docker container.
    - `iptables --version` must show `legacy` (not `nf_tables`). If not, switch with: `sudo update-alternatives --set iptables /usr/sbin/iptables-legacy && sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy && sudo systemctl restart docker`
    - `docker ps` must succeed without errors
    If checks fail, abort and report the issue before proceeding.
+0.1. Read `/opt/aaas/platform/checklists/onboard-tenant.required.json`. Treat every item as a completion gate; unresolved items must appear in the final task report.
+0.2. Run `/opt/aaas/platform/scripts/preflight-check.sh`. If it fails, fix host/platform readiness before creating tenant files.
 1. Collect tenant information one question at a time: business type, business name, vertical details, location, brand tone, colors, owner profile, Telegram bot token, allowed Telegram user IDs, LLM provider/model, provider-specific API key env var name, and API key value. If a social page blocks unauthenticated access, do not stall; use web search, public review/blog pages, Instagram bios, Google Business snippets, or operator-provided notes as alternate brand sources, and report which sources were used.
 2. Show a full confirmation summary and ask: "Proceed with onboarding? (y/n)"
 3. Generate tenant ID as a lowercase slug from business name.
 4. Create tenant directories under `/opt/aaas/tenants/{tenant-id}/`: `memories`, `skills`, `files/assets`, `files/uploads`, `files/generated`.
-5. Render templates into `config.yaml`, `.env`, `.env.template`, `SOUL.md`, `memories/MEMORY.md`, and `memories/USER.md`. Keep `home_chat_id: ""` in `config.yaml`; Telegram routing is restricted by `TELEGRAM_ALLOWED_USERS` in `.env`.
+5. Render templates into `config.yaml`, `.env`, `.env.template`, `SOUL.md`, `memories/MEMORY.md`, `memories/USER.md`, `harness.yaml`, and `ACCEPTANCE.md`. Use `/opt/aaas/platform/harness/tenant-harness.yaml.template` for the manifest and `/opt/aaas/platform/harness/ACCEPTANCE.md.template` for acceptance. Keep `home_chat_id: ""` in `config.yaml`; Telegram routing is restricted by `TELEGRAM_ALLOWED_USERS` in `.env`.
 6. Verify `config.yaml` contains `memory.provider: mnemosyne`, `memory_enabled: false`, `user_profile_enabled: false`, and no secrets. Verify `.env` contains the selected provider API key env var, `TELEGRAM_ALLOWED_USERS` as comma-separated numeric IDs, and `MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data`.
+6.1. Validate the rendered tenant config:
+   `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
 7. Set tenant volume ownership for the Hermes container user before starting the container:
    `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    The tenant container runs as UID `10000`; without this, mounted `/opt/data` paths such as logs and Mnemosyne data can fail with `Permission denied`. Use `sudo cat` from the host when inspecting seeded files after this point.
@@ -65,4 +69,9 @@ Provision a new Hermes tenant agent as a Docker container.
 14. Add or update the tenant entry in `/opt/aaas/platform/tenants.yaml`.
 15. Send the welcome message through the tenant's Telegram bot to every numeric ID in `TELEGRAM_ALLOWED_USERS`. This only succeeds for users who have already opened the bot and sent `/start`; report Telegram `400 Bad Request: chat not found` or `403 Forbidden` as "user must start the bot first":
    `curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" -d chat_id="{user-id}" --data-urlencode text="{welcome-message}"`
-16. Report tenant ID, container status, outbound connectivity test results (ping/curl), Telegram bot link, Mnemosyne activation/seed status, welcome message delivery status per user ID, registry update status, and any alternate brand sources used because a social platform blocked access.
+16. Run the deterministic tenant harness check:
+   `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`
+   If it fails, fix the failed checks before completion when possible. If a warning or failure is caused by an external precondition such as the owner not starting the Telegram bot, record it clearly in `ACCEPTANCE.md` and the task report.
+17. Run or operator-assist the F&B tenant eval profile at `/opt/aaas/platform/evals/tenant-agent/fnb-marketing-v1.yaml` when Telegram is available. At minimum, verify brand recall, confirmation before posting, generated/upload folder behavior, owner-friendly language, and no cross-tenant memory leakage. Record results in `ACCEPTANCE.md`.
+18. Update `/opt/aaas/tenants/{tenant-id}/harness.yaml` with status, last verification timestamp, and verification notes if your editor/tooling can do so safely.
+19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, welcome message delivery status per user ID, registry update status, and any alternate brand sources used because a social platform blocked access.

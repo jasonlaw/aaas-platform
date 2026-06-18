@@ -86,6 +86,16 @@ Required keys:
 - `improvement_signals`
 - `next_action`
 
+Recommended keys for tenant harness work:
+- `tenant_harness_version`
+- `verification_profile`
+- `harness_summary`
+- `eval_summary`
+- `failure_type`
+- `root_cause_code`
+- `commands_failed`
+- `commands_succeeded`
+
 Example:
 
 ```json
@@ -95,7 +105,9 @@ Example:
 ## Rules
 - Do not put secrets in reports or the index. Redact API keys, bot tokens, access tokens, private URLs, and customer private data.
 - For tenant-related fixes, include root cause and fix details in the Markdown report. Keep `INDEX.jsonl` concise: summarize the issue in `issues`, prevention signals in `improvement_signals`, and unresolved follow-up in `next_action`.
+- For tenant operations, include the tenant harness check output summary and any tenant eval results. If checks were skipped, explain why and state the tenant-facing risk.
 - Prefer concise issue and improvement summaries in `INDEX.jsonl`; put details in the Markdown report.
 - If updating `INDEX.jsonl` fails, still write the Markdown report and tell the operator the index update failed.
 - Before proposing platform improvements, read recent matching index entries first:
   `tail -n 50 /opt/aaas/platform/reports/INDEX.jsonl`
+- For broader platform improvement work, prefer `/opt/aaas/platform/scripts/analyze-reports.sh` when available.

@@ -1,0 +1,23 @@
+{
+  "checklist_version": 1,
+  "sop": "onboard-tenant",
+  "required_before_completion": [
+    "iptables_legacy_verified",
+    "docker_responsive",
+    "tenant_information_confirmed",
+    "tenant_directories_created",
+    "tenant_templates_rendered",
+    "tenant_harness_manifest_created",
+    "tenant_acceptance_record_created",
+    "tenant_volume_owner_is_10000",
+    "docker_compose_updated_structurally",
+    "tenant_container_started",
+    "container_outbound_connectivity_checked",
+    "mnemosyne_plugin_activated",
+    "mnemosyne_memory_seeded",
+    "tenants_yaml_updated",
+    "telegram_welcome_attempted",
+    "harness_check_tenant_passed_or_reported",
+    "task_report_written"
+  ]
+}

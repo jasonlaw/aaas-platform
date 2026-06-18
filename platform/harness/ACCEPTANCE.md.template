@@ -1,0 +1,38 @@
+---
+acceptance_version: 1
+tenant_id: "{{TENANT_ID}}"
+verification_profile: "fnb-marketing-v1"
+status: "pending"
+verified_at_utc: ""
+verified_by: ""
+harness_summary: ""
+eval_summary: ""
+---
+
+# Tenant Acceptance
+
+This file is the tenant-local proof that the agent was set up for the owner, not just started as a container.
+
+## Owner Benefit Checks
+- [ ] Agent introduces itself as the assistant for {{BUSINESS_NAME}}.
+- [ ] Agent recalls brand tone, location, menu highlights, and owner preferences.
+- [ ] Agent asks for confirmation before posting or irreversible action.
+- [ ] Agent saves generated content under `~/files/generated/`.
+- [ ] Agent saves owner uploads under `~/files/uploads/`.
+- [ ] Agent keeps this tenant's memory and files isolated from other tenants.
+
+## Platform Checks
+- [ ] Required tenant files exist.
+- [ ] Secrets are in `.env` only.
+- [ ] `config.yaml` uses Mnemosyne and disables native Hermes memory.
+- [ ] Docker Compose has exactly one service for this tenant.
+- [ ] Container is running.
+- [ ] Container has outbound HTTPS access.
+- [ ] Mnemosyne seed was installed and inspected.
+- [ ] Telegram welcome delivery succeeded or was clearly blocked by user action.
+
+## Verification Evidence
+- Last harness command:
+- Last harness result:
+- Last behavioral eval:
+- Notes:

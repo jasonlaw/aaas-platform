@@ -1,0 +1,14 @@
+{
+  "checklist_version": 1,
+  "sop": "monitor-health",
+  "required_before_completion": [
+    "iptables_legacy_verified",
+    "docker_responsive",
+    "active_tenants_loaded",
+    "container_status_checked",
+    "outbound_connectivity_checked_for_running_tenants",
+    "tenant_harness_checks_run_for_problem_tenants",
+    "summary_reported",
+    "task_report_written"
+  ]
+}

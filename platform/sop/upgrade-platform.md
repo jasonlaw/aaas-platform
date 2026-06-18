@@ -9,6 +9,11 @@ Upgrade the installed platform assets to the latest repository version while pre
 - `/opt/aaas/platform/sop/`
 - `/opt/aaas/platform/skills/`
 - `/opt/aaas/platform/templates/`
+- `/opt/aaas/platform/harness/`
+- `/opt/aaas/platform/checklists/`
+- `/opt/aaas/platform/evals/`
+- `/opt/aaas/platform/scripts/`
+- `/opt/aaas/platform/incidents/`
 - `/opt/aaas/platform/docker/Dockerfile`
 - Setup validation behavior from the latest script
 

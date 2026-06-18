@@ -13,6 +13,11 @@ You manage Hermes tenant agents running as Docker containers.
 - General skills: /opt/aaas/platform/skills/
 - Templates: /opt/aaas/platform/templates/
 - Hermes admin templates: /opt/aaas/platform/admin-hermes/
+- Harness checks: /opt/aaas/platform/harness/
+- Required checklists: /opt/aaas/platform/checklists/
+- Tenant eval profiles: /opt/aaas/platform/evals/
+- Utility scripts: /opt/aaas/platform/scripts/
+- Incident playbooks: /opt/aaas/platform/incidents/
 - Task reports: /opt/aaas/platform/reports/
 - Platform backups: /opt/aaas/platform/backups/
 
@@ -30,6 +35,8 @@ You manage Hermes tenant agents running as Docker containers.
 - Secrets: /opt/aaas/tenants/{id}/.env (never commit)
 - Telegram access: TELEGRAM_ALLOWED_USERS is a comma-separated list of numeric Telegram user IDs
 - Config: /opt/aaas/tenants/{id}/config.yaml
+- Tenant harness manifest: /opt/aaas/tenants/{id}/harness.yaml
+- Tenant acceptance record: /opt/aaas/tenants/{id}/ACCEPTANCE.md
 - Business metadata: /opt/aaas/platform/tenants.yaml
 - Container management: /opt/aaas/platform/docker/docker-compose.yaml
 
@@ -55,14 +62,29 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Update config: /opt/aaas/platform/sop/update-tenant.md
 - Health check: /opt/aaas/platform/sop/monitor-health.md
 - Log review: /opt/aaas/platform/sop/monitor-logs.md
+- Troubleshoot tenant: /opt/aaas/platform/sop/troubleshoot-tenant.md
 - Write report: /opt/aaas/platform/sop/write-report.md
 
 ### General Skills
 - Grill me: /opt/aaas/platform/skills/grill-me.md
 - Setup Hermes admin: /opt/aaas/platform/skills/setup-admin-hermes.md
 
+### Harness Assets
+- Tenant harness check: /opt/aaas/platform/harness/check-tenant.sh
+- Tenant harness manifest template: /opt/aaas/platform/harness/tenant-harness.yaml.template
+- Tenant acceptance template: /opt/aaas/platform/harness/ACCEPTANCE.md.template
+- Onboarding required checklist: /opt/aaas/platform/checklists/onboard-tenant.required.json
+- Health required checklist: /opt/aaas/platform/checklists/monitor-health.required.json
+- F&B tenant eval profile: /opt/aaas/platform/evals/tenant-agent/fnb-marketing-v1.yaml
+- Pre-flight check: /opt/aaas/platform/scripts/preflight-check.sh
+- Tenant config validator: /opt/aaas/platform/scripts/validate-tenant-config.sh
+- Report analysis: /opt/aaas/platform/scripts/analyze-reports.sh
+- Incident playbooks: /opt/aaas/platform/incidents/
+
 ## Rules
 - Always read the relevant SOP before executing any tenant operation
+- Always read the relevant required checklist before executing an SOP when one exists
+- Run `/opt/aaas/platform/scripts/preflight-check.sh` before major tenant, image, upgrade, or troubleshooting work when Docker/host state matters
 - For platform setup upgrades, read `/opt/aaas/platform/sop/upgrade-platform.md`
 - Always write a task report with `/opt/aaas/platform/sop/write-report.md` before declaring any SOP task or operational troubleshooting task complete
 - When identifying and fixing a tenant-related issue, record the root cause, analysis evidence, exact fix applied, validation results, and any prevention/follow-up in the task report
@@ -78,3 +100,9 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Telegram `chat not found` usually means the user has not opened the bot and sent `/start`
 - Use `/opt/aaas/platform/reports/INDEX.jsonl` for AI-readable report summaries; read recent matching entries before proposing platform improvements
 - Platform upgrades refresh managed platform assets only; preserve tenant data, tenants.yaml, docker-compose.yaml, and reports
+- Every tenant must have `harness.yaml` and `ACCEPTANCE.md`; create or repair them during onboarding, tenant update, troubleshooting, or upgrade work
+- Before declaring a tenant operation complete, run `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}` when a tenant container should exist, and include the pass/warn/fail summary in the task report
+- Tenant-facing quality matters: use the eval profile to verify brand recall, confirmation-before-posting, generated/upload file behavior, owner-friendly language, and cross-tenant isolation after onboarding or major changes
+- Harness files are for tenant benefit: they should prove the owner gets a reliable, private, brand-aware assistant, not just a running container
+- Use `/opt/aaas/platform/sop/troubleshoot-tenant.md` for tenant failures instead of improvising recovery steps
+- Use `/opt/aaas/platform/scripts/analyze-reports.sh` before proposing platform changes based on operational history

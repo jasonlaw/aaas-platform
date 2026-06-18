@@ -57,6 +57,21 @@ review, trend spotting, and future platform improvement work without rereading
 every historical report. Reports must never contain secrets; redact API keys,
 bot tokens, access tokens, private URLs, and customer private data.
 
+## Tenant Harness
+
+The platform installs tenant harness assets under `/opt/aaas/platform/harness`,
+required SOP checklists under `/opt/aaas/platform/checklists`, and tenant eval
+profiles under `/opt/aaas/platform/evals`.
+
+Every tenant should have `/opt/aaas/tenants/{tenant-id}/harness.yaml` and
+`/opt/aaas/tenants/{tenant-id}/ACCEPTANCE.md`. The admin agent uses these files,
+plus `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`, to prove that the
+tenant gets a brand-aware, private, owner-safe assistant rather than only a
+running Docker container.
+
+Troubleshooting and improvement helpers live under `/opt/aaas/platform/scripts`,
+and incident playbooks live under `/opt/aaas/platform/incidents`.
+
 ## Upgrade Platform Setup
 
 To upgrade an existing `/opt/aaas/platform` installation to the latest

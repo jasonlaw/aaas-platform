@@ -1,0 +1,32 @@
+tenant_harness_version: 1
+tenant_id: "{{TENANT_ID}}"
+business_name: "{{BUSINESS_NAME}}"
+business_type: "{{BUSINESS_TYPE}}"
+agent_role: "tenant-facing marketing assistant"
+owner_language: "{{LANGUAGE}}"
+timezone: "{{TIMEZONE}}"
+model_provider: "{{MODEL_PROVIDER}}"
+model_name: "{{MODEL_NAME}}"
+channels:
+  telegram:
+    enabled: true
+    allowed_users_env: "TELEGRAM_ALLOWED_USERS"
+verification_profile: "fnb-marketing-v1"
+required_checks:
+  - tenant_files
+  - secrets_split
+  - config_memory
+  - compose_service
+  - container_runtime
+  - outbound_connectivity
+  - mnemosyne_seed
+  - telegram_welcome
+  - tenant_isolation
+tenant_benefits:
+  - "Remembers the business identity and owner preferences through Mnemosyne."
+  - "Keeps generated work in files/generated and owner uploads in files/uploads."
+  - "Requires owner confirmation before posting or irreversible action."
+  - "Keeps this tenant isolated from every other tenant's data and memory."
+last_verified_at_utc: ""
+last_verified_by: ""
+status: "provisioning"

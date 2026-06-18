@@ -115,6 +115,14 @@ After the admin agent finishes onboarding, verify the generated tenant directory
 manual snippets below are expected output references and fallback debugging notes;
 they are not the normal setup path.
 
+The onboarding SOP also creates harness files that make tenant quality repeatable:
+
+- `/opt/aaas/tenants/{tenant-id}/harness.yaml` records the tenant's verification profile, required checks, channels, and owner-facing benefit contract.
+- `/opt/aaas/tenants/{tenant-id}/ACCEPTANCE.md` records whether the tenant actually receives a useful brand-aware assistant: brand recall, safe confirmation before posting, persisted generated files, upload handling, and isolation.
+- `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}` is the deterministic structural/runtime check the admin agent must run before completion.
+- `/opt/aaas/platform/evals/tenant-agent/fnb-marketing-v1.yaml` is the tenant-facing behavior profile for operator-assisted Telegram validation.
+- `/opt/aaas/platform/scripts/preflight-check.sh` and `/opt/aaas/platform/scripts/validate-tenant-config.sh` help catch host and config drift before restarting a tenant.
+
 ### 1.1 Verify tenant config directory
 
 ```bash
@@ -687,6 +695,9 @@ cd /opt/aaas/platform/docker && docker compose ps
 Before declaring POC complete:
 
 - [ ] First tenant container starts successfully
+- [ ] `harness.yaml` exists and references the correct tenant and verification profile
+- [ ] `ACCEPTANCE.md` exists and records tenant-facing benefit checks
+- [ ] `/opt/aaas/platform/harness/check-tenant.sh test-restaurant` passes or all warnings/failures are documented
 - [ ] Mnemosyne seeded with brand context
 - [ ] `hermes memory list` shows brand facts and owner profile
 - [ ] Telegram gateway connects on first message
