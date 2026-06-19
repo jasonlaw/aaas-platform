@@ -38,6 +38,7 @@ From there, OpenCode can use the platform SOPs to help you:
 - Suspend, reactivate, and offboard tenants
 - Upgrade tenants to a newer image
 - Update tenant configuration safely
+- Improve SOPs through local overrides or proposals without editing upgrade-managed native SOPs
 
 Ask the admin agent what skills are available, then tell it the tenant operation you want to perform.
 
@@ -71,6 +72,11 @@ running Docker container.
 
 Troubleshooting and improvement helpers live under `/opt/aaas/platform/scripts`,
 and incident playbooks live under `/opt/aaas/platform/incidents`.
+
+SOP improvement work should use `/opt/aaas/platform/sop/improve-sop.md`. Native
+SOP files are upgrade-managed, so local active overrides belong under
+`/opt/aaas/platform/local/sop/`, while reviewable improvement proposals belong
+under `/opt/aaas/platform/reports/sop-improvements/`.
 
 ## Upgrade Platform Setup
 

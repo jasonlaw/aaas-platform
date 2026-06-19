@@ -21,6 +21,23 @@ usage() {
   echo "Usage: $0 {tenant-id}"
 }
 
+maybe_reexec_with_sudo() {
+  if [ "$(id -u)" -eq 0 ]; then
+    return
+  fi
+
+  if ! command -v sudo >/dev/null 2>&1; then
+    return
+  fi
+
+  # Tenant files are intentionally owned by UID 10000. A non-root operator may
+  # be able to see the directory entry but not inspect the files inside it.
+  if [ -e "$TENANT_DIR" ] && { [ ! -x "$TENANT_DIR" ] || [ ! -r "$TENANT_DIR" ] || [ ! -r "$TENANT_DIR/harness.yaml" ] || [ ! -r "$TENANT_DIR/.env" ]; }; then
+    echo "Tenant files are not readable by $(id -un); rerunning harness check with sudo..." >&2
+    exec sudo -E "$0" "$TENANT_ID"
+  fi
+}
+
 record() {
   local status="$1"
   local check="$2"
@@ -86,6 +103,8 @@ if [ -z "$TENANT_ID" ]; then
   usage
   exit 2
 fi
+
+maybe_reexec_with_sudo
 
 echo "AaaS tenant harness check"
 echo "tenant_id=$TENANT_ID"

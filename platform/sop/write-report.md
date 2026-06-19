@@ -9,7 +9,7 @@ Run this before declaring any SOP task or operational troubleshooting task compl
 Use this SOP even when the operator's request did not start from a named SOP, such as "check why tenant X is failing", "inspect this container error", or "fix tenant Y's bot".
 
 ## Report Locations
-- Full report: `/opt/aaas/platform/reports/{sop-or-task-name}/{timestamp}_{tenant-or-platform}_{status}.md`
+- Full report: `/opt/aaas/platform/reports/{timestamp}_{sop-or-task-name}_{tenant-or-platform}_{status}.md`
 - AI index: `/opt/aaas/platform/reports/INDEX.jsonl`
 
 Use UTC timestamp format `YYYYMMDDTHHMMSSZ`. Use `platform` when the task is not tenant-specific. For on-demand troubleshooting that does not map cleanly to another SOP, use `troubleshoot-tenant` or `troubleshoot-platform` as the task name.
@@ -99,7 +99,7 @@ Recommended keys for tenant harness work:
 Example:
 
 ```json
-{"report_version":1,"timestamp_utc":"2026-06-17T05:30:00Z","platform_version":"0.1.0","sop":"onboard-tenant","status":"partial","tenant_id":"u-moon-cafe","report_path":"/opt/aaas/platform/reports/onboard-tenant/20260617T053000Z_u-moon-cafe_partial.md","summary":"Tenant onboarded; Telegram welcome could not be delivered because users had not started bot.","issues":["Telegram chat not found for two user IDs"],"improvement_signals":["SOP should mention Telegram 400 chat not found"],"next_action":"Owners must open bot and send /start"}
+{"report_version":1,"timestamp_utc":"2026-06-17T05:30:00Z","platform_version":"0.1.0","sop":"onboard-tenant","status":"partial","tenant_id":"u-moon-cafe","report_path":"/opt/aaas/platform/reports/20260617T053000Z_onboard-tenant_u-moon-cafe_partial.md","summary":"Tenant onboarded; Telegram welcome could not be delivered because users had not started bot.","issues":["Telegram chat not found for two user IDs"],"improvement_signals":["SOP should mention Telegram 400 chat not found"],"next_action":"Owners must open bot and send /start"}
 ```
 
 ## Rules

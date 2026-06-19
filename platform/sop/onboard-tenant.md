@@ -71,6 +71,7 @@ Provision a new Hermes tenant agent as a Docker container.
    `curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" -d chat_id="{user-id}" --data-urlencode text="{welcome-message}"`
 16. Run the deterministic tenant harness check:
    `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`
+   The script auto-detects tenant file permission denial after UID `10000` ownership is applied and re-runs itself with `sudo` when available.
    If it fails, fix the failed checks before completion when possible. If a warning or failure is caused by an external precondition such as the owner not starting the Telegram bot, record it clearly in `ACCEPTANCE.md` and the task report.
 17. Run or operator-assist the F&B tenant eval profile at `/opt/aaas/platform/evals/tenant-agent/fnb-marketing-v1.yaml` when Telegram is available. At minimum, verify brand recall, confirmation before posting, generated/upload folder behavior, owner-friendly language, and no cross-tenant memory leakage. Record results in `ACCEPTANCE.md`.
 18. Update `/opt/aaas/tenants/{tenant-id}/harness.yaml` with status, last verification timestamp, and verification notes if your editor/tooling can do so safely.

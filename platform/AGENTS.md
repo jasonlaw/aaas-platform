@@ -63,6 +63,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Health check: /opt/aaas/platform/sop/monitor-health.md
 - Log review: /opt/aaas/platform/sop/monitor-logs.md
 - Troubleshoot tenant: /opt/aaas/platform/sop/troubleshoot-tenant.md
+- Improve SOP: /opt/aaas/platform/sop/improve-sop.md
 - Write report: /opt/aaas/platform/sop/write-report.md
 
 ### General Skills
@@ -99,6 +100,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Use `mnemosyne store`, not `mnemosyne remember`, when seeding memory
 - Telegram `chat not found` usually means the user has not opened the bot and sent `/start`
 - Use `/opt/aaas/platform/reports/INDEX.jsonl` for AI-readable report summaries; read recent matching entries before proposing platform improvements
+- Use `/opt/aaas/platform/sop/improve-sop.md` for SOP improvement work; do not edit upgrade-managed native SOP files directly unless explicitly asked
 - Platform upgrades refresh managed platform assets only; preserve tenant data, tenants.yaml, docker-compose.yaml, and reports
 - Every tenant must have `harness.yaml` and `ACCEPTANCE.md`; create or repair them during onboarding, tenant update, troubleshooting, or upgrade work
 - Before declaring a tenant operation complete, run `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}` when a tenant container should exist, and include the pass/warn/fail summary in the task report
