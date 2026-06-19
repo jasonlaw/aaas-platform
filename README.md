@@ -49,14 +49,27 @@ but it does not activate or configure Hermes automatically.
 
 ## Task Reports
 
-After every SOP task, the admin agent must write a report before declaring completion.
-Full reports live under `/opt/aaas/platform/reports/{sop-name}/`, and compact
-AI-readable summaries are appended to `/opt/aaas/platform/reports/INDEX.jsonl`.
+After every SOP task or operational troubleshooting work, the admin agent must write a report before declaring completion.
+Use the [write-report](platform/sop/write-report.md) SOP for detailed guidance.
 
-Use the Markdown report for human audit details. Use `INDEX.jsonl` for fast AI
-review, trend spotting, and future platform improvement work without rereading
-every historical report. Reports must never contain secrets; redact API keys,
-bot tokens, access tokens, private URLs, and customer private data.
+**Report Locations:**
+- Full report: `/opt/aaas/platform/reports/{timestamp}_{sop-or-task-name}_{tenant-or-platform}_{status}.md`
+- AI index: `/opt/aaas/platform/reports/INDEX.jsonl` (one JSON object per line, structured for analysis)
+
+**Report Content:**
+- Markdown report: Human audit trail with YAML frontmatter (metadata), summary, actions, validation, root cause analysis, issues, and improvement signals
+- JSON index: Compact structured record with `sop`, `status`, `tenant_id`, `summary`, `issues`, `improvement_signals`, `next_action`, and other metadata for trend analysis
+
+**Analyze Reports:**
+Run `/opt/aaas/platform/scripts/analyze-reports.sh` to query the INDEX for platform improvement opportunities:
+```bash
+cd /opt/aaas/platform
+./scripts/analyze-reports.sh
+```
+
+This summarizes issues, improvement signals, partial/failed SOPs, and pending next actions from recent reports without rereading every full Markdown file.
+
+**Important:** Reports must never contain secrets; redact API keys, bot tokens, access tokens, private URLs, and customer private data.
 
 ## Tenant Harness
 
@@ -70,9 +83,12 @@ plus `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`, to prove that the
 tenant gets a brand-aware, private, owner-safe assistant rather than only a
 running Docker container.
 
-Troubleshooting and improvement helpers live under `/opt/aaas/platform/scripts`,
-and incident playbooks live under `/opt/aaas/platform/incidents`.
+**Validation and Troubleshooting:**
+- Validation: `/opt/aaas/platform/scripts/preflight-check.sh` and `/opt/aaas/platform/scripts/validate-tenant-config.sh` check infrastructure and tenant configuration before major operations
+- Troubleshooting: Use `/opt/aaas/platform/sop/troubleshoot-tenant.md` when a tenant needs diagnosis or recovery
+- Incident playbooks: `/opt/aaas/platform/incidents/` contains runbooks for common failure scenarios (connectivity, Docker issues, Telegram API changes, backup recovery, etc.)
 
+**SOP Improvement:**
 SOP improvement work should use `/opt/aaas/platform/sop/improve-sop.md`. Native
 SOP files are upgrade-managed, so local active overrides belong under
 `/opt/aaas/platform/local/sop/`, while reviewable improvement proposals belong
@@ -113,6 +129,26 @@ curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts
 Use `/opt/aaas/platform/sop/upgrade-platform.md` when asking the admin agent to perform
 or review a platform setup upgrade. Rebuild the tenant Docker image separately
 only when the upgrade notes or Dockerfile changes require it.
+
+## Monitoring Platform Health
+
+Monitor tenant and platform health by asking the admin agent to use the `monitor-health` SOP:
+
+```bash
+cd /opt/aaas/platform
+opencode
+# Tell the admin agent: "Run the monitor-health SOP"
+```
+
+The `monitor-health` SOP checks:
+- Tenant status and connectivity (ping + Telegram API reachability)
+- Docker and container readiness
+- Infrastructure prerequisites (iptables-legacy enforcement, bridge networking)
+- Optional: iptables rules for network isolation issues
+
+Health check results are appended to task reports, so run `analyze-reports.sh` to spot trends and repeated failures across tenants.
+
+For detailed incident diagnosis and recovery, see `/opt/aaas/platform/incidents/` for runbooks on known failure modes.
 
 ## Versioning
 
