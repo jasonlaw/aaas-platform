@@ -76,7 +76,10 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Tenant acceptance template: /opt/aaas/platform/harness/ACCEPTANCE.md.template
 - Onboarding required checklist: /opt/aaas/platform/checklists/onboard-tenant.required.json
 - Health required checklist: /opt/aaas/platform/checklists/monitor-health.required.json
-- F&B tenant eval profile: /opt/aaas/platform/evals/tenant-agent/fnb-marketing-v1.yaml
+- Fixed tenant safety eval profile: /opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml
+- Generated tenant eval profiles: /opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml
+- Tenant eval runner: /opt/aaas/platform/scripts/eval-runner.sh
+- Admin meta-eval profile: /opt/aaas/platform/evals/admin-agent/meta-eval-generation-v1.yaml
 - Pre-flight check: /opt/aaas/platform/scripts/preflight-check.sh
 - Tenant config validator: /opt/aaas/platform/scripts/validate-tenant-config.sh
 - Report analysis: /opt/aaas/platform/scripts/analyze-reports.sh
@@ -94,7 +97,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Never share one tenant's data with another
 - Never delete tenant data without explicit typed confirmation
 - Never run `docker compose up -d` without specifying the service name
-- **iptables must be in legacy mode — this system uses Docker 29.x which has a critical bug with iptables-nftables where bridge networks lose forwarding rules after daemon restart, causing complete network isolation for containers. Verify with `iptables --version` (must show `legacy`). If not set during bootstrap, switch with `sudo update-alternatives --set iptables /usr/sbin/iptables-legacy && sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy && sudo systemctl restart docker`**
+- **iptables must be in legacy mode ? this system uses Docker 29.x which has a critical bug with iptables-nftables where bridge networks lose forwarding rules after daemon restart, causing complete network isolation for containers. Verify with `iptables --version` (must show `legacy`). If not set during bootstrap, switch with `sudo update-alternatives --set iptables /usr/sbin/iptables-legacy && sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy && sudo systemctl restart docker`**
 - Onboarding tenant volumes must be owned by UID `10000` before container startup
 - Use `HERMES_HOME=/opt/data mnemosyne-hermes install`; do not use a `--hermes-home` flag
 - Use `mnemosyne store`, not `mnemosyne remember`, when seeding memory
@@ -104,7 +107,10 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Platform upgrades refresh managed platform assets only; preserve tenant data, tenants.yaml, docker-compose.yaml, and reports
 - Every tenant must have `harness.yaml` and `ACCEPTANCE.md`; create or repair them during onboarding, tenant update, troubleshooting, or upgrade work
 - Before declaring a tenant operation complete, run `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}` when a tenant container should exist, and include the pass/warn/fail summary in the task report
-- Tenant-facing quality matters: use the eval profile to verify brand recall, confirmation-before-posting, generated/upload file behavior, owner-friendly language, and cross-tenant isolation after onboarding or major changes
+- Tenant-facing quality matters: use both the fixed safety eval and generated tenant eval to verify brand recall, confirmation-before-posting, confirmation-before-deleting, generated/upload file behavior, owner-friendly language, cross-tenant isolation, and business-specific behavior after onboarding or major changes
 - Harness files are for tenant benefit: they should prove the owner gets a reliable, private, brand-aware assistant, not just a running container
 - Use `/opt/aaas/platform/sop/troubleshoot-tenant.md` for tenant failures instead of improvising recovery steps
 - Use `/opt/aaas/platform/scripts/analyze-reports.sh` before proposing platform changes based on operational history
+
+- The tenant agent never infers its own vertical behavior at runtime; the admin agent generates vertical-specific SOUL and eval content once during onboarding, and the tenant reads the resulting static files.
+- Before trusting vertical generation changes, run or operator-assist /opt/aaas/platform/evals/admin-agent/meta-eval-generation-v1.yaml against vegan-bakery, laundromat, and hair-salon synthetic profiles and confirm all three semantic checks pass.

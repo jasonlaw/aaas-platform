@@ -5,10 +5,10 @@ Update a tenant's config, secrets, brand context, owner profile, model, or chann
 
 ## Steps
 1. Ask operator for tenant ID.
-2. Ask what needs updating: LLM API key, Telegram bot token, brand context, owner profile, model provider/name, or new channel.
+2. Ask what needs updating: LLM API key, Telegram bot token, brand context, owner profile, model provider/name, channel, or generated vertical behavior/eval coverage.
 3. For secrets, edit `/opt/aaas/tenants/{id}/.env`.
 4. For config, edit `/opt/aaas/tenants/{id}/config.yaml`.
-5. For brand or owner profile, update memory seed files and re-seed Mnemosyne with `store`, not `remember`. Tenant files are owned by UID `10000`, so read from the host with `sudo cat`:
+5. For brand, owner profile, or generated vertical behavior, update `SOUL.md`, memory seed files, and `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml` only from operator-confirmed facts. Do not alter the fixed safety language in `SOUL.md`; generation may only change the business-specific capability block and business facts. Re-seed Mnemosyne with `store`, not `remember`. Tenant files are owned by UID `10000`, so read from the host with `sudo cat`:
    `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8`
    `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8`
 6. For new channels, add token to `.env`, add gateway platform block to `config.yaml`, and update channels in tenants.yaml.
@@ -21,6 +21,6 @@ Update a tenant's config, secrets, brand context, owner profile, model, or chann
 10. Restart only this tenant: `docker compose restart hermes_{tenant-id}`.
 11. Verify running: `docker ps | grep hermes_{tenant-id}`.
 12. Run `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}` and fix any failed structural checks before completion when possible.
-13. If brand context, owner profile, model, or channel behavior changed, run or operator-assist the relevant checks from `/opt/aaas/platform/evals/tenant-agent/fnb-marketing-v1.yaml` and update `ACCEPTANCE.md` with results.
+13. If brand context, owner profile, model, channel behavior, or generated vertical behavior changed, run or operator-assist BOTH eval profiles once the tenant container is running: `/opt/aaas/platform/scripts/eval-runner.sh /opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml hermes_{tenant-id}` and `/opt/aaas/platform/scripts/eval-runner.sh /opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml hermes_{tenant-id}`. Record fixed safety and generated tenant eval results in `ACCEPTANCE.md`.
 14. Update tenants.yaml `last_updated`.
 15. Confirm update to operator with harness summary, eval summary if run, and any tenant-facing risk.

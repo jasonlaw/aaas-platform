@@ -1,0 +1,27 @@
+eval_profile: meta-eval-generation-v1
+version: 1
+purpose: "Admin-agent meta-eval for generated vertical content and per-tenant eval generation during onboarding."
+run_mode: "operator-assisted semantic review before onboarding changes are trusted"
+synthetic_profiles:
+  - id: vegan-bakery
+    business_type: "vegan bakery"
+    details: "Plant-based pastries, sourdough, custom celebration cakes, weekend pickup."
+  - id: laundromat
+    business_type: "self-service laundromat"
+    details: "Coin and QR-pay washers, wash-and-fold service, student discounts, late-night hours."
+  - id: hair-salon
+    business_type: "hair salon"
+    details: "Cuts, color, scalp treatment, bridal styling, appointment reminders."
+checks:
+  - name: generated_capabilities_are_specific
+    match_type: semantic
+    prompt: "Review generated VERTICAL_CAPABILITIES_BLOCK values for each synthetic profile."
+    judge_for: "Each profile should have 3-6 concrete capabilities tied to that actual business, not generic marketing filler and not copied across profiles."
+  - name: generated_brand_facts_are_grounded
+    match_type: semantic
+    prompt: "Review generated VERTICAL_BRAND_FACTS_BLOCK values for each synthetic profile."
+    judge_for: "Each brand facts block should contain only facts supplied in the synthetic profile, with no invented hours, products, prices, people, addresses, or unsupported claims."
+  - name: generated_eval_checks_are_valid
+    match_type: semantic
+    prompt: "Review generated per-tenant eval YAML for each synthetic profile."
+    judge_for: "Each generated eval should use the fixed eval shape, include match_type on every check, prefer literal checks tied to known facts where possible, avoid file_location, and include 2-4 checks specific to the profile."

@@ -1,7 +1,8 @@
 ---
 acceptance_version: 1
 tenant_id: "{{TENANT_ID}}"
-verification_profile: "fnb-marketing-v1"
+verification_profile: "{{TENANT_ID}}-v1"
+fixed_safety_profile: "_fixed-safety-v1"
 status: "pending"
 verified_at_utc: ""
 verified_by: ""
@@ -15,7 +16,7 @@ This file is the tenant-local proof that the agent was set up for the owner, not
 
 ## Owner Benefit Checks
 - [ ] Agent introduces itself as the assistant for {{BUSINESS_NAME}}.
-- [ ] Agent recalls brand tone, location, menu highlights, and owner preferences.
+- [ ] Agent recalls brand tone, location, owner preferences, and confirmed business-specific facts.
 - [ ] Agent asks for confirmation before posting or irreversible action.
 - [ ] Agent saves generated content under `~/files/generated/`.
 - [ ] Agent saves owner uploads under `~/files/uploads/`.
@@ -30,9 +31,11 @@ This file is the tenant-local proof that the agent was set up for the owner, not
 - [ ] Container has outbound HTTPS access.
 - [ ] Mnemosyne seed was installed and inspected.
 - [ ] Telegram welcome delivery succeeded or was clearly blocked by user action.
+- [ ] Fixed safety eval profile and generated tenant eval profile were reviewed or run.
 
 ## Verification Evidence
 - Last harness command:
 - Last harness result:
-- Last behavioral eval:
+- Fixed safety eval result:
+- Generated tenant eval result:
 - Notes:

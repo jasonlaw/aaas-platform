@@ -189,10 +189,15 @@ validate_asset_source() {
     "$ASSET_ROOT/harness/ACCEPTANCE.md.template"
     "$ASSET_ROOT/checklists/onboard-tenant.required.json"
     "$ASSET_ROOT/checklists/monitor-health.required.json"
-    "$ASSET_ROOT/evals/tenant-agent/fnb-marketing-v1.yaml"
+    "$ASSET_ROOT/evals/tenant-agent/_fixed-safety-v1.yaml"
+    "$ASSET_ROOT/evals/tenant-agent/generated/.gitkeep"
+    "$ASSET_ROOT/evals/admin-agent/meta-eval-generation-v1.yaml"
     "$ASSET_ROOT/scripts/preflight-check.sh"
     "$ASSET_ROOT/scripts/validate-tenant-config.sh"
     "$ASSET_ROOT/scripts/analyze-reports.sh"
+    "$ASSET_ROOT/scripts/eval-runner.sh"
+    "$ASSET_ROOT/scripts/eval-judge.sh"
+    "$ASSET_ROOT/scripts/_eval-check-single.sh"
     "$ASSET_ROOT/incidents/all-tenants-no-connectivity.md"
     "$ASSET_ROOT/incidents/docker-version-rollback.md"
     "$ASSET_ROOT/incidents/telegram-api-change.md"
@@ -216,9 +221,7 @@ validate_asset_source() {
     "$ASSET_ROOT/templates/_base/env.template"
     "$ASSET_ROOT/templates/_base/SOUL.md.template"
     "$ASSET_ROOT/templates/_base/USER.md.template"
-    "$ASSET_ROOT/templates/verticals/fnb/SOUL.md.template"
-    "$ASSET_ROOT/templates/verticals/fnb/MEMORY.md.template"
-    "$ASSET_ROOT/templates/verticals/fnb/USER.md.template"
+    "$ASSET_ROOT/templates/_base/MEMORY.md.template"
   )
 
   for path in "${required[@]}"; do
@@ -243,10 +246,15 @@ validate_installed_matches_source() {
     "harness/ACCEPTANCE.md.template"
     "checklists/onboard-tenant.required.json"
     "checklists/monitor-health.required.json"
-    "evals/tenant-agent/fnb-marketing-v1.yaml"
+    "evals/tenant-agent/_fixed-safety-v1.yaml"
+    "evals/tenant-agent/generated/.gitkeep"
+    "evals/admin-agent/meta-eval-generation-v1.yaml"
     "scripts/preflight-check.sh"
     "scripts/validate-tenant-config.sh"
     "scripts/analyze-reports.sh"
+    "scripts/eval-runner.sh"
+    "scripts/eval-judge.sh"
+    "scripts/_eval-check-single.sh"
     "incidents/all-tenants-no-connectivity.md"
     "incidents/docker-version-rollback.md"
     "incidents/telegram-api-change.md"
@@ -270,9 +278,7 @@ validate_installed_matches_source() {
     "templates/_base/env.template"
     "templates/_base/SOUL.md.template"
     "templates/_base/USER.md.template"
-    "templates/verticals/fnb/SOUL.md.template"
-    "templates/verticals/fnb/MEMORY.md.template"
-    "templates/verticals/fnb/USER.md.template"
+    "templates/_base/MEMORY.md.template"
   )
 
   for relative_path in "${relative_paths[@]}"; do
@@ -406,6 +412,9 @@ install_assets() {
   chmod +x "$PLATFORM_ROOT/scripts/preflight-check.sh"
   chmod +x "$PLATFORM_ROOT/scripts/validate-tenant-config.sh"
   chmod +x "$PLATFORM_ROOT/scripts/analyze-reports.sh"
+  chmod +x "$PLATFORM_ROOT/scripts/eval-runner.sh"
+  chmod +x "$PLATFORM_ROOT/scripts/eval-judge.sh"
+  chmod +x "$PLATFORM_ROOT/scripts/_eval-check-single.sh"
   cp "$ASSET_ROOT/AGENTS.md" "$PLATFORM_ROOT/AGENTS.md"
   cp "$ASSET_ROOT/VERSION" "$PLATFORM_ROOT/VERSION"
   cp "$ASSET_ROOT/docker/Dockerfile" "$PLATFORM_ROOT/docker/Dockerfile"
@@ -479,10 +488,15 @@ validate_install() {
     "$PLATFORM_ROOT/harness/ACCEPTANCE.md.template"
     "$PLATFORM_ROOT/checklists/onboard-tenant.required.json"
     "$PLATFORM_ROOT/checklists/monitor-health.required.json"
-    "$PLATFORM_ROOT/evals/tenant-agent/fnb-marketing-v1.yaml"
+    "$PLATFORM_ROOT/evals/tenant-agent/_fixed-safety-v1.yaml"
+    "$PLATFORM_ROOT/evals/tenant-agent/generated/.gitkeep"
+    "$PLATFORM_ROOT/evals/admin-agent/meta-eval-generation-v1.yaml"
     "$PLATFORM_ROOT/scripts/preflight-check.sh"
     "$PLATFORM_ROOT/scripts/validate-tenant-config.sh"
     "$PLATFORM_ROOT/scripts/analyze-reports.sh"
+    "$PLATFORM_ROOT/scripts/eval-runner.sh"
+    "$PLATFORM_ROOT/scripts/eval-judge.sh"
+    "$PLATFORM_ROOT/scripts/_eval-check-single.sh"
     "$PLATFORM_ROOT/incidents/all-tenants-no-connectivity.md"
     "$PLATFORM_ROOT/incidents/docker-version-rollback.md"
     "$PLATFORM_ROOT/incidents/telegram-api-change.md"
@@ -506,9 +520,7 @@ validate_install() {
     "$PLATFORM_ROOT/templates/_base/env.template"
     "$PLATFORM_ROOT/templates/_base/SOUL.md.template"
     "$PLATFORM_ROOT/templates/_base/USER.md.template"
-    "$PLATFORM_ROOT/templates/verticals/fnb/SOUL.md.template"
-    "$PLATFORM_ROOT/templates/verticals/fnb/MEMORY.md.template"
-    "$PLATFORM_ROOT/templates/verticals/fnb/USER.md.template"
+    "$PLATFORM_ROOT/templates/_base/MEMORY.md.template"
     "$PLATFORM_ROOT/tenants.yaml"
     "$PLATFORM_ROOT/docker/docker-compose.yaml"
     "$PLATFORM_ROOT/reports/INDEX.jsonl"
@@ -568,14 +580,14 @@ validate_install() {
     || error "AGENTS.md must advertise tenant harness checks"
   grep -q "tenant-harness.yaml.template" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must create tenant harness manifests"
-  grep -q "fnb-marketing-v1" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
-    || error "Onboarding SOP must reference the tenant eval profile"
+  grep -q "_fixed-safety-v1.yaml" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
+    || error "Onboarding SOP must reference the fixed tenant eval profile"
   grep -q "tenant_harness_version: 1" "$PLATFORM_ROOT/harness/tenant-harness.yaml.template" \
     || error "Tenant harness manifest template must declare version 1"
   grep -q "verified_at_utc" "$PLATFORM_ROOT/harness/ACCEPTANCE.md.template" \
     || error "Tenant acceptance template must include verification timestamp"
-  grep -q "confirms_before_posting" "$PLATFORM_ROOT/evals/tenant-agent/fnb-marketing-v1.yaml" \
-    || error "Tenant eval profile must verify confirmation-before-posting"
+  grep -q "confirms_before_posting" "$PLATFORM_ROOT/evals/tenant-agent/_fixed-safety-v1.yaml" \
+    || error "Fixed tenant eval profile must verify confirmation-before-posting"
   grep -q "preflight-check.sh" "$PLATFORM_ROOT/AGENTS.md" \
     || error "AGENTS.md must advertise platform pre-flight checks"
   grep -q "validate-tenant-config.sh" "$PLATFORM_ROOT/sop/onboard-tenant.md" \

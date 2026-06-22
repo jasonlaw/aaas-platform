@@ -11,7 +11,8 @@ channels:
   telegram:
     enabled: true
     allowed_users_env: "TELEGRAM_ALLOWED_USERS"
-verification_profile: "fnb-marketing-v1"
+verification_profile: "{{TENANT_ID}}-v1"
+fixed_safety_profile: "_fixed-safety-v1"
 required_checks:
   - tenant_files
   - secrets_split
