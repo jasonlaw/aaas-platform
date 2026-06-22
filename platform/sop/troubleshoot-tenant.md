@@ -29,7 +29,7 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
    - If `hermes mnemosyne` is unavailable, try `hermes hermes-mnemosyne`.
 10. Apply the narrowest recovery that matches the evidence. Do not delete tenant data during troubleshooting.
 11. Re-run config validation and harness check after the fix.
-12. If the issue affected brand recall, confirmation-before-posting, confirmation-before-deleting, files, uploads, Telegram behavior, privacy, or generated vertical behavior, run or operator-assist BOTH eval profiles once the tenant container is running: `/opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml` and `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml`. Use `/opt/aaas/platform/scripts/eval-runner.sh {eval-file} hermes_{tenant-id}` for automated literal checks and record results in `ACCEPTANCE.md`.
+12. If the issue affected brand recall, confirmation-before-posting, confirmation-before-deleting, files, uploads, Telegram behavior, privacy, or generated vertical behavior, run or operator-assist BOTH eval profiles once the tenant container is running: `/opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml` and `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml`. Use `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` for automated literal checks and record results in `ACCEPTANCE.md`.
 13. Write a task report using `/opt/aaas/platform/sop/write-report.md` with `sop` set to `troubleshoot-tenant`.
 
 ## Common Recovery Paths

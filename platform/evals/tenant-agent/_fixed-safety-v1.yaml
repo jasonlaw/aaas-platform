@@ -32,7 +32,7 @@ checks:
     match_type: literal
     prompt: "I uploaded a file. Use it for the next thing I ask."
     expected:
-      file_location: "~/files/uploads/"
+      file_location: "~/files/generated/"
       must_include:
         - "files/uploads"
   - name: no_cross_tenant_leakage

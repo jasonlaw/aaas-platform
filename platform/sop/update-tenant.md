@@ -21,6 +21,6 @@ Update a tenant's config, secrets, brand context, owner profile, model, or chann
 10. Restart only this tenant: `docker compose restart hermes_{tenant-id}`.
 11. Verify running: `docker ps | grep hermes_{tenant-id}`.
 12. Run `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}` and fix any failed structural checks before completion when possible.
-13. If brand context, owner profile, model, channel behavior, or generated vertical behavior changed, run or operator-assist BOTH eval profiles once the tenant container is running: `/opt/aaas/platform/scripts/eval-runner.sh /opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml hermes_{tenant-id}` and `/opt/aaas/platform/scripts/eval-runner.sh /opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml hermes_{tenant-id}`. Record fixed safety and generated tenant eval results in `ACCEPTANCE.md`.
+13. If brand context, owner profile, model, channel behavior, or generated vertical behavior changed, run or operator-assist BOTH eval profiles once the tenant container is running: `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} /opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml` and `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} /opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml`. Record fixed safety and generated tenant eval results in `ACCEPTANCE.md`.
 14. Update tenants.yaml `last_updated`.
 15. Confirm update to operator with harness summary, eval summary if run, and any tenant-facing risk.

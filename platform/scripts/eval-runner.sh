@@ -9,8 +9,9 @@
 
 set -euo pipefail
 
-EVAL_FILE="${1:-}"
-CONTAINER="${2:-}"
+TENANT_ID="${1:-}"
+EVAL_FILE="${2:-}"
+CONTAINER="hermes_$TENANT_ID"
 EXEC_TIMEOUT_SECONDS="${EXEC_TIMEOUT_SECONDS:-60}"
 USE_JUDGE="${USE_JUDGE:-0}"
 PLATFORM_SCRIPTS_DIR="${PLATFORM_SCRIPTS_DIR:-/opt/aaas/platform/scripts}"
@@ -21,10 +22,10 @@ FAIL_COUNT=0
 SKIP_COUNT=0
 
 usage() {
-  echo "Usage: $0 {eval-file} {container-name}"
+  echo "Usage: $0 {tenant-id} {path-to-eval-file}"
 }
 
-if [ -z "$EVAL_FILE" ] || [ -z "$CONTAINER" ]; then
+if [ -z "$TENANT_ID" ] || [ -z "$EVAL_FILE" ]; then
   usage
   exit 2
 fi
@@ -32,6 +33,10 @@ fi
 command -v yq >/dev/null 2>&1 || { printf "FAIL\tsetup\tyq is required\n"; exit 2; }
 command -v docker >/dev/null 2>&1 || { printf "FAIL\tsetup\tdocker is required\n"; exit 2; }
 [ -f "$EVAL_FILE" ] || { printf "FAIL\tsetup\tmissing eval file: %s\n" "$EVAL_FILE"; exit 2; }
+if ! docker ps --filter "name=^/${CONTAINER}$" --format "{{.Names}}" 2>/dev/null | grep -qx "$CONTAINER"; then
+  printf "FAIL\tsetup\tcontainer not running: %s\n" "$CONTAINER"
+  exit 2
+fi
 
 CHECK_COUNT="$(yq '.checks | length' "$EVAL_FILE")"
 LITERAL_INDEXES="$(yq '[range(0; (.checks | length)) as $i | select(.checks[$i].match_type == "literal") | $i] | join(" ")' "$EVAL_FILE")"

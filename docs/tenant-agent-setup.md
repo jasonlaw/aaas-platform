@@ -122,7 +122,7 @@ The onboarding SOP also creates harness files that make tenant quality repeatabl
 - `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}` is the deterministic structural/runtime check the admin agent must run before completion.
 - `/opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml` is the fixed safety behavior profile for every tenant.
 - `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml` is the generated tenant-specific behavior profile created during onboarding.
-- `/opt/aaas/platform/scripts/eval-runner.sh {eval-file} hermes_{tenant-id}` runs automated literal eval checks through `docker exec ... hermes -z`; semantic checks are operator-assisted unless `USE_JUDGE=1` is set.
+- `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {eval-file-path}` runs automated literal eval checks through `docker exec ... hermes -z`; semantic checks are operator-assisted unless `USE_JUDGE=1` is set.
 - `/opt/aaas/platform/scripts/preflight-check.sh` and `/opt/aaas/platform/scripts/validate-tenant-config.sh` help catch host and config drift before restarting a tenant.
 
 ### 1.1 Verify tenant config directory

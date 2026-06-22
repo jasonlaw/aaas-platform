@@ -78,7 +78,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Health required checklist: /opt/aaas/platform/checklists/monitor-health.required.json
 - Fixed tenant safety eval profile: /opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml
 - Generated tenant eval profiles: /opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml
-- Tenant eval runner: /opt/aaas/platform/scripts/eval-runner.sh
+- Automated eval runner (match_type: literal checks only; match_type: semantic checks need manual review): /opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {eval-file-path}
 - Admin meta-eval profile: /opt/aaas/platform/evals/admin-agent/meta-eval-generation-v1.yaml
 - Pre-flight check: /opt/aaas/platform/scripts/preflight-check.sh
 - Tenant config validator: /opt/aaas/platform/scripts/validate-tenant-config.sh

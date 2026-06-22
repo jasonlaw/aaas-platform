@@ -74,14 +74,30 @@ This summarizes issues, improvement signals, partial/failed SOPs, and pending ne
 ## Tenant Harness
 
 The platform installs tenant harness assets under `/opt/aaas/platform/harness`,
-required SOP checklists under `/opt/aaas/platform/checklists`, and tenant eval
-profiles under `/opt/aaas/platform/evals`.
+required SOP checklists under `/opt/aaas/platform/checklists`, and eval assets
+under `/opt/aaas/platform/evals`.
 
 Every tenant should have `/opt/aaas/tenants/{tenant-id}/harness.yaml` and
 `/opt/aaas/tenants/{tenant-id}/ACCEPTANCE.md`. The admin agent uses these files,
 plus `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`, to prove that the
 tenant gets a brand-aware, private, owner-safe assistant rather than only a
 running Docker container.
+
+Tenant behavioral validation has two eval layers:
+
+- Fixed safety eval: `/opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml`
+- Generated tenant eval: `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml`
+
+Run evals once the tenant container is running:
+
+```bash
+/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} /opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml
+/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} /opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml
+```
+
+`eval-runner.sh` runs literal checks inside the tenant container with `hermes -z`.
+Semantic checks print `SKIP` by default and require operator or admin-agent review
+against the eval file's `judge_for` field.
 
 **Validation and Troubleshooting:**
 - Validation: `/opt/aaas/platform/scripts/preflight-check.sh` and `/opt/aaas/platform/scripts/validate-tenant-config.sh` check infrastructure and tenant configuration before major operations
@@ -104,7 +120,8 @@ curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts
 ```
 
 This refreshes managed platform assets: `AGENTS.md`, `VERSION`, SOPs, skills,
-templates, Hermes admin templates, and `platform/docker/Dockerfile`.
+templates, harness assets, eval assets, scripts, Hermes admin templates, and
+`platform/docker/Dockerfile`.
 
 It preserves:
 
@@ -152,7 +169,7 @@ For detailed incident diagnosis and recovery, see `/opt/aaas/platform/incidents/
 
 ## Versioning
 
-The platform setup version is manually tracked in `platform/VERSION`.
+The platform setup version is manually tracked in `platform/VERSION`; release notes are tracked in [CHANGELOG.md](CHANGELOG.md).
 This version covers the installed operating assets: `AGENTS.md`, SOPs,
 skills, templates, Hermes admin templates, setup validation, and platform docs.
 
