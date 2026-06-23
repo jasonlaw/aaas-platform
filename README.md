@@ -104,6 +104,19 @@ against the eval file's `judge_for` field.
 - Troubleshooting: Use `/opt/aaas/platform/sop/troubleshoot-tenant.md` when a tenant needs diagnosis or recovery
 - Incident playbooks: `/opt/aaas/platform/incidents/` contains runbooks for common failure scenarios (connectivity, Docker issues, Telegram API changes, backup recovery, etc.)
 
+**Single-Tenant Container Changes:**
+After tenant config, secret, or model provider changes, recreate only that tenant's
+container so the new state is loaded cleanly:
+
+```bash
+cd /opt/aaas/platform/docker
+docker compose up --force-recreate --no-deps -d hermes_{tenant-id}
+```
+
+Do not use `docker compose restart` for those changes. Do not use broad
+`docker compose down` to resolve a single-tenant issue because it affects other
+tenants.
+
 **SOP Improvement:**
 SOP improvement work should use `/opt/aaas/platform/sop/improve-sop.md`. Native
 SOP files are upgrade-managed, so local active overrides belong under

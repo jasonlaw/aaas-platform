@@ -2,6 +2,13 @@
 
 All notable changes to this platform setup are tracked here. The platform setup version is stored in `platform/VERSION`.
 
+## 0.5.2 - 2026-06-23
+
+### Changed
+- Updated the tenant update SOP to recreate only the affected tenant container with `docker compose up --force-recreate --no-deps -d hermes_{tenant-id}` after config, secret, or model provider changes.
+- Added admin-agent rules forbidding single-tenant recovery via broad `docker compose down` and forbidding `docker compose restart` for changes that need a clean reload.
+- Documented the single-tenant clean reload rule in the README.
+
 ## 0.5.1 - 2026-06-22
 
 ### Fixed

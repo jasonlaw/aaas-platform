@@ -18,7 +18,9 @@ Update a tenant's config, secrets, brand context, owner profile, model, or chann
    Files created with `sudo tee` or a root editor after onboarding can otherwise remain root-owned even when the existing volume is correct.
 9. Validate the updated tenant config:
    `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
-10. Restart only this tenant: `docker compose restart hermes_{tenant-id}`.
+10. Recreate only this tenant's container to guarantee a clean config reload:
+    `docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`
+    Never use `docker compose restart` for config, secret, or model provider changes - it preserves the running container and in-memory state, so changes may not take effect. Never use `docker compose down` without `--no-deps` and a specific service name - this affects all tenants.
 11. Verify running: `docker ps | grep hermes_{tenant-id}`.
 12. Run `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}` and fix any failed structural checks before completion when possible.
 13. If brand context, owner profile, model, channel behavior, or generated vertical behavior changed, run or operator-assist BOTH eval profiles once the tenant container is running: `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} /opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml` and `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} /opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml`. Record fixed safety and generated tenant eval results in `ACCEPTANCE.md`.
