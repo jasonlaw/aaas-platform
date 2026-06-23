@@ -132,7 +132,7 @@ platform setup, rerun the same setup link:
 curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash
 ```
 
-This refreshes managed platform assets: `AGENTS.md`, `VERSION`, SOPs, skills,
+This refreshes managed platform assets: `AGENTS.md`, `VERSION`, `CHANGELOG.md`, SOPs, skills,
 templates, harness assets, eval assets, scripts, Hermes admin templates, and
 `platform/docker/Dockerfile`.
 
@@ -182,7 +182,7 @@ For detailed incident diagnosis and recovery, see `/opt/aaas/platform/incidents/
 
 ## Versioning
 
-The platform setup version is manually tracked in `platform/VERSION`; release notes are tracked in [CHANGELOG.md](CHANGELOG.md).
+The platform setup version is manually tracked in `platform/VERSION`; release notes are tracked in [CHANGELOG.md](CHANGELOG.md) and installed to `/opt/aaas/platform/CHANGELOG.md`.
 This version covers the installed operating assets: `AGENTS.md`, SOPs,
 skills, templates, Hermes admin templates, setup validation, and platform docs.
 

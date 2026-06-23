@@ -178,6 +178,7 @@ validate_asset_source() {
   local required=(
     "$ASSET_ROOT/AGENTS.md"
     "$ASSET_ROOT/VERSION"
+    "$REPO_ROOT/CHANGELOG.md"
     "$ASSET_ROOT/admin-hermes/SOUL.md.template"
     "$ASSET_ROOT/admin-hermes/USER.md.template"
     "$ASSET_ROOT/admin-hermes/MEMORY.md.template"
@@ -285,6 +286,9 @@ validate_installed_matches_source() {
     cmp -s "$ASSET_ROOT/$relative_path" "$PLATFORM_ROOT/$relative_path" \
       || error "Installed asset differs from repository asset: $relative_path"
   done
+
+  cmp -s "$REPO_ROOT/CHANGELOG.md" "$PLATFORM_ROOT/CHANGELOG.md" \
+    || error "Installed asset differs from repository asset: CHANGELOG.md"
 }
 
 backup_managed_assets() {
@@ -295,6 +299,7 @@ backup_managed_assets() {
   local paths=(
     "AGENTS.md"
     "VERSION"
+    "CHANGELOG.md"
     "admin-hermes"
     "docker/Dockerfile"
     "harness"
@@ -417,6 +422,7 @@ install_assets() {
   chmod +x "$PLATFORM_ROOT/scripts/_eval-check-single.sh"
   cp "$ASSET_ROOT/AGENTS.md" "$PLATFORM_ROOT/AGENTS.md"
   cp "$ASSET_ROOT/VERSION" "$PLATFORM_ROOT/VERSION"
+  cp "$REPO_ROOT/CHANGELOG.md" "$PLATFORM_ROOT/CHANGELOG.md"
   cp "$ASSET_ROOT/docker/Dockerfile" "$PLATFORM_ROOT/docker/Dockerfile"
 
   if [ ! -f "$PLATFORM_ROOT/tenants.yaml" ]; then
@@ -477,6 +483,7 @@ validate_install() {
   local required=(
     "$PLATFORM_ROOT/AGENTS.md"
     "$PLATFORM_ROOT/VERSION"
+    "$PLATFORM_ROOT/CHANGELOG.md"
     "$PLATFORM_ROOT/admin-hermes/SOUL.md.template"
     "$PLATFORM_ROOT/admin-hermes/USER.md.template"
     "$PLATFORM_ROOT/admin-hermes/MEMORY.md.template"
