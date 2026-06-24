@@ -10,7 +10,6 @@ SKILL_NAME="${2:-}"
 SPEC_FILE="${3:-}"
 TRIGGERING_TASK="${4:-}"
 TENANT_ROOT="${TENANT_ROOT:-/opt/aaas/tenants}"
-PLATFORM_ROOT="${PLATFORM_ROOT:-/opt/aaas/platform}"
 
 if [ -n "${TENANT_DIR:-}" ]; then
   TENANT_DIR="$TENANT_DIR"
@@ -31,9 +30,6 @@ fi
 PROVENANCE_DIR="$TENANT_DIR/skills"
 PROVENANCE_FILE="$PROVENANCE_DIR/PROVENANCE.jsonl"
 LOCK_DIR="$PROVENANCE_DIR/PROVENANCE.lockdir"
-EVAL_JUDGE="$PLATFORM_ROOT/scripts/eval-judge.sh"
-ADMIN_ENV="$PLATFORM_ROOT/admin/.env"
-ADMIN_HERMES="$PLATFORM_ROOT/admin/hermes"
 
 usage() {
   echo "Usage: $0 {tenant-id} {skill-name} {verification-spec-yaml} [triggering-task]"
@@ -310,25 +306,12 @@ update_provenance() {
 }
 
 run_judge_fallback() {
-  local prompt reply judge_for
-  judge_for="$(spec_value .judge_for)"
-  prompt="$(spec_value .prompt)"
-  reply="$(spec_value .reply)"
-  [ -n "$prompt" ] || prompt="Verify skill: $SKILL_NAME"
-  [ -n "$reply" ] || reply="${SKILL_VERIFY_REPLY:-}"
-  if [ ! -f "$ADMIN_ENV" ] || [ ! -x "$ADMIN_HERMES" ] || [ ! -x "$EVAL_JUDGE" ]; then
-    record WARN judge "verification=unavailable; optional admin dashboard prerequisites missing"
-    update_provenance "provisional" "unavailable" 0
-    return 0
-  fi
-  [ -n "$judge_for" ] || { record FAIL judge "missing judge_for"; update_provenance "flagged" "judge" 1; return 1; }
-  [ -n "$reply" ] || { record FAIL judge "missing reply text to grade"; update_provenance "flagged" "judge" 1; return 1; }
-  if "$EVAL_JUDGE" "skill_${SKILL_NAME}" "$prompt" "$reply" "$judge_for"; then
-    update_provenance "provisional" "judge" 0
-    return 0
-  fi
-  update_provenance "flagged" "judge" 1
-  return 1
+  # Judge verification requires an external LLM (the admin Hermes agent) which
+  # is a host-only dependency not available inside the tenant container.
+  # This primitive cannot be auto-verified at runtime; it will always remain
+  # status=provisional and requires operator review against the judge_for field.
+  record WARN judge "verification=provisional; judge type cannot be auto-verified inside the tenant container - operator review required"
+  update_provenance "provisional" "judge-not-available-in-container" 0
 }
 
 require_setup

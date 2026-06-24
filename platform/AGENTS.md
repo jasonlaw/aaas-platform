@@ -120,7 +120,8 @@ Always read the relevant SOP before executing ANY tenant operation.
 - The tenant agent may codify a solved task into a self-written skill at runtime
   (this is native Hermes behavior under /opt/data, not a platform addition). The
   admin agent is not responsible for reviewing these - verification is automated
-  via `/opt/aaas/platform/scripts/skill-verify.sh`, which is triggered by the
+  via `/opt/data/scripts/skill-verify.sh` (installed into the tenant volume
+  during onboarding), which is triggered by the
   tenant agent itself after a skill runs, not by the admin agent or operator.
 - Skill verification primitives are defined once at
   `/opt/aaas/platform/evals/tenant-agent/_skill-verification-primitives-v1.yaml`

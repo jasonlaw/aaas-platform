@@ -4,6 +4,27 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.6.1 - 2026-06-24
+
+### Fixed
+- Removed dead host-path variables (`PLATFORM_ROOT`, `EVAL_JUDGE`, `ADMIN_ENV`, `ADMIN_HERMES`)
+  from `skill-verify.sh`. These referenced `/opt/aaas/platform` paths that do not exist inside
+  the tenant container.
+- Rewrote `run_judge_fallback()` to unconditionally record `WARN` + `provisional` with a clear
+  reason, instead of conditionally attempting host calls. Judge verification has always been
+  provisional-forever by design; the implementation now matches that intent.
+- Updated `_skill-verification-primitives-v1.yaml` judge fallback description to state explicitly
+  that it cannot be auto-verified inside the tenant container and requires operator review.
+
+### Changed
+- Moved `skill-verify.sh` from `platform/scripts/` to `platform/scripts/tenant/` to make the
+  host/tenant script boundary structurally obvious. All other scripts in `platform/scripts/`
+  remain host-only and keep their existing paths.
+- Added step 6.2 to `onboard-tenant.md` SOP: copy `skill-verify.sh` into the tenant volume at
+  `tenants/{tenant-id}/scripts/skill-verify.sh` during onboarding so the container can call it
+  at `/opt/data/scripts/skill-verify.sh` at runtime. This closes the delivery gap - the script
+  previously existed on the host but had no mechanism to reach the container.
+
 ## 0.6.0 - 2026-06-24
 
 ### Added

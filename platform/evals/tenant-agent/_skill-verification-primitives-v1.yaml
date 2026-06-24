@@ -28,5 +28,7 @@ fallback:
   type: judge
   description: >
     Use only when no primitive above can express the success condition (e.g.
-    subjective output quality). A skill verified only this way may stay in use
-    but must remain status=provisional indefinitely - see skill-verify.sh.
+    subjective output quality). This type cannot be auto-verified inside the
+    tenant container - skill-verify.sh will always record WARN and set
+    status=provisional. Operator review against the judge_for field is required
+    before treating a judge-verified skill as trusted.

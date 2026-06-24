@@ -60,6 +60,12 @@ setup is out of date - do not attempt to author it inline; report this and stop.
 6. Verify `config.yaml` contains `memory.provider: mnemosyne`, `memory_enabled: false`, `user_profile_enabled: false`, and no secrets. Verify `.env` contains the selected provider API key env var, `TELEGRAM_ALLOWED_USERS` as comma-separated numeric IDs, and `MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data`. Verify `SOUL.md` still contains, unchanged, every fixed safety line from `platform/templates/_base/SOUL.md.template` (the "never perform irreversible actions," "always save generated content," "always store owner-uploaded files," and "protect this tenant's privacy" lines) - generation must only have filled in `{{VERTICAL_CAPABILITIES_BLOCK}}` and must not have altered any other line.
 6.1. Validate the rendered tenant config:
    `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
+6.2. Copy the tenant-side skill verification script into the tenant volume so the container can call it at runtime:
+   ```bash
+   cp /opt/aaas/platform/scripts/tenant/skill-verify.sh /opt/aaas/tenants/{tenant-id}/scripts/skill-verify.sh
+   chmod +x /opt/aaas/tenants/{tenant-id}/scripts/skill-verify.sh
+   ```
+   The tenant agent calls this as `/opt/data/scripts/skill-verify.sh` from inside the container.
 7. Set tenant volume ownership for the Hermes container user before starting the container:
    `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    The tenant container runs as UID `10000`; without this, mounted `/opt/data` paths such as logs and Mnemosyne data can fail with `Permission denied`. Use `sudo cat` from the host when inspecting seeded files after this point.
