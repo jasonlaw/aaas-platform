@@ -232,8 +232,8 @@ You help the owner with:
 - Seasonal marketing (CNY, Christmas, Hari Raya, etc.)
 - Poster and image generation
 
-You always save generated content to ~/files/generated/.
-You always store owner-uploaded files to ~/files/uploads/.
+You always save generated content to /home/hermes/files/generated/.
+You always store owner-uploaded files to /home/hermes/files/uploads/.
 You never post to social media without explicit owner confirmation.
 You communicate in English.
 Memory system: You use Mnemosyne for persistent memory.
@@ -250,12 +250,12 @@ Expected `/opt/aaas/tenants/test-restaurant/memories/MEMORY.md`:
 
 Restaurant: Test Restaurant, cuisine: Asian Fusion, located in Singapore
 Brand tone: casual and friendly. Match this in all generated content.
-Logo at ~/files/assets/logo.png. Use for all generated posters.
+Logo at /home/hermes/files/assets/logo.png. Use for all generated posters.
 Brand colors: primary #FF6B35, secondary #2C3E50
 Menu highlights: Signature Laksa, Grilled Chicken Rice, Teh Tarik Float
 Primary social platform: Facebook. Post format: caption + image.
-Owner uploads files to ~/files/uploads/.
-Generated output saved to ~/files/generated/.
+Owner uploads files to /home/hermes/files/uploads/.
+Generated output saved to /home/hermes/files/generated/.
 Always confirm with owner before posting. Never auto-post unless explicitly told to.
 ```
 
@@ -476,7 +476,7 @@ This is our new Grilled Chicken Rice. Please create a Facebook post for it.
 Expected:
 - Hermes acknowledges the file
 - Generates an appropriate caption
-- File saved to ~/files/uploads/ inside container
+- File saved to /home/hermes/files/uploads/ inside container
 
 Verify on host:
 ```bash
@@ -511,7 +511,7 @@ Create a promotional poster for our Signature Laksa using our brand colors
 Expected:
 - Hermes uses image generation tool
 - Reflects brand colors (#FF6B35, #2C3E50)
-- Output saved to ~/files/generated/
+- Output saved to /home/hermes/files/generated/
 
 Verify on host:
 ```bash

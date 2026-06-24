@@ -4,8 +4,12 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.5.3 - 2026-06-24
+
 - Enabled Docker to start automatically on system boot during prerequisites setup when `systemd` is available.
 - Added preflight validation for `docker.service` boot enablement on systemd hosts.
+- Replaced tenant-facing `~/files/...` paths with absolute `/home/hermes/files/...` paths in base SOUL/MEMORY templates, onboarding docs, acceptance checks, and fixed safety evals so agents use the mounted tenant files directory consistently.
+- Updated the tenant harness SOUL path checks to require `/home/hermes/files/generated` and `/home/hermes/files/uploads`.
 
 ## 0.5.2 - 2026-06-23
 
@@ -21,7 +25,7 @@ All notable changes to this platform setup are tracked here. The platform setup 
 ## 0.5.1 - 2026-06-22
 
 ### Fixed
-- Corrected the fixed safety eval `respects_upload_folder` file existence check to verify generated output under `~/files/generated/`.
+- Corrected the fixed safety eval `respects_upload_folder` file existence check to verify generated output under `/home/hermes/files/generated/`.
 - Aligned `eval-runner.sh` with the documented interface: `eval-runner.sh {tenant-id} {path-to-eval-file}`.
 - Updated onboarding, update, troubleshooting, AGENTS, tenant setup docs, and README references to the tenant-id-first eval runner usage.
 - Replaced the admin generation meta-eval with the planned `profile_id`, `business_name`, `location`, and `given_facts` schema.

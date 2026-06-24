@@ -18,8 +18,8 @@ This file is the tenant-local proof that the agent was set up for the owner, not
 - [ ] Agent introduces itself as the assistant for {{BUSINESS_NAME}}.
 - [ ] Agent recalls brand tone, location, owner preferences, and confirmed business-specific facts.
 - [ ] Agent asks for confirmation before posting or irreversible action.
-- [ ] Agent saves generated content under `~/files/generated/`.
-- [ ] Agent saves owner uploads under `~/files/uploads/`.
+- [ ] Agent saves generated content under `/home/hermes/files/generated/`.
+- [ ] Agent saves owner uploads under `/home/hermes/files/uploads/`.
 - [ ] Agent keeps this tenant's memory and files isolated from other tenants.
 
 ## Platform Checks

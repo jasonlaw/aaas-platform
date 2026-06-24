@@ -84,7 +84,7 @@ Provision a new Hermes tenant agent as a Docker container.
    `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8`
    `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8`
    Verify with `docker exec hermes_{tenant-id} hermes memory status`, `docker exec hermes_{tenant-id} hermes mnemosyne stats`, and `docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"`. If `hermes mnemosyne` is unavailable, try the documented fallback `hermes hermes-mnemosyne`.
-   Note: `business-data.md` is not seeded into Mnemosyne — it is read directly by the tenant agent at runtime from `~/files/assets/business-data.md`.
+   Note: `business-data.md` is not seeded into Mnemosyne — it is read directly by the tenant agent at runtime from `/home/hermes/files/assets/business-data.md`.
 14. Add or update the tenant entry in `/opt/aaas/platform/tenants.yaml`.
 15. Send the welcome message through the tenant's Telegram bot to every numeric ID in `TELEGRAM_ALLOWED_USERS`. This only succeeds for users who have already opened the bot and sent `/start`; report Telegram `400 Bad Request: chat not found` or `403 Forbidden` as "user must start the bot first":
    `curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" -d chat_id="{user-id}" --data-urlencode text="{welcome-message}"`
