@@ -117,3 +117,15 @@ Always read the relevant SOP before executing ANY tenant operation.
 
 - The tenant agent never infers its own vertical behavior at runtime; the admin agent generates vertical-specific SOUL and eval content once during onboarding, and the tenant reads the resulting static files.
 - Before trusting vertical generation changes, run or operator-assist /opt/aaas/platform/evals/admin-agent/meta-eval-generation-v1.yaml against vegan-bakery, laundromat, and hair-salon synthetic profiles and confirm all three semantic checks pass.
+- The tenant agent may codify a solved task into a self-written skill at runtime
+  (this is native Hermes behavior under /opt/data, not a platform addition). The
+  admin agent is not responsible for reviewing these - verification is automated
+  via `/opt/aaas/platform/scripts/skill-verify.sh`, which is triggered by the
+  tenant agent itself after a skill runs, not by the admin agent or operator.
+- Skill verification primitives are defined once at
+  `/opt/aaas/platform/evals/tenant-agent/_skill-verification-primitives-v1.yaml`
+  and are vertical-agnostic; do not generate per-tenant verification primitives
+  during onboarding.
+- During health checks or troubleshooting, an operator may optionally inspect a
+  tenant's `skills/PROVENANCE.jsonl` for skills stuck at status=provisional or
+  flagged, but this is opportunistic review, never a blocking requirement.

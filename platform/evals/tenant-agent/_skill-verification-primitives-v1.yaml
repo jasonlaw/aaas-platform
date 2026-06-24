@@ -1,0 +1,32 @@
+profile: skill-verification-primitives-v1
+version: 1
+purpose: >
+  Fixed, vertical-agnostic library of verification primitive types. When the
+  tenant agent codifies a solved task into a new skill, it must attach a
+  verification spec chosen from this list (with concrete parameters it
+  supplies), not invent a new kind of check. This file is never generated or
+  edited per tenant.
+primitives:
+  - type: file_exists_at
+    description: "A file matching a path/glob exists after the skill runs."
+    params: [path_pattern]
+  - type: file_does_not_exist_at
+    description: "A file that should have been removed/avoided is absent."
+    params: [path_pattern]
+  - type: content_includes
+    description: "The skill's text output or saved file contains a required string."
+    params: [target, must_include]
+  - type: no_error_thrown
+    description: "The tool call(s) the skill makes complete without raising an exception."
+    params: []
+  - type: confirmation_sent_before
+    description: >
+      For any skill step that posts, sends, or deletes, a confirmation message
+      was sent to the owner and a positive reply received before that step ran.
+    params: [action_description]
+fallback:
+  type: judge
+  description: >
+    Use only when no primitive above can express the success condition (e.g.
+    subjective output quality). A skill verified only this way may stay in use
+    but must remain status=provisional indefinitely - see skill-verify.sh.

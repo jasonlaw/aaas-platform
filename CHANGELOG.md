@@ -4,6 +4,25 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.6.0 - 2026-06-24
+
+### Added
+- Added a vertical-agnostic professional-conduct block to `SOUL.md.template`:
+  ask before assuming, attempt before declining, disclose when blocked, report
+  progress on long tasks, and codify solved tasks as skills.
+- Added `platform/evals/tenant-agent/_skill-verification-primitives-v1.yaml`,
+  a fixed library of verification primitive types for self-written tenant skills.
+- Added `platform/scripts/skill-verify.sh`: automated, human-independent
+  verification of self-written tenant skills (deterministic checks plus an
+  optional isolated judge fallback), and a per-tenant skill provenance ledger
+  at `skills/PROVENANCE.jsonl`.
+- Extended `_fixed-safety-v1.yaml` with `attempts_before_declining`,
+  `discloses_when_blocked`, and `reports_progress_on_multistep_task` checks.
+- Extended `check-tenant.sh` with conduct-block and provenance-file checks.
+
+### Changed
+- `_fixed-safety-v1.yaml` bumped to version 2.
+
 ## 0.5.3 - 2026-06-24
 
 - Enabled Docker to start automatically on system boot during prerequisites setup when `systemd` is available.
@@ -52,3 +71,5 @@ All notable changes to this platform setup are tracked here. The platform setup 
 ### Removed
 - Removed predefined vertical template folders under `platform/templates/verticals/`.
 - Removed the old fixed F&B tenant eval profile `fnb-marketing-v1.yaml`.
+
+

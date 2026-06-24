@@ -17,6 +17,9 @@ Provision a new Hermes tenant agent as a Docker container.
    If checks fail, abort and report the issue before proceeding.
 0.1. Read `/opt/aaas/platform/checklists/onboard-tenant.required.json`. Treat every item as a completion gate; unresolved items must appear in the final task report.
 0.2. Run `/opt/aaas/platform/scripts/preflight-check.sh`. If it fails, fix host/platform readiness before creating tenant files.
+0.3. Confirm `/opt/aaas/platform/evals/tenant-agent/_skill-verification-primitives-v1.yaml`
+exists (platform-level asset, not generated per tenant). If missing, the platform
+setup is out of date - do not attempt to author it inline; report this and stop.
 1. Collect tenant information one question at a time: business type, business name, vertical details, location, brand tone, colors, owner profile, Telegram bot token, allowed Telegram user IDs, LLM provider/model, provider-specific API key env var name, and API key value.
 1.1. **Web research augmentation:** After collecting the operator's answers, proactively search the business website, public review/blog pages, Instagram bios, and Google Business snippets to fill gaps and validate facts. Do this even when the operator has answered every question — website copy often surfaces richer vertical detail than interview answers alone. If a social page blocks unauthenticated access, use the above sources as alternates. Record which sources were used; include them in the final task report.
 1.2. Using the collected business type and details, generate the following for this specific business (not a predefined category):
@@ -98,4 +101,6 @@ Provision a new Hermes tenant agent as a Docker container.
    Once the tenant container is running, run `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` against both profiles for automated PASS/FAIL results on `match_type: literal` checks (this runs prompts inside the container via `hermes -z`, not over Telegram); the script will print `SKIP` for `match_type: semantic` checks, which still require the operator or admin agent to read the actual reply against that check's `judge_for` field. Fall back to fully manual review only if `eval-runner.sh` reports a missing dependency or the container is not running (exit code 2). At minimum, verify brand recall, confirmation before posting, confirmation before deleting, generated/upload folder behavior, owner-friendly language, no cross-tenant memory leakage, and the tenant's own generated vertical-specific checks. Record results from both files in `ACCEPTANCE.md`.
 18. Update `/opt/aaas/tenants/{tenant-id}/harness.yaml` with status, last verification timestamp, and verification notes if your editor/tooling can do so safely.
 19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, welcome message delivery status per user ID, registry update status, alternate brand sources used, and whether operational details were written to `files/assets/business-data.md` or a stub was created for future owner use.
+
+
 

@@ -130,6 +130,8 @@ echo "tenant_id=$TENANT_ID"
 echo "platform_root=$PLATFORM_ROOT"
 echo ""
 
+exists_file "$PLATFORM_ROOT/evals/tenant-agent/_skill-verification-primitives-v1.yaml" "platform_skill_verification_primitives"
+
 exists_dir "$TENANT_DIR" "tenant_directory"
 exists_dir "$TENANT_DIR/memories" "tenant_memories_directory"
 exists_dir "$TENANT_DIR/files/assets" "tenant_assets_directory"
@@ -151,6 +153,8 @@ contains "$TENANT_DIR/config.yaml" 'user_profile_enabled:[[:space:]]*false' "con
 contains "$TENANT_DIR/.env" '^TELEGRAM_ALLOWED_USERS=[0-9, ]+$' "env_has_allowed_telegram_users"
 contains "$TENANT_DIR/.env" '^MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data$' "env_pins_mnemosyne_data"
 contains "$TENANT_DIR/SOUL.md" 'never perform irreversible actions' "soul_requires_owner_confirmation"
+contains "$TENANT_DIR/SOUL.md" 'try to work it out yourself' "soul_has_self_improvement_conduct"
+contains "$TENANT_DIR/SOUL.md" 'short progress update' "soul_has_progress_reporting_conduct"
 contains "$TENANT_DIR/SOUL.md" '/home/hermes/files/generated' "soul_directs_generated_files"
 contains "$TENANT_DIR/SOUL.md" '/home/hermes/files/uploads' "soul_directs_uploaded_files"
 contains "$TENANT_DIR/harness.yaml" '^tenant_harness_version:[[:space:]]*1' "manifest_has_harness_version"
@@ -159,6 +163,11 @@ contains "$TENANT_DIR/harness.yaml" '^fixed_safety_profile:[[:space:]]*"?_fixed-
 contains "$TENANT_DIR/SOUL.md" 'never perform irreversible actions' "soul_has_fixed_safety_language"
 exists_file "$PLATFORM_ROOT/evals/tenant-agent/generated/$TENANT_ID-v1.yaml" "tenant_generated_eval_file"
 
+if [ -f "$TENANT_DIR/skills/PROVENANCE.jsonl" ]; then
+  record PASS "skills_provenance_present"
+else
+  record WARN "skills_provenance_present" "no self-written skills yet; expected for a freshly onboarded tenant"
+fi
 owned_by_hermes "$TENANT_DIR" "tenant_directory_owner_is_10000"
 owned_by_hermes "$TENANT_DIR/harness.yaml" "tenant_harness_owner_is_10000"
 owned_by_hermes "$TENANT_DIR/ACCEPTANCE.md" "tenant_acceptance_owner_is_10000"
@@ -210,3 +219,4 @@ echo ""
 echo "summary pass=$PASS_COUNT warn=$WARN_COUNT fail=$FAIL_COUNT"
 
 [ "$FAIL_COUNT" -eq 0 ]
+
