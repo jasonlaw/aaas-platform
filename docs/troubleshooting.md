@@ -13,7 +13,7 @@ Use this guide when a tenant is unhealthy and the answer is not obvious from the
 ### Docker Not Reachable
 - Symptom: `Cannot connect to the Docker daemon`.
 - Fix: start Docker, then rerun pre-flight.
-- Prevention: keep Docker service startup behavior documented in prerequisites.
+- Prevention: ensure `systemctl is-enabled docker` reports `enabled`; keep the `.bashrc` fallback for non-systemd hosts documented in prerequisites.
 
 ### Container Permission Denied
 - Symptom: logs mention permission errors under `/opt/data`, logs, sessions, or Mnemosyne.

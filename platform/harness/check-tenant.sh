@@ -81,6 +81,25 @@ contains() {
   fi
 }
 
+service_contains() {
+  local service="$1"
+  local pattern="$2"
+  local name="$3"
+
+  if [ ! -f "$COMPOSE_FILE" ]; then
+    record FAIL "$name" "missing file: $COMPOSE_FILE"
+  elif awk -v service="  ${service}:" -v pattern="$pattern" '
+    $0 == service { in_service=1; next }
+    in_service && /^  [^[:space:]][^:]*:/ { in_service=0 }
+    in_service && $0 ~ pattern { found=1 }
+    END { exit found ? 0 : 1 }
+  ' "$COMPOSE_FILE"; then
+    record PASS "$name"
+  else
+    record FAIL "$name" "pattern not found in $service service: $pattern"
+  fi
+}
+
 owned_by_hermes() {
   local path="$1"
   local name="$2"
@@ -151,6 +170,9 @@ else
 fi
 
 contains "$COMPOSE_FILE" "^  $SERVICE:" "compose_has_tenant_service"
+service_contains "$SERVICE" "restart:[[:space:]]*unless-stopped" "compose_has_restart_policy"
+service_contains "$SERVICE" "mem_limit:[[:space:]]*1g" "compose_has_memory_limit"
+service_contains "$SERVICE" "cpus:[[:space:]]*[\"']?1[.]0[\"']?" "compose_has_cpu_limit"
 contains "$COMPOSE_FILE" "$TENANT_DIR:/opt/data" "compose_mounts_tenant_data"
 contains "$COMPOSE_FILE" "$TENANT_DIR/files:/home/hermes/files" "compose_mounts_tenant_files"
 contains "$COMPOSE_FILE" "$TENANT_DIR/.env" "compose_uses_tenant_env"

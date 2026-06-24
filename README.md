@@ -53,7 +53,7 @@ After every SOP task or operational troubleshooting work, the admin agent must w
 Use the [write-report](platform/sop/write-report.md) SOP for detailed guidance.
 
 **Report Locations:**
-- Full report: `/opt/aaas/platform/reports/{timestamp}_{sop-or-task-name}_{tenant-or-platform}_{status}.md`
+- Full report: `/opt/aaas/platform/reports/{timestamp}_{sop-or-task-name}_{tenant-or-platform}_{status}.md` (flat under `reports/`, no category subfolders)
 - AI index: `/opt/aaas/platform/reports/INDEX.jsonl` (one JSON object per line, structured for analysis)
 
 **Report Content:**

@@ -64,6 +64,7 @@ Provision a new Hermes tenant agent as a Docker container.
    - service/container name: `hermes_{tenant-id}`
    - image: `hermes-tenant:latest`
    - command: `gateway run`
+   - restart policy: `restart: unless-stopped` so the tenant starts again after host or Docker daemon reboot
    - mounts tenant folder to `/opt/data` and files folder to `/home/hermes/files`
    - `env_file` points to the tenant `.env`
    - resource limits: `mem_limit: 1g` and `cpus: "1.0"`

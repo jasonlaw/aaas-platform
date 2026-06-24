@@ -2,6 +2,11 @@
 
 All notable changes to this platform setup are tracked here. The platform setup version is stored in `platform/VERSION`.
 
+## Unreleased
+
+- Enabled Docker to start automatically on system boot during prerequisites setup when `systemd` is available.
+- Added preflight validation for `docker.service` boot enablement on systemd hosts.
+
 ## 0.5.2 - 2026-06-23
 
 ### Changed
@@ -9,6 +14,9 @@ All notable changes to this platform setup are tracked here. The platform setup 
 - Added admin-agent rules forbidding single-tenant recovery via broad `docker compose down` and forbidding `docker compose restart` for changes that need a clean reload.
 - Documented the single-tenant clean reload rule in the README.
 - Added `CHANGELOG.md` to managed install and upgrade assets so release notes are available under `/opt/aaas/platform/CHANGELOG.md`.
+- Clarified that task reports must be written as flat report files directly under `/opt/aaas/platform/reports/`, not SOP/category subfolders.
+- Added `restart: unless-stopped` as a required tenant compose policy and harness check so tenants recover after host or Docker daemon restarts.
+- Added harness validation for tenant compose `mem_limit` and `cpus` resource limits, matching the Compose v2 service reference.
 
 ## 0.5.1 - 2026-06-22
 

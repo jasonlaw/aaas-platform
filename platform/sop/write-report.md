@@ -12,7 +12,7 @@ Use this SOP even when the operator's request did not start from a named SOP, su
 - Full report: `/opt/aaas/platform/reports/{timestamp}_{sop-or-task-name}_{tenant-or-platform}_{status}.md`
 - AI index: `/opt/aaas/platform/reports/INDEX.jsonl`
 
-Use UTC timestamp format `YYYYMMDDTHHMMSSZ`. Use `platform` when the task is not tenant-specific. For on-demand troubleshooting that does not map cleanly to another SOP, use `troubleshoot-tenant` or `troubleshoot-platform` as the task name.
+Use UTC timestamp format `YYYYMMDDTHHMMSSZ`. Use `platform` when the task is not tenant-specific. For on-demand troubleshooting that does not map cleanly to another SOP, use `troubleshoot-tenant` or `troubleshoot-platform` as the task name. Write full reports directly under `/opt/aaas/platform/reports/`; do not create category, SOP, tenant, or status subfolders because the filename already contains the SOP/task name, tenant/platform target, and status.
 
 ## Full Report Format
 Write Markdown with this structure:

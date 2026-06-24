@@ -212,10 +212,17 @@ else
   success "Docker installed"
 fi
 
-# Start Docker service
-sudo service docker start > /dev/null 2>&1 || true
+# Enable Docker at boot when the host uses systemd, then start it now.
+if command -v systemctl &> /dev/null && systemctl list-unit-files docker.service > /dev/null 2>&1; then
+  sudo systemctl enable docker
+  sudo systemctl start docker
+  success "Docker service enabled for boot and started"
+else
+  warn "systemd docker.service not available - using service start and shell auto-start fallback"
+  sudo service docker start > /dev/null 2>&1 || true
+fi
 
-# Add Docker auto-start to .bashrc (idempotent check)
+# Add Docker auto-start to .bashrc as a fallback for non-systemd environments.
 if ! grep -q "Start Docker service (AaaS)" ~/.bashrc; then
   cat >> ~/.bashrc << 'EOF'
 

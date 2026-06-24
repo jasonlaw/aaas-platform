@@ -573,6 +573,12 @@ validate_install() {
     || error "Upgrade tenants SOP must repair tenant volume ownership after edits"
   grep -q "tenant_harness_owner_is_10000" "$PLATFORM_ROOT/harness/check-tenant.sh" \
     || error "Tenant harness check must verify harness.yaml ownership"
+  grep -q "compose_has_restart_policy" "$PLATFORM_ROOT/harness/check-tenant.sh" \
+    || error "Tenant harness check must verify tenant compose restart policy"
+  grep -q "compose_has_memory_limit" "$PLATFORM_ROOT/harness/check-tenant.sh" \
+    || error "Tenant harness check must verify tenant compose memory limit"
+  grep -q "compose_has_cpu_limit" "$PLATFORM_ROOT/harness/check-tenant.sh" \
+    || error "Tenant harness check must verify tenant compose CPU limit"
   grep -q "acceptance_owner_is_10000" "$PLATFORM_ROOT/scripts/validate-tenant-config.sh" \
     || error "Tenant config validator must verify ACCEPTANCE.md ownership"
   grep -q "HERMES_HOME=/opt/data" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
@@ -599,12 +605,18 @@ validate_install() {
     || error "AGENTS.md must advertise platform pre-flight checks"
   grep -q "validate-tenant-config.sh" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must validate tenant config"
+  grep -q "restart: unless-stopped" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
+    || error "Onboarding SOP must require tenant compose restart policy"
+  grep -q "mem_limit: 1g" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
+    || error "Onboarding SOP must document tenant compose resource limits"
   grep -q "troubleshoot-tenant" "$PLATFORM_ROOT/AGENTS.md" \
     || error "AGENTS.md must advertise tenant troubleshooting SOP"
   grep -q "AaaS pre-flight check" "$PLATFORM_ROOT/scripts/preflight-check.sh" \
     || error "Pre-flight script must contain expected banner"
   grep -q "INDEX.jsonl" "$PLATFORM_ROOT/sop/write-report.md" \
     || error "Report SOP must document AI-readable INDEX.jsonl"
+  grep -q "directly under /opt/aaas/platform/reports" "$PLATFORM_ROOT/sop/write-report.md" \
+    || error "Report SOP must forbid nested report category folders"
   grep -q "What This Must Preserve" "$PLATFORM_ROOT/sop/upgrade-platform.md" \
     || error "Platform upgrade SOP must document preserved files"
   validate_installed_matches_source

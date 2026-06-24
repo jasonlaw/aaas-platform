@@ -214,7 +214,14 @@ sudo usermod -aG docker $USER
 newgrp docker
 ```
 
-Configure Docker to start automatically for interactive shells:
+Configure Docker to start automatically on system boot:
+
+```bash
+sudo systemctl enable docker
+sudo systemctl start docker
+```
+
+For non-systemd environments, keep the interactive-shell fallback:
 
 ```bash
 cat >> ~/.bashrc << 'EOF'
@@ -237,8 +244,9 @@ docker --version
 docker run hello-world
 ```
 
-> `newgrp docker` and `docker run hello-world` are manual verification steps —
-> the script starts Docker with `sudo service docker start` and verifies with
+> `newgrp docker` and `docker run hello-world` are manual verification steps -
+> the script enables Docker at boot with `sudo systemctl enable docker` when
+> systemd is available, starts Docker immediately, and verifies with
 > `docker --version` only. Run `docker run hello-world` manually to confirm
 > end-to-end functionality.
 

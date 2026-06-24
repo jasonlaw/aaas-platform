@@ -32,6 +32,12 @@ if command -v docker >/dev/null 2>&1; then
   docker ps >/dev/null 2>&1 && pass "docker_responsive" || fail "docker_not_responsive"
 fi
 
+if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files docker.service >/dev/null 2>&1; then
+  systemctl is-enabled docker >/dev/null 2>&1 && pass "docker_enabled_at_boot" || fail "docker_not_enabled_at_boot"
+else
+  warn "docker_boot_enable_not_checked:no_systemd_docker_service"
+fi
+
 if command -v iptables >/dev/null 2>&1; then
   IPTABLES_VERSION="$(iptables --version 2>/dev/null || true)"
   echo "$IPTABLES_VERSION" | grep -q "legacy" && pass "iptables_legacy" || fail "iptables_not_legacy:$IPTABLES_VERSION"

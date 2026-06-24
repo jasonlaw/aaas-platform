@@ -13,6 +13,7 @@
 2. Read tenants.yaml and list tenants with `status: active`.
 3. Check Docker status for each active tenant:
    `docker ps --filter name=hermes_{tenant-id} --format "{{.Status}}"`
+   Also verify `/opt/aaas/platform/docker/docker-compose.yaml` sets `restart: unless-stopped` for each active `hermes_{tenant-id}` service. If it is missing, report it as a platform prevention issue and ask the operator before editing existing tenant service definitions.
 4. Show overall platform view: `docker ps | grep hermes_`.
 5. For each running active tenant, verify outbound connectivity:
    - Ping check: `docker exec hermes_{tenant-id} ping -c 1 -W 2 api.telegram.org > /dev/null 2>&1 && echo "OK" || echo "FAILED"`
@@ -26,4 +27,4 @@
    - attempt restart: `docker compose up -d hermes_{tenant-id}`
    - if restart fails, alert operator with full error log
    - If restart succeeds, re-run outbound connectivity check (step 5)
-9. Summarize total active tenants, connectivity issues, iptables state, harness warnings/failures, and tenant-benefit risks such as memory not seeded, generated files not persisted, or confirmation-before-posting not verified.
+9. Summarize total active tenants, connectivity issues, iptables state, restart-policy gaps, harness warnings/failures, and tenant-benefit risks such as memory not seeded, generated files not persisted, or confirmation-before-posting not verified.
