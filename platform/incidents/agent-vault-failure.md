@@ -38,8 +38,7 @@ has been lost (see Recovery B below).
 ## Recovery A — Container stopped or crashed (database intact)
 
 ```bash
-cd /opt/aaas/platform/docker
-docker compose up -d agent-vault
+docker compose -f /opt/aaas/agent-vault/docker-compose.yaml up -d agent-vault
 ```
 
 Wait for healthy status:
@@ -85,9 +84,9 @@ The vault must be reset (database deleted and re-initialised), then all
 credentials re-entered as in Recovery B.
 
 ```bash
-docker compose stop agent-vault
+docker compose -f /opt/aaas/agent-vault/docker-compose.yaml stop agent-vault
 rm -rf /opt/aaas/agent-vault/data/.agent-vault/
-docker compose up -d agent-vault
+docker compose -f /opt/aaas/agent-vault/docker-compose.yaml up -d agent-vault
 # Then follow Recovery B steps
 ```
 

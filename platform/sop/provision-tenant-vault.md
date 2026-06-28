@@ -177,14 +177,12 @@ agent-vault vault agent list {tenant-id}-vault
 
 Return control to the calling SOP (onboard-tenant step 9 or update-tenant step 10).
 
-## Rotating credentials later
-To replace a tenant's LLM API key without interrupting the container:
-1. `agent-vault vault credential update {tenant-id}-vault --host {hostname} --secret {new-key}`
-2. No container restart required — the vault injects the new key on the next proxied request.
-
 ## Notes
 - Never store the real API key in `.env`, `config.yaml`, or any file in the tenant volume.
 - The `AGENT_VAULT_TOKEN` in `.env` is a scoped proxy token, not a credential — it
   grants no direct access to the stored key.
+- To change a tenant's LLM API key, re-run the full onboard-tenant flow for that
+  tenant (offboard and re-onboard), or contact the platform operator to update
+  the credential directly in Agent Vault via `agent-vault vault credential update`.
 - If Agent Vault is down, tenant containers will fail all LLM calls. See
   `/opt/aaas/platform/incidents/agent-vault-failure.md` for recovery.

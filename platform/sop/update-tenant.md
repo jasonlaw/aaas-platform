@@ -1,12 +1,18 @@
 # SOP: Update Tenant Configuration
 
 ## Purpose
-Update a tenant's config, secrets, brand context, owner profile, model, or channels.
+Update a tenant's config, non-LLM secrets, brand context, owner profile, model, or channels.
+
+**Note on LLM API keys:** LLM API keys are stored exclusively in Agent Vault and are
+not updated through this SOP. If a tenant's LLM API key needs to change, contact the
+platform operator to update it directly in Agent Vault, or offboard and re-onboard the
+tenant using the full onboard-tenant SOP.
 
 ## Steps
 1. Ask operator for tenant ID.
-2. Ask what needs updating: LLM API key, Telegram bot token, brand context, owner profile, model provider/name, channel, or generated vertical behavior/eval coverage.
-3. For secrets, edit `/opt/aaas/tenants/{id}/.env`.
+2. Ask what needs updating: Telegram bot token, brand context, owner profile, model provider/name, channel, or generated vertical behavior/eval coverage.
+3. For non-LLM secrets (e.g. Telegram bot token), edit `/opt/aaas/tenants/{id}/.env`.
+   Do not edit the LLM provider key entry — it must remain as `routed-via-agent-vault`.
 4. For config, edit `/opt/aaas/tenants/{id}/config.yaml`.
 5. For brand, owner profile, or generated vertical behavior, update `SOUL.md`, memory seed files, and `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml` only from operator-confirmed facts. Do not alter the fixed safety language in `SOUL.md`; generation may only change the business-specific capability block and business facts. Re-seed Mnemosyne with `store`, not `remember`. Tenant files are owned by UID `10000`, so read from the host with `sudo cat`:
    `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8`

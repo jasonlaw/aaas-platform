@@ -687,6 +687,10 @@ validate_install() {
     || error "Dockerfile must install mnemosyne-memory with embeddings"
   grep -q "mnemosyne-hermes" "$PLATFORM_ROOT/docker/Dockerfile" \
     || error "Dockerfile must install mnemosyne-hermes"
+  grep -q "agent-vault-ca.crt" "$PLATFORM_ROOT/docker/Dockerfile" \
+    || error "Dockerfile must include the Agent Vault MITM CA trust block (COPY agent-vault-ca.pem + update-ca-certificates)"
+  [ -f "$PLATFORM_ROOT/docker/agent-vault-ca.pem" ] \
+    || error "Agent Vault CA certificate missing: $PLATFORM_ROOT/docker/agent-vault-ca.pem — run the setup-agent-vault SOP step 3 to fetch it from the running Agent Vault container"
   grep -q "^services:" "$PLATFORM_ROOT/docker/docker-compose.yaml" \
     || error "docker-compose.yaml must contain a top-level services mapping"
   grep -q "docker compose up -d {service-name}" "$PLATFORM_ROOT/AGENTS.md" \

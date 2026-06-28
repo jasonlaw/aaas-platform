@@ -9,6 +9,7 @@
     "tenant_templates_rendered",
     "tenant_harness_manifest_created",
     "tenant_acceptance_record_created",
+    "tenant_vault_provisioned_and_key_scrubbed",
     "tenant_volume_owner_is_10000",
     "docker_compose_updated_structurally",
     "tenant_container_started",

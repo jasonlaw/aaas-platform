@@ -2,6 +2,7 @@
   "checklist_version": 1,
   "sop": "monitor-health",
   "required_before_completion": [
+    "agent_vault_health_checked",
     "iptables_legacy_verified",
     "docker_responsive",
     "active_tenants_loaded",
