@@ -4,6 +4,28 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.7.1 - 2026-06-28
+
+### Added
+- OpenCode Zen as a supported LLM provider across the platform. Tenant agents can now use the OpenCode Zen gateway (`opencode.ai/zen/v1`) with `OPENCODE_API_KEY` as the credential env var.
+  - `platform/sop/provision-tenant-vault.md`: added OpenCode Zen row to the provider hostname table (`opencode.ai`). The MITM proxy intercepts outbound calls to `opencode.ai` and injects the real key from Agent Vault.
+  - `platform/templates/_base/env.template`: added `# OPENCODE_API_KEY=routed-via-agent-vault` as a commented example alongside the existing provider placeholders.
+  - `platform/skills/setup-admin-hermes.md`: added OpenCode Zen (`OPENCODE_API_KEY`) to the provider key examples for the optional Hermes admin agent.
+
+### Fixed
+- `platform/sop/provision-tenant-vault.md`: corrected Agent Vault hostname for OpenCode Zen to `opencode.ai` (not `api.opencode-zen.com`, which does not resolve).
+- **Tenant containers failing to start (network not found):** `setup-platform.sh`'s `setup_agent_vault()` created the `agent-vault-net` network without pinning a literal `name:`, so Compose project-prefixed it to `agent-vault_agent-vault-net`. The tenant Compose file's `agent-vault-net: external: true` block looked for the unprefixed name and never found it, so `docker compose up -d hermes_{tenant-id}` failed for every tenant onboarded after 0.7.0. Both the vault's own `docker-compose.yaml` and the tenant Compose network block now pin `name: agent-vault-net` explicitly. Added a `validate_install` check to catch a regression of this.
+- **Real LLM API key left in `.env` for non-OpenAI tenants:** `provision-tenant-vault.md` step 5 hardcoded `OPENAI_API_KEY` in its placeholder-substitution command, so the real key was never scrubbed for Anthropic, OpenRouter, or Nous tenants — the three of four supported providers most likely to be in use. The SOP now uses the exact provider env var name collected during onboarding (step 1) instead of a hardcoded default.
+- **Key-scrub verification could never actually fail (or pass) correctly:** the same SOP's "verify the key is gone" check grepped for `key=` case-insensitively, which always matches the env var's own name (e.g. `ANTHROPIC_API_KEY=`) regardless of its value, so "Expected: no output" was unreachable even when scrubbing worked correctly. Replaced with two checks: one confirming the provider var holds the literal placeholder, and one scanning for live-looking key prefixes. Also reordered the SOP so the key is scrubbed *before* this verification runs, rather than after (previously the check ran a full step before the substitution that was supposed to make it pass).
+- **README listed the wrong file as holding the Agent Vault master password:** the preserved-paths list named `/opt/aaas/platform/docker/.env`, a file no installer script creates. The actual master password lives in `/opt/aaas/agent-vault/.env` (a separate directory tree, peer to `platform/`), which was previously absent from any backup/preserved-path guidance entirely. Corrected the path and added a pointer to the master-password-loss recovery procedure.
+
+### Changed
+- `provision-tenant-vault.md`: tenant `.env` now also receives a `NO_PROXY` entry (Telegram, localhost) so only the registered LLM provider host is routed through Agent Vault's MITM proxy — previously `HTTP_PROXY`/`HTTPS_PROXY` were set with no scoping, routing all outbound tenant traffic (including Telegram bot traffic) through the proxy by default.
+- `provision-tenant-vault.md`: added a step to set each tenant vault's unmatched-host policy to deny. Agent Vault's documented default is to forward requests to unregistered hosts as plain passthrough rather than blocking them; left at the default, a compromised or misbehaving tenant container retained effectively unrestricted internet egress through the proxy, undermining the credential-isolation goal of adopting Agent Vault in the first place.
+- `platform/templates/_base/env.template`: added a `NO_PROXY` stub alongside the other Agent Vault proxy vars.
+- `platform/AGENTS.md`: strengthened the "never store real keys" and key-rotation rules to call out the provider-var requirement and the new egress-scoping behaviour.
+- `README.md`: Credential Security Model section now documents the egress-scoping step (`NO_PROXY` + deny policy) as part of the credential flow.
+
 ## 0.7.0 - 2026-06-26
 
 ### Added

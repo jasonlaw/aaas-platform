@@ -92,11 +92,22 @@ Tenant containers never hold real LLM API keys. The flow is:
 2. During onboarding, the admin agent runs `provision-tenant-vault` which creates a scoped vault, stores the key, and mints a proxy token for the tenant.
 3. The tenant `.env` receives `HTTP_PROXY`/`HTTPS_PROXY` pointing at Agent Vault's MITM proxy port, plus the scoped proxy token. The LLM key env var is set to the placeholder `routed-via-agent-vault`.
 4. When the tenant container makes an outbound LLM API call, Agent Vault intercepts the TLS connection, injects the real key into the `Authorization` header, and forwards the request. The tenant container sees only the proxy token.
+5. Traffic that isn't the registered LLM provider is either excluded from the proxy via `NO_PROXY` (Telegram and other non-LLM integrations connect directly, never through the MITM) or, if neither registered nor excluded, rejected — each tenant's vault is set to `unmatched-host-policy deny` rather than the library default of passing unmatched hosts through unmanaged. This keeps Agent Vault scoped to brokering the LLM credential, not silently intercepting or permitting everything else the tenant container does.
 
 To rotate a tenant's LLM API key at any time — with no container restart:
 ```bash
 agent-vault vault credential update {tenant-id}-vault --host {provider-hostname} --secret {new-key}
 ```
+
+Supported LLM providers and their Agent Vault hostnames:
+
+| Provider         | Hostname            | Env var                |
+|------------------|---------------------|------------------------|
+| OpenRouter       | `openrouter.ai`     | `OPENROUTER_API_KEY`   |
+| OpenAI           | `api.openai.com`    | `OPENAI_API_KEY`       |
+| Anthropic        | `api.anthropic.com` | `ANTHROPIC_API_KEY`    |
+| Nous             | `api.nous.ai`       | `NOUS_API_KEY`         |
+| OpenCode Zen     | `opencode.ai`       | `OPENCODE_API_KEY`     |
 
 ## Task Reports
 
@@ -192,7 +203,7 @@ It preserves:
 - `/opt/aaas/tenants/`
 - `/opt/aaas/platform/tenants.yaml`
 - `/opt/aaas/platform/docker/docker-compose.yaml`
-- `/opt/aaas/platform/docker/.env` (Agent Vault master password)
+- `/opt/aaas/agent-vault/.env` (Agent Vault master password — back this up externally; loss requires a full vault reset, see `platform/incidents/agent-vault-failure.md`)
 - `/opt/aaas/agent-vault/data/` (Agent Vault database)
 - `/opt/aaas/platform/reports/`
 

@@ -68,12 +68,19 @@ setup is out of date - do not attempt to author it inline; report this and stop.
    The tenant agent calls this as `/opt/data/scripts/skill-verify.sh` from inside the container.
 6.3. **Provision the tenant vault in Agent Vault:**
    Run `/opt/aaas/platform/sop/provision-tenant-vault.md` now — after `.env` exists
-   but before container start. This SOP will:
-   - Create `{tenant-id}-vault` in Agent Vault
-   - Store the real LLM API key in the vault (remove it from `.env`)
-   - Write `HTTP_PROXY`, `HTTPS_PROXY`, `AGENT_VAULT_TOKEN`, and `AGENT_VAULT_VAULT` into `.env`
-   - Set the LLM key env var to the placeholder `routed-via-agent-vault`
-   After this step, `.env` must contain no real LLM API key.
+   but before container start. Pass it the provider-specific API key env var name
+   collected in step 1 (e.g. `ANTHROPIC_API_KEY`) — provision-tenant-vault uses
+   this exact name to scrub the real key, so it must not be hardcoded or guessed.
+   This SOP will:
+   - Create `{tenant-id}-vault` in Agent Vault and store the real LLM API key in it
+   - Replace the real key in `.env` with the placeholder `routed-via-agent-vault`
+     under that same provider env var name
+   - Write `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, `AGENT_VAULT_TOKEN`, and
+     `AGENT_VAULT_VAULT` into `.env`
+   - Set the vault's unmatched-host policy to deny so only the registered LLM
+     provider host (and anything else explicitly added) can be reached through it
+   After this step, `.env` must contain no real LLM API key — verify with
+   provision-tenant-vault's step 6 checks, not just a visual scan.
 7. Set tenant volume ownership for the Hermes container user before starting the container:
    `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    The tenant container runs as UID `10000`; without this, mounted `/opt/data` paths such as logs and Mnemosyne data can fail with `Permission denied`. Use `sudo cat` from the host when inspecting seeded files after this point.
@@ -85,7 +92,7 @@ setup is out of date - do not attempt to author it inline; report this and stop.
    - mounts tenant folder to `/opt/data` and files folder to `/home/hermes/files`
    - `env_file` points to the tenant `.env`
    - resource limits: `mem_limit: 1g` and `cpus: "1.0"`
-   - network: `agent-vault-net` (so the container can reach the Agent Vault proxy on `http://agent-vault:14322`). Declare this network as `external: true` at the bottom of docker-compose.yaml if not already present.
+   - network: `agent-vault-net` (so the container can reach the Agent Vault proxy on `http://agent-vault:14322`). Declare this network as `external: true` with `name: agent-vault-net` at the bottom of docker-compose.yaml if not already present — the explicit `name:` is required, see provision-tenant-vault.md step 8 for why.
 9. Start only this tenant: `docker compose up -d hermes_{tenant-id}`.
 10. **Verify container outbound connectivity** (critical for Telegram and external APIs):
     - Wait 5 seconds for container to stabilize

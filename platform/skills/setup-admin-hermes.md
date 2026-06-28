@@ -19,9 +19,9 @@ The base installer is OpenCode-first. Do not rerun platform setup with runtime f
 Collect these values before writing files:
 
 1. Model provider.
-   Recommended: `openrouter`.
+   Recommended: `opencode`.
 2. Model name.
-   Recommended: `openai/gpt-4.1-mini`.
+   Recommended: `opencode/big-pickle`.
 3. API key for the selected provider.
    Recommended: store only in `/opt/aaas/platform/admin/.env`.
 4. Dashboard host.
@@ -102,6 +102,7 @@ Set the selected provider key only. Examples:
 - OpenAI: `OPENAI_API_KEY=...`
 - Anthropic: `ANTHROPIC_API_KEY=...`
 - Nous: `NOUS_API_KEY=...`
+- OpenCode Zen: `OPENCODE_API_KEY=...`
 
 If basic auth is enabled, set:
 

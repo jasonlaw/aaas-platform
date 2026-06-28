@@ -530,6 +530,7 @@ services:
 
 networks:
   agent-vault-net:
+    name: agent-vault-net
     driver: bridge
     internal: false
 EOF
@@ -745,6 +746,8 @@ validate_install() {
     || error "Agent Vault data directory missing: $INSTALL_ROOT/agent-vault/data — run setup-prerequisites.sh"
   [ -f "$INSTALL_ROOT/agent-vault/docker-compose.yaml" ] \
     || error "Agent Vault docker-compose.yaml missing: $INSTALL_ROOT/agent-vault/docker-compose.yaml"
+  grep -q "^    name: agent-vault-net$" "$INSTALL_ROOT/agent-vault/docker-compose.yaml" 2>/dev/null \
+    || error "Agent Vault docker-compose.yaml must pin the network to 'name: agent-vault-net' (otherwise Compose project-prefixes it and tenant containers fail to find it as an external network)"
   [ -f "$INSTALL_ROOT/agent-vault/.env" ] \
     || error "Agent Vault .env missing: $INSTALL_ROOT/agent-vault/.env"
   grep -q "INDEX.jsonl" "$PLATFORM_ROOT/sop/write-report.md" \
