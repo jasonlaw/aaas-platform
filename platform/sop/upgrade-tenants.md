@@ -9,6 +9,15 @@ Upgrade all active tenants to the latest Docker image after build-image.md compl
 3. For each active tenant:
    - ensure `/opt/aaas/tenants/{tenant-id}/harness.yaml` exists; if missing, create it from `/opt/aaas/platform/harness/tenant-harness.yaml.template` using known tenant metadata and mark unknown fields clearly
    - ensure `/opt/aaas/tenants/{tenant-id}/ACCEPTANCE.md` exists; if missing, create it from `/opt/aaas/platform/harness/ACCEPTANCE.md.template`
+   - ensure `/opt/aaas/tenants/{tenant-id}/vault/` exists (tenants onboarded before this feature existed will not have it); if missing, back-fill it without touching any other tenant state:
+     ```bash
+     mkdir -p /opt/aaas/tenants/{tenant-id}/scripts
+     cp /opt/aaas/platform/scripts/tenant/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
+     chmod +x /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
+     TENANT_DIR=/opt/aaas/tenants/{tenant-id} BUSINESS_NAME="{business-name}" \
+       /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh {tenant-id}
+     ```
+     This is safe to re-run even if the vault already exists — it never overwrites existing notes. After backfilling, also add the `vault -> /home/hermes/vault` mount to this tenant's compose service block if it is missing, since older services predate this mount.
    - repair ownership after any edits or file creation: `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    - `chown -R` does not change file mode, so also repair host-side access for the `docker compose` CLI: `sudo chmod 755 /opt/aaas/tenants/{tenant-id}/` and `sudo chmod 644 /opt/aaas/tenants/{tenant-id}/.env`
    - run `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`

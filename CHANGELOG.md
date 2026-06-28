@@ -4,6 +4,20 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.9.0 - 2026-06-28
+
+### Added
+- **Per-tenant knowledge vault: an Obsidian-compatible second brain for each tenant business.** New per-tenant directory `/opt/aaas/tenants/{tenant-id}/vault/` (mounted into the container at `/home/hermes/vault`) holds curated, structured Markdown notes (`Customers/`, `Suppliers/`, `Recurring/`, `Reference/`) maintained by the tenant agent itself at runtime — not the admin agent. This is a third tenant-side knowledge system alongside Mnemosyne (in-conversation recall) and `business-data.md` (today's prices/menu/hours); none of the three overlap by design.
+  - New tenant-side script `platform/scripts/tenant/vault-init-tenant.sh`, copied into the tenant volume and run inside the container (same pattern as `skill-verify.sh`). Idempotent — safe to re-run, never overwrites existing tenant notes. Also closes a pre-existing gap where `scripts/tenant/skill-verify.sh` itself was missing from the installer's repository-asset and validate-only checks.
+  - `templates/_base/SOUL.md.template` now teaches the tenant agent the three-way split between Mnemosyne, `business-data.md`, and the knowledge vault, plus the exact decision rule for classifying a new fact into the right one. This is the most important change in this release — the prompt the tenant agent actually reads at runtime, not just platform documentation.
+  - `sop/onboard-tenant.md` step 4.2 scaffolds the vault before the ownership pass, and step 8's compose service now mounts `vault -> /home/hermes/vault` alongside the existing `files` mount.
+  - `sop/update-tenant.md` and `sop/upgrade-tenants.md` back-fill the vault (and its compose mount) for tenants onboarded before this feature existed.
+  - `sop/troubleshoot-tenant.md` adds a "Knowledge Vault Missing, Not Mounted, Or Not Owned" recovery path, distinct from the existing Mnemosyne recovery path.
+  - `harness/check-tenant.sh` and `scripts/validate-tenant-config.sh` verify the vault directory, its `README.md`, UID 10000 ownership, the compose mount, and that `SOUL.md` documents both the vault and `business-data.md`.
+  - `harness/tenant-harness.yaml.template` and `harness/ACCEPTANCE.md.template` add the knowledge vault as a required check and an owner-benefit/platform-check item respectively.
+  - `AGENTS.md` and `README.md` spell out all four similarly-named systems (Agent Vault, Mnemosyne, business-data.md, and now two knowledge vaults — platform-level and per-tenant) so the distinction is never ambiguous to whoever reads them next.
+  - **Correction:** the tenant agent has no `platform/skills/`-style skill loader the way the admin agent does, so it cannot use `query-knowledge-vault.md` or `sync-knowledge-vault.md` (which are admin-agent-only, and only ever touch `/opt/aaas/platform/vault` on the host — unreachable from inside a tenant container). The tenant agent's own "search before writing a new note" habit is instead written directly into `SOUL.md.template`, backed by a "For the assistant" reference section at the bottom of the tenant's generated `vault/README.md`. `AGENTS.md`, `README.md`, and both vault-related skill/SOP files now state this admin/tenant boundary explicitly rather than leaving it implied by file path alone.
+
 ## 0.8.0 - 2026-06-28
 
 ### Added

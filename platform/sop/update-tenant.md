@@ -19,6 +19,15 @@ tenant using the full onboard-tenant SOP.
    `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8`
 6. For new channels, add token to `.env`, add gateway platform block to `config.yaml`, and update channels in tenants.yaml.
 7. Ensure `/opt/aaas/tenants/{tenant-id}/harness.yaml` and `/opt/aaas/tenants/{tenant-id}/ACCEPTANCE.md` exist. If either is missing, create it from `/opt/aaas/platform/harness/` templates using known tenant metadata and mark unknown fields clearly.
+7.1. Ensure `/opt/aaas/tenants/{tenant-id}/vault/` exists (tenants onboarded before this feature existed will not have it). If missing, back-fill it - safe to re-run, never overwrites existing notes:
+   ```bash
+   mkdir -p /opt/aaas/tenants/{tenant-id}/scripts
+   cp /opt/aaas/platform/scripts/tenant/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
+   chmod +x /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
+   TENANT_DIR=/opt/aaas/tenants/{tenant-id} BUSINESS_NAME="{business-name}" \
+     /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh {tenant-id}
+   ```
+   Also add the `vault -> /home/hermes/vault` mount to this tenant's compose service block in `docker-compose.yaml` if it is missing.
 8. Repair tenant volume ownership after edits or file creation:
    `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    Files created with `sudo tee` or a root editor after onboarding can otherwise remain root-owned even when the existing volume is correct.

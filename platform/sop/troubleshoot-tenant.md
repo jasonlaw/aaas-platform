@@ -67,6 +67,31 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
   `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8`
   `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8`
 
+### Knowledge Vault Missing, Not Mounted, Or Not Owned
+- This is a different system from Mnemosyne and from business-data.md - do not
+  treat a missing `vault/` directory as a Mnemosyne problem.
+- If `/opt/aaas/tenants/{tenant-id}/vault/` is missing, back-fill it (safe to
+  re-run, never overwrites existing notes):
+  ```bash
+  mkdir -p /opt/aaas/tenants/{tenant-id}/scripts
+  cp /opt/aaas/platform/scripts/tenant/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
+  chmod +x /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
+  TENANT_DIR=/opt/aaas/tenants/{tenant-id} BUSINESS_NAME="{business-name}" \
+    /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh {tenant-id}
+  ```
+- If it exists but the container can't see it, check the compose service has
+  the `vault -> /home/hermes/vault` mount and recreate the container with
+  `docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`.
+- If ownership is wrong, the standard `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
+  repair (see Permission Denied In Logs above) covers `vault/` too, since it
+  is recursive over the whole tenant directory.
+- If the owner reports the assistant is writing business facts (current
+  prices, menu items) into the vault instead of `business-data.md`, this is a
+  SOUL.md prompting issue, not a structural one - confirm `SOUL.md` still
+  contains the unmodified three-way decision rule from
+  `SOUL.md.template` and escalate to `improve-sop.md` if the model is
+  consistently misclassifying facts despite correct prompting.
+
 ### Telegram Chat Not Found Or Forbidden
 - This usually means the owner has not opened the bot and sent `/start`.
 - Do not rotate the bot token unless logs prove the token is invalid.

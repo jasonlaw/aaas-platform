@@ -76,6 +76,7 @@ contains "$HARNESS" '^verification_profile:' "harness_has_verification_profile"
 owned_by_hermes "$TENANT_DIR" "tenant_directory_owner_is_10000"
 owned_by_hermes "$HARNESS" "harness_owner_is_10000"
 owned_by_hermes "$TENANT_DIR/ACCEPTANCE.md" "acceptance_owner_is_10000"
+owned_by_hermes "$TENANT_DIR/vault" "knowledge_vault_owner_is_10000"
 
 echo ""
 echo "summary fail=$ERRORS"

@@ -6,6 +6,16 @@ description: Search the Obsidian knowledge vault at /opt/aaas/platform/vault for
 Before treating an issue as new, check whether the second brain already has
 an answer.
 
+**Scope: this skill is for the OpenCode admin agent only**, searching the
+platform-level vault at `/opt/aaas/platform/vault` on the host. It has
+nothing to do with any tenant's own knowledge vault at
+`/opt/aaas/tenants/{tenant-id}/vault/` (mounted into that tenant's container
+at `/home/hermes/vault/`) — that vault is searched by the tenant agent
+itself, using its own shell access, following the instructions in its
+`SOUL.md`, not this skill. The admin agent has no access to a tenant
+container's filesystem and should never attempt to read or write a tenant's
+vault directly.
+
 ## Steps
 1. If `/opt/aaas/platform/vault` does not exist yet, say so and stop - there
    is nothing to query. Suggest running

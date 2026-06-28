@@ -29,6 +29,7 @@ You manage Hermes tenant agents running as Docker containers.
 - Container name: hermes_{tenant-id}
 - Data mount: /opt/aaas/tenants/{tenant-id} -> /opt/data
 - Files mount: /opt/aaas/tenants/{tenant-id}/files -> /home/hermes/files
+- Tenant knowledge vault mount: /opt/aaas/tenants/{tenant-id}/vault -> /home/hermes/vault
 - Always use `docker compose up -d {service-name}` - never without service name
 - Gateway command: gateway run
 
@@ -40,6 +41,8 @@ You manage Hermes tenant agents running as Docker containers.
 - Tenant acceptance record: /opt/aaas/tenants/{id}/ACCEPTANCE.md
 - Business metadata: /opt/aaas/platform/tenants.yaml
 - Container management: /opt/aaas/platform/docker/docker-compose.yaml
+- Current operational facts (prices, menu, hours): /opt/aaas/tenants/{id}/files/assets/business-data.md - owner-editable, read directly by the tenant agent at runtime, never seeded into Mnemosyne
+- Tenant knowledge vault (durable, structured, owner-browsable notes - customers, suppliers, recurring patterns, reference material): /opt/aaas/tenants/{id}/vault/ - maintained by the tenant agent at runtime, never seeded into Mnemosyne, never holds current pricing/menu/hours (that's business-data.md's job)
 
 ## Your Responsibilities
 - Build and maintain the Hermes Docker image
@@ -90,7 +93,9 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Tenant config validator: /opt/aaas/platform/scripts/validate-tenant-config.sh
 - Report analysis: /opt/aaas/platform/scripts/analyze-reports.sh
 - Agent Vault health check: /opt/aaas/platform/scripts/agent-vault-health.sh
-- Knowledge vault scaffolder: /opt/aaas/platform/scripts/vault-init.sh
+- Platform knowledge vault scaffolder (admin-facing, run on host): /opt/aaas/platform/scripts/vault-init.sh
+- Tenant skill verification script (copied into tenant volume, run inside container by the tenant agent): /opt/aaas/platform/scripts/tenant/skill-verify.sh
+- Tenant knowledge vault scaffolder (copied into tenant volume, run inside container by the tenant agent): /opt/aaas/platform/scripts/tenant/vault-init-tenant.sh
 - Incident playbooks: /opt/aaas/platform/incidents/
 
 ## Rules
@@ -117,13 +122,16 @@ Always read the relevant SOP before executing ANY tenant operation.
 - If a single-tenant issue cannot be resolved with `--force-recreate`, stop and ask the operator before any action that affects other tenants
 - **iptables must be in legacy mode ? this system uses Docker 29.x which has a critical bug with iptables-nftables where bridge networks lose forwarding rules after daemon restart, causing complete network isolation for containers. Verify with `iptables --version` (must show `legacy`). If not set during bootstrap, switch with `sudo update-alternatives --set iptables /usr/sbin/iptables-legacy && sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy && sudo systemctl restart docker`**
 - Onboarding tenant volumes must be owned by UID `10000` before container startup
+- Every tenant must have a scaffolded `vault/` directory created during onboarding (step 4.2); if it is missing during troubleshooting or an update, run `/opt/aaas/platform/scripts/tenant/vault-init-tenant.sh` to repair it - this is safe to re-run and never overwrites existing tenant vault notes
 - Use `HERMES_HOME=/opt/data mnemosyne-hermes install`; do not use a `--hermes-home` flag
 - Use `mnemosyne store`, not `mnemosyne remember`, when seeding memory
 - Telegram `chat not found` usually means the user has not opened the bot and sent `/start`
 - Use `/opt/aaas/platform/reports/INDEX.jsonl` for AI-readable report summaries; read recent matching entries before proposing platform improvements
-- The knowledge vault at `/opt/aaas/platform/vault/` is a separate, human-facing Obsidian-compatible second brain - do not confuse it with Agent Vault (credential/secrets storage) or Mnemosyne (per-tenant runtime memory). It holds curated, linked notes (tenant history, incidents, SOP commentary), not secrets and not a duplicate of every report.
-- Before troubleshooting a tenant or proposing an SOP improvement, check the knowledge vault first using `/opt/aaas/platform/skills/query-knowledge-vault.md` if `/opt/aaas/platform/vault/` exists
-- After a tenant root cause, incident, or recurring SOP friction point is resolved and reported, follow `/opt/aaas/platform/sop/sync-knowledge-vault.md` to write or update the relevant vault note. Skip for routine, no-news reports. A missing or failed vault sync never blocks SOP or report completion.
+- The knowledge vault at `/opt/aaas/platform/vault/` is a separate, human-facing Obsidian-compatible second brain - do not confuse it with Agent Vault (credential/secrets storage), Mnemosyne (per-tenant runtime memory), or each tenant's own knowledge vault under `/opt/aaas/tenants/{id}/vault/`. It holds curated, linked notes about platform operation (tenant history, incidents, SOP commentary), not secrets and not a duplicate of every report.
+- Before troubleshooting a tenant or proposing an SOP improvement, check the platform knowledge vault first using `/opt/aaas/platform/skills/query-knowledge-vault.md` if `/opt/aaas/platform/vault/` exists
+- After a tenant root cause, incident, or recurring SOP friction point is resolved and reported, follow `/opt/aaas/platform/sop/sync-knowledge-vault.md` to write or update the relevant platform vault note. Skip for routine, no-news reports. A missing or failed vault sync never blocks SOP or report completion.
+- **Four separate systems share "memory" or "vault" in their name; do not conflate them.** Agent Vault stores tenant credentials. Mnemosyne is each tenant's in-conversation recall, queried by the tenant agent at runtime. `business-data.md` is each tenant's one flat file of current operational facts (prices, menu, hours), owner-editable and re-read by the tenant agent before answering related questions. Each tenant's knowledge vault at `/opt/aaas/tenants/{id}/vault/` is that tenant's own durable, structured, Obsidian-browsable second brain (customers, suppliers, recurring patterns, reference material) - separate again from the platform-level knowledge vault at `/opt/aaas/platform/vault/`, which is the admin agent's own second brain about operating the platform, not tenant business knowledge. The admin agent scaffolds a tenant's knowledge vault once during onboarding (`onboard-tenant.md` step 4.2) using `/opt/aaas/platform/scripts/tenant/vault-init-tenant.sh`; after that, the tenant agent itself reads and writes its own vault notes at runtime - the admin agent does not maintain tenant vault content.
+- **The admin agent's vault skill/SOP (`/opt/aaas/platform/skills/query-knowledge-vault.md` and `/opt/aaas/platform/sop/sync-knowledge-vault.md`) only ever read or write `/opt/aaas/platform/vault` on the host.** They are not available inside any tenant container and must never be used to try to read or write a tenant's vault - the admin agent has no filesystem access into a running tenant container beyond `docker exec`, and `/opt/aaas/platform/` is not mounted into any tenant. The tenant agent has no equivalent platform-authored skill file for its own vault; its search-before-writing habit is written directly into `SOUL.md.template` and the generated `vault/README.md` "For the assistant" section, because the tenant agent has no `platform/skills/`-style loader the way the admin agent does - it only ever reads `SOUL.md` and files it is explicitly told to check.
 - Use `/opt/aaas/platform/sop/improve-sop.md` for SOP improvement work; do not edit upgrade-managed native SOP files directly unless explicitly asked
 - Platform upgrades refresh managed platform assets only; preserve tenant data, tenants.yaml, docker-compose.yaml, and reports
 - Every tenant must have `harness.yaml` and `ACCEPTANCE.md`; create or repair them during onboarding, tenant update, troubleshooting, or upgrade work

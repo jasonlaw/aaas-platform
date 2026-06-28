@@ -38,7 +38,7 @@ setup is out of date - do not attempt to author it inline; report this and stop.
    Show the generated VERTICAL_CAPABILITIES_BLOCK, VERTICAL_BRAND_FACTS_BLOCK, OPERATIONAL_DETAILS, and generated eval checks to the operator as part of the confirmation summary in step 2. Do not write any files yet.
 2. Show a full confirmation summary and ask: "Proceed with onboarding? (y/n)"
 3. Generate tenant ID as a lowercase slug from business name.
-4. Create tenant directories under `/opt/aaas/tenants/{tenant-id}/`: `memories`, `skills`, `files/assets`, `files/uploads`, `files/generated`.
+4. Create tenant directories under `/opt/aaas/tenants/{tenant-id}/`: `memories`, `skills`, `files/assets`, `files/uploads`, `files/generated`, `vault`.
 4.1. **Create `business-data.md`** at `/opt/aaas/tenants/{tenant-id}/files/assets/business-data.md` now, before step 7's `chown -R`, so the ownership pass covers it. If OPERATIONAL_DETAILS were collected, write them into the file with a header:
    ```
    # Business Data — owner-editable
@@ -56,6 +56,24 @@ setup is out of date - do not attempt to author it inline; report this and stop.
    # Add operational details here (current offerings, availability, rates, etc.).
    # The assistant checks this file before answering questions about them.
    ```
+4.2. **Scaffold the tenant's knowledge vault.** This is a separate system from
+   both Mnemosyne and `business-data.md` — see the three-way explanation in
+   `SOUL.md` (rendered from `SOUL.md.template`) for what the tenant agent is
+   told about each. Copy the scaffolder into the tenant volume and run it now,
+   before step 7's `chown -R`, so the ownership pass covers it:
+   ```bash
+   mkdir -p /opt/aaas/tenants/{tenant-id}/scripts
+   cp /opt/aaas/platform/scripts/tenant/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
+   chmod +x /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
+   TENANT_DIR=/opt/aaas/tenants/{tenant-id} BUSINESS_NAME="{{BUSINESS_NAME}}" \
+     /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh {tenant-id}
+   ```
+   This creates `/opt/aaas/tenants/{tenant-id}/vault/` with `Customers/`,
+   `Suppliers/`, `Recurring/`, `Reference/` folders, a minimal `.obsidian/`
+   config so it opens cleanly in the Obsidian app, and a `README.md` written
+   from the actual `{{BUSINESS_NAME}}` (not a template placeholder left
+   unfilled). The tenant agent itself maintains this vault at runtime — the
+   admin agent's job here is only to scaffold it once during onboarding.
 5. Render templates into `config.yaml`, `.env`, `.env.template`, `SOUL.md`, `memories/MEMORY.md`, `memories/USER.md`, `harness.yaml`, and `ACCEPTANCE.md`. Use `/opt/aaas/platform/harness/tenant-harness.yaml.template` for the manifest and `/opt/aaas/platform/harness/ACCEPTANCE.md.template` for acceptance. Keep `home_chat_id: ""` in `config.yaml`; Telegram routing is restricted by `TELEGRAM_ALLOWED_USERS` in `.env`. Substitute `{{VERTICAL_CAPABILITIES_BLOCK}}` into `SOUL.md` and `{{VERTICAL_BRAND_FACTS_BLOCK}}` into `memories/MEMORY.md` using the stable facts generated and confirmed in step 1.2. Operational details classified in step 1.2 must not appear in `MEMORY.md`. Write the generated eval checks from step 1.2 to `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml` using the same YAML structure as `_fixed-safety-v1.yaml` (top-level `eval_profile`, `version`, `purpose`, `run_mode`, `checks` list), with `eval_profile` set to `{tenant-id}-v1`.
 6. Verify `config.yaml` contains `memory.provider: mnemosyne`, `memory_enabled: false`, `user_profile_enabled: false`, and no secrets. Verify `.env` contains the selected provider API key env var, `TELEGRAM_ALLOWED_USERS` as comma-separated numeric IDs, and `MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data`. Verify `SOUL.md` still contains, unchanged, every fixed safety line from `platform/templates/_base/SOUL.md.template` (the "never perform irreversible actions," "always save generated content," "always store owner-uploaded files," and "protect this tenant's privacy" lines) - generation must only have filled in `{{VERTICAL_CAPABILITIES_BLOCK}}` and must not have altered any other line.
 6.1. Validate the rendered tenant config:
@@ -95,7 +113,7 @@ setup is out of date - do not attempt to author it inline; report this and stop.
    - image: `hermes-tenant:latest`
    - command: `gateway run`
    - restart policy: `restart: unless-stopped` so the tenant starts again after host or Docker daemon reboot
-   - mounts tenant folder to `/opt/data` and files folder to `/home/hermes/files`
+   - mounts tenant folder to `/opt/data`, files folder to `/home/hermes/files`, and vault folder to `/home/hermes/vault`
    - `env_file` points to the tenant `.env`
    - resource limits: `mem_limit: 1g` and `cpus: "1.0"`
    - network: `agent-vault-net` (so the container can reach the Agent Vault proxy on `http://agent-vault:14322`). Declare this network as `external: true` with `name: agent-vault-net` at the bottom of docker-compose.yaml if not already present — the explicit `name:` is required, see provision-tenant-vault.md step 8 for why.
@@ -115,7 +133,7 @@ setup is out of date - do not attempt to author it inline; report this and stop.
    `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8`
    `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8`
    Verify with `docker exec hermes_{tenant-id} hermes memory status`, `docker exec hermes_{tenant-id} hermes mnemosyne stats`, and `docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"`. If `hermes mnemosyne` is unavailable, try the documented fallback `hermes hermes-mnemosyne`.
-   Note: `business-data.md` is not seeded into Mnemosyne — it is read directly by the tenant agent at runtime from `/home/hermes/files/assets/business-data.md`.
+   Note: `business-data.md` is not seeded into Mnemosyne — it is read directly by the tenant agent at runtime from `/home/hermes/files/assets/business-data.md`. The knowledge vault at `/home/hermes/vault/` is a third, separate system: scaffolded in step 4.2, maintained by the tenant agent itself at runtime, and never seeded into Mnemosyne either. Do not write business facts into the vault during onboarding — it starts empty (aside from its `README.md` and folder structure) and the tenant agent populates it over time as it learns durable, structured facts worth a dedicated note.
 14. Add or update the tenant entry in `/opt/aaas/platform/tenants.yaml`.
 15. Send the welcome message through the tenant's Telegram bot to every numeric ID in `TELEGRAM_ALLOWED_USERS`. This only succeeds for users who have already opened the bot and sent `/start`; report Telegram `400 Bad Request: chat not found` or `403 Forbidden` as "user must start the bot first":
    `curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" -d chat_id="{user-id}" --data-urlencode text="{welcome-message}"`
@@ -128,4 +146,4 @@ setup is out of date - do not attempt to author it inline; report this and stop.
    - The generated profile for this tenant: `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml`
    Once the tenant container is running, run `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` against both profiles for automated PASS/FAIL results on `match_type: literal` checks (this runs prompts inside the container via `hermes -z`, not over Telegram); the script will print `SKIP` for `match_type: semantic` checks, which still require the operator or admin agent to read the actual reply against that check's `judge_for` field. Fall back to fully manual review only if `eval-runner.sh` reports a missing dependency or the container is not running (exit code 2). At minimum, verify brand recall, confirmation before posting, confirmation before deleting, generated/upload folder behavior, owner-friendly language, no cross-tenant memory leakage, and the tenant's own generated vertical-specific checks. Record results from both files in `ACCEPTANCE.md`.
 18. Update `/opt/aaas/tenants/{tenant-id}/harness.yaml` with status, last verification timestamp, and verification notes if your editor/tooling can do so safely.
-19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, welcome message delivery status per user ID, registry update status, alternate brand sources used, and whether operational details were written to `files/assets/business-data.md` or a stub was created for future owner use.
+19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, knowledge vault scaffold status, welcome message delivery status per user ID, registry update status, alternate brand sources used, and whether operational details were written to `files/assets/business-data.md` or a stub was created for future owner use.

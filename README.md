@@ -70,13 +70,13 @@ From there, OpenCode can use the platform SOPs to help you:
 
 - Set up Agent Vault credential broker (one-time, before first tenant)
 - Build and maintain the Hermes tenant Docker image
-- Onboard new tenants (includes automatic vault provisioning)
+- Onboard new tenants (includes automatic Agent Vault credential provisioning and tenant knowledge vault scaffolding)
 - Monitor tenant health and logs (includes Agent Vault health check)
-- Suspend, reactivate, and offboard tenants (includes vault cleanup)
+- Suspend, reactivate, and offboard tenants (includes Agent Vault cleanup)
 - Upgrade tenants to a newer image
 - Update tenant configuration safely
 - Improve SOPs through local overrides or proposals without editing upgrade-managed native SOPs
-- Build and search a knowledge vault of durable tenant, incident, and SOP learnings
+- Build and search the platform's own knowledge vault of durable tenant, incident, and SOP learnings
 
 Ask the admin agent what skills are available, then tell it the tenant operation you want to perform.
 
@@ -133,15 +133,16 @@ This summarizes issues, improvement signals, partial/failed SOPs, and pending ne
 
 **Important:** Reports must never contain secrets; redact API keys, bot tokens, access tokens, private URLs, and customer private data.
 
-## Knowledge Vault
+## Platform Knowledge Vault
 
-The platform maintains an [Obsidian](https://obsidian.md)-compatible knowledge vault at `/opt/aaas/platform/vault` — a curated, cross-linked layer of plain Markdown notes that sits on top of the raw task reports. It is the platform's second brain: somewhere a human operator can open in the Obsidian app, browse, search, and follow links between tenants, incidents, and recurring SOP friction, rather than rereading every full report.
+The platform maintains an [Obsidian](https://obsidian.md)-compatible knowledge vault at `/opt/aaas/platform/vault` — a curated, cross-linked layer of plain Markdown notes that sits on top of the raw task reports. It is the admin agent's own second brain about operating the platform: somewhere a human operator can open in the Obsidian app, browse, search, and follow links between tenants, incidents, and recurring SOP friction, rather than rereading every full report.
 
-It is intentionally separate from two other systems with similar-sounding names:
+It is intentionally separate from three other systems with similar-sounding names:
 - **Agent Vault** stores tenant credentials and secrets — never knowledge.
-- **Mnemosyne** is each tenant's own runtime memory — business-facing, not operator-facing.
+- **Mnemosyne** is each tenant's own in-conversation runtime memory — business-facing, not operator-facing.
+- **Each tenant's own knowledge vault** (below) is that tenant's business knowledge, not platform-operations knowledge.
 
-The knowledge vault is scaffolded automatically during install/upgrade and is safe to open immediately:
+The platform knowledge vault is scaffolded automatically during install/upgrade and is safe to open immediately:
 
 ```bash
 # Open /opt/aaas/platform/vault as a vault in the Obsidian app
@@ -155,6 +156,8 @@ Before troubleshooting a tenant or proposing an SOP change, the admin agent chec
 grep -ril "{keyword}" /opt/aaas/platform/vault --include='*.md'
 ```
 
+Both `query-knowledge-vault.md` and `sync-knowledge-vault.md` are **admin-agent-only** — they run on the host against `/opt/aaas/platform/vault` and are never available inside a tenant container. They are not the mechanism the tenant agent uses for its own vault; see Tenant Knowledge Vault below.
+
 Vault layout:
 - `Tenants/{tenant-id}.md` — one evolving note per tenant
 - `Incidents/{timestamp}-{slug}.md` — timestamped write-ups with root cause and fix
@@ -163,6 +166,26 @@ Vault layout:
 - `Daily/{YYYY-MM-DD}.md` — optional running log
 
 The vault is additive and never blocks SOP completion: if it is missing or a write fails, the admin agent reports it as a minor follow-up and continues. Like reports, the vault must never contain secrets, API keys, tokens, or customer private data.
+
+## Tenant Knowledge Vault
+
+Each tenant also gets its own, separate Obsidian-compatible knowledge vault at `/opt/aaas/tenants/{tenant-id}/vault`, mounted into the container at `/home/hermes/vault`. This is the tenant agent's own second brain about the business it runs — owner-browsable, owner-editable, and maintained by the tenant agent itself at runtime, not by the admin agent.
+
+A tenant has **three** distinct memory/knowledge systems, each with one job:
+
+| System | Holds | Read pattern |
+|---|---|---|
+| **Mnemosyne** | in-conversation recall (preferences, recent context) | queried by similarity, mid-conversation |
+| **`files/assets/business-data.md`** | today's truth: current prices, menu, hours, availability | one flat file, always re-read before answering related questions |
+| **Knowledge vault** (`vault/`) | durable, structured notes: customers, suppliers, recurring patterns, reference material | linked Markdown notes, browsed/searched, owner-editable |
+
+These do not overlap by design. Current pricing/menu/hours always belongs in `business-data.md`, never in the vault; fleeting conversational context belongs in Mnemosyne, not a dedicated vault note. The tenant's `SOUL.md` (rendered from `SOUL.md.template`) carries the exact decision rule the tenant agent follows when it learns a new fact, so this distinction lives with the agent at runtime, not only in platform documentation.
+
+The vault is scaffolded once during onboarding (`onboard-tenant.md` step 4.2) using `/opt/aaas/platform/scripts/tenant/vault-init-tenant.sh`, copied into the tenant volume and run inside the container. It creates `Customers/`, `Suppliers/`, `Recurring/`, and `Reference/` folders, a minimal `.obsidian/` config, and a `README.md` explaining the three-way split to the owner. The same script is safe to re-run for tenants onboarded before this feature existed (see `update-tenant.md` and `upgrade-tenants.md`) — it never overwrites existing notes.
+
+The tenant agent has no `platform/skills/`-style loader the way the admin agent does — it only ever reads `SOUL.md` and files it is told to check. So its "search before writing a new note" habit is not a separate skill file; it is written directly into `SOUL.md.template`, backed by a "For the assistant" reference section at the bottom of the generated `vault/README.md` (the same file the owner reads, with the agent-facing part clearly marked so it's easy to skip). The admin-only `query-knowledge-vault.md` skill is unrelated and unreachable from inside a tenant container.
+
+`check-tenant.sh` and `validate-tenant-config.sh` verify the vault exists, is owned by UID 10000, and is mounted into the container; these are part of the standard tenant harness, not a separate check the operator has to remember.
 
 ## Tenant Harness
 

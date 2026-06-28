@@ -199,6 +199,8 @@ validate_asset_source() {
     "$ASSET_ROOT/scripts/eval-runner.sh"
     "$ASSET_ROOT/scripts/eval-judge.sh"
     "$ASSET_ROOT/scripts/_eval-check-single.sh"
+    "$ASSET_ROOT/scripts/tenant/skill-verify.sh"
+    "$ASSET_ROOT/scripts/tenant/vault-init-tenant.sh"
     "$ASSET_ROOT/incidents/all-tenants-no-connectivity.md"
     "$ASSET_ROOT/incidents/docker-version-rollback.md"
     "$ASSET_ROOT/incidents/telegram-api-change.md"
@@ -265,6 +267,7 @@ validate_installed_matches_source() {
     "scripts/eval-judge.sh"
     "scripts/_eval-check-single.sh"
     "scripts/tenant/skill-verify.sh"
+    "scripts/tenant/vault-init-tenant.sh"
     "incidents/all-tenants-no-connectivity.md"
     "incidents/docker-version-rollback.md"
     "incidents/telegram-api-change.md"
@@ -441,6 +444,7 @@ install_assets() {
   chmod +x "$PLATFORM_ROOT/scripts/eval-judge.sh"
   chmod +x "$PLATFORM_ROOT/scripts/_eval-check-single.sh"
   chmod +x "$PLATFORM_ROOT/scripts/tenant/skill-verify.sh"
+  chmod +x "$PLATFORM_ROOT/scripts/tenant/vault-init-tenant.sh"
   chmod +x "$PLATFORM_ROOT/scripts/agent-vault-health.sh"
   chmod +x "$PLATFORM_ROOT/scripts/vault-init.sh"
   cp "$ASSET_ROOT/AGENTS.md" "$PLATFORM_ROOT/AGENTS.md"
@@ -642,6 +646,7 @@ validate_install() {
     "$PLATFORM_ROOT/scripts/eval-judge.sh"
     "$PLATFORM_ROOT/scripts/_eval-check-single.sh"
     "$PLATFORM_ROOT/scripts/tenant/skill-verify.sh"
+    "$PLATFORM_ROOT/scripts/tenant/vault-init-tenant.sh"
     "$PLATFORM_ROOT/incidents/all-tenants-no-connectivity.md"
     "$PLATFORM_ROOT/incidents/docker-version-rollback.md"
     "$PLATFORM_ROOT/incidents/telegram-api-change.md"
@@ -729,8 +734,14 @@ validate_install() {
     || error "Tenant harness check must verify tenant compose memory limit"
   grep -q "compose_has_cpu_limit" "$PLATFORM_ROOT/harness/check-tenant.sh" \
     || error "Tenant harness check must verify tenant compose CPU limit"
+  grep -q "tenant_knowledge_vault_directory" "$PLATFORM_ROOT/harness/check-tenant.sh" \
+    || error "Tenant harness check must verify the tenant knowledge vault directory exists"
+  grep -q "compose_mounts_tenant_vault" "$PLATFORM_ROOT/harness/check-tenant.sh" \
+    || error "Tenant harness check must verify the tenant knowledge vault compose mount"
   grep -q "acceptance_owner_is_10000" "$PLATFORM_ROOT/scripts/validate-tenant-config.sh" \
     || error "Tenant config validator must verify ACCEPTANCE.md ownership"
+  grep -q "knowledge_vault_owner_is_10000" "$PLATFORM_ROOT/scripts/validate-tenant-config.sh" \
+    || error "Tenant config validator must verify the tenant knowledge vault ownership"
   grep -q "HERMES_HOME=/opt/data" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must install mnemosyne-hermes via HERMES_HOME env var"
   grep -q "mnemosyne store" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
@@ -745,6 +756,12 @@ validate_install() {
     || error "AGENTS.md must document the knowledge vault path"
   grep -q "sync-knowledge-vault.md" "$PLATFORM_ROOT/sop/write-report.md" \
     || error "write-report SOP must point to the knowledge vault sync step"
+  grep -q "vault-init-tenant.sh" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
+    || error "Onboarding SOP must scaffold the tenant knowledge vault"
+  grep -q "/home/hermes/vault" "$PLATFORM_ROOT/templates/_base/SOUL.md.template" \
+    || error "Tenant SOUL template must document the tenant knowledge vault path"
+  grep -q "business-data.md" "$PLATFORM_ROOT/templates/_base/SOUL.md.template" \
+    || error "Tenant SOUL template must distinguish the knowledge vault from business-data.md"
   grep -q "tenant-harness.yaml.template" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must create tenant harness manifests"
   grep -q "_fixed-safety-v1.yaml" "$PLATFORM_ROOT/sop/onboard-tenant.md" \

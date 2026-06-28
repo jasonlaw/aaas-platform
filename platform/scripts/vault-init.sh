@@ -62,6 +62,14 @@ agent writes here following
 `/opt/aaas/platform/sop/sync-knowledge-vault.md`; the operator reads and
 links freely in the Obsidian app.
 
+This is about operating the platform, not any tenant's business. Each
+tenant has its own, separate knowledge vault at
+`/opt/aaas/tenants/{tenant-id}/vault/` (mounted into that tenant's container
+at `/home/hermes/vault/`), maintained by the tenant agent itself, never by
+the admin agent. If you're looking for a specific business's customer
+notes, supplier list, or reference material, that lives in the tenant's own
+vault, not here.
+
 ## Sections
 - [[Tenants]] - one evolving note per tenant
 - [[Incidents]] - timestamped incident write-ups with root cause and fix

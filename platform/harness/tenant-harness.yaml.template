@@ -21,6 +21,7 @@ required_checks:
   - container_runtime
   - outbound_connectivity
   - mnemosyne_seed
+  - knowledge_vault_scaffolded
   - telegram_welcome
   - tenant_isolation
 tenant_benefits:
@@ -28,6 +29,7 @@ tenant_benefits:
   - "Keeps generated work in files/generated and owner uploads in files/uploads."
   - "Requires owner confirmation before posting or irreversible action."
   - "Keeps this tenant isolated from every other tenant's data and memory."
+  - "Maintains an Obsidian-browsable knowledge vault of durable, structured notes (customers, suppliers, recurring patterns, reference material) the owner can open directly."
 last_verified_at_utc: ""
 last_verified_by: ""
 status: "provisioning"

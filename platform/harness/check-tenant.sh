@@ -137,11 +137,14 @@ exists_dir "$TENANT_DIR/memories" "tenant_memories_directory"
 exists_dir "$TENANT_DIR/files/assets" "tenant_assets_directory"
 exists_dir "$TENANT_DIR/files/uploads" "tenant_uploads_directory"
 exists_dir "$TENANT_DIR/files/generated" "tenant_generated_directory"
+exists_dir "$TENANT_DIR/vault" "tenant_knowledge_vault_directory"
+exists_file "$TENANT_DIR/vault/README.md" "tenant_knowledge_vault_readme"
 
 exists_file "$TENANT_DIR/config.yaml" "tenant_config"
 exists_file "$TENANT_DIR/.env" "tenant_env"
 exists_file "$TENANT_DIR/.env.template" "tenant_env_template"
 exists_file "$TENANT_DIR/SOUL.md" "tenant_soul"
+exists_file "$TENANT_DIR/files/assets/business-data.md" "tenant_business_data_file"
 exists_file "$TENANT_DIR/memories/MEMORY.md" "tenant_brand_memory_seed"
 exists_file "$TENANT_DIR/memories/USER.md" "tenant_owner_memory_seed"
 exists_file "$TENANT_DIR/harness.yaml" "tenant_harness_manifest"
@@ -157,6 +160,8 @@ contains "$TENANT_DIR/SOUL.md" 'try to work it out yourself' "soul_has_self_impr
 contains "$TENANT_DIR/SOUL.md" 'short progress update' "soul_has_progress_reporting_conduct"
 contains "$TENANT_DIR/SOUL.md" '/home/hermes/files/generated' "soul_directs_generated_files"
 contains "$TENANT_DIR/SOUL.md" '/home/hermes/files/uploads' "soul_directs_uploaded_files"
+contains "$TENANT_DIR/SOUL.md" '/home/hermes/vault' "soul_documents_knowledge_vault"
+contains "$TENANT_DIR/SOUL.md" 'business-data.md' "soul_documents_business_data_file"
 contains "$TENANT_DIR/harness.yaml" '^tenant_harness_version:[[:space:]]*1' "manifest_has_harness_version"
 contains "$TENANT_DIR/harness.yaml" '^verification_profile:' "manifest_has_verification_profile"
 contains "$TENANT_DIR/harness.yaml" '^fixed_safety_profile:[[:space:]]*"?_fixed-safety-v1"?' "manifest_has_fixed_safety_profile"
@@ -171,6 +176,7 @@ fi
 owned_by_hermes "$TENANT_DIR" "tenant_directory_owner_is_10000"
 owned_by_hermes "$TENANT_DIR/harness.yaml" "tenant_harness_owner_is_10000"
 owned_by_hermes "$TENANT_DIR/ACCEPTANCE.md" "tenant_acceptance_owner_is_10000"
+owned_by_hermes "$TENANT_DIR/vault" "tenant_knowledge_vault_owner_is_10000"
 
 if [ -f "$TENANT_DIR/.env" ] && grep -Eq '(sk-[A-Za-z0-9_-]{12,}|xox[baprs]-|[0-9]{8,}:[A-Za-z0-9_-]{20,})' "$TENANT_DIR/.env.template" 2>/dev/null; then
   record FAIL "env_template_has_secret_like_value" ".env.template must contain keys only"
@@ -184,6 +190,7 @@ service_contains "$SERVICE" "mem_limit:[[:space:]]*1g" "compose_has_memory_limit
 service_contains "$SERVICE" "cpus:[[:space:]]*[\"']?1[.]0[\"']?" "compose_has_cpu_limit"
 contains "$COMPOSE_FILE" "$TENANT_DIR:/opt/data" "compose_mounts_tenant_data"
 contains "$COMPOSE_FILE" "$TENANT_DIR/files:/home/hermes/files" "compose_mounts_tenant_files"
+contains "$COMPOSE_FILE" "$TENANT_DIR/vault:/home/hermes/vault" "compose_mounts_tenant_vault"
 contains "$COMPOSE_FILE" "$TENANT_DIR/.env" "compose_uses_tenant_env"
 contains "$TENANTS_FILE" "id:[[:space:]]*$TENANT_ID|tenant_id:[[:space:]]*$TENANT_ID|$TENANT_ID" "tenant_registry_mentions_tenant"
 
@@ -219,4 +226,3 @@ echo ""
 echo "summary pass=$PASS_COUNT warn=$WARN_COUNT fail=$FAIL_COUNT"
 
 [ "$FAIL_COUNT" -eq 0 ]
-
