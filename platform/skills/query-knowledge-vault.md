@@ -6,8 +6,9 @@ description: Search the Obsidian knowledge vault at /opt/aaas/platform/vault for
 Before treating an issue as new, check whether the second brain already has
 an answer.
 
-**Scope: this skill is for the OpenCode admin agent only**, searching the
-platform-level vault at `/opt/aaas/platform/vault` on the host. It has
+**Scope: this skill is for the admin agent** (OpenCode or Hermes admin),
+searching the platform-level vault at `/opt/aaas/platform/vault` on the host.
+It has
 nothing to do with any tenant's own knowledge vault at
 `/opt/aaas/tenants/{tenant-id}/vault/` (mounted into that tenant's container
 at `/home/hermes/vault/`) — that vault is searched by the tenant agent

@@ -16,7 +16,8 @@ running Obsidian process - the agent only ever reads and writes `.md` files
 on disk. The operator opens the same folder in their own Obsidian app
 whenever they like; the agent does not launch or control Obsidian itself.
 
-**Scope: this SOP is for the OpenCode admin agent only**, run on the host
+**Scope: this SOP is for the admin agent** (OpenCode or Hermes admin), run on
+the host
 against `/opt/aaas/platform/vault`. It is unrelated to any tenant's own
 knowledge vault at `/opt/aaas/tenants/{tenant-id}/vault/` (mounted into that
 tenant's container at `/home/hermes/vault/`). The tenant agent maintains its
