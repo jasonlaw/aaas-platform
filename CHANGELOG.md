@@ -4,7 +4,18 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
-## 0.9.0 - 2026-06-28
+## 0.9.1 - 2026-06-28
+
+### Fixed
+- **`provision-tenant-vault` step 5 injected proxy URLs without the vault token, causing 407 from the proxy.** Agent Vault's MITM proxy (port 14322) requires `Proxy-Authorization: Basic base64(token:)` on every `CONNECT` request. The SOP previously wrote `HTTP_PROXY=http://agent-vault:14322` — unauthenticated — so the openai/httpx SDK's `CONNECT` requests were rejected with `407 Proxy Authentication Required` and every proxied LLM call failed. The proxy URL in step 5 is now `http://${VAULT_TOKEN}@agent-vault:14322`; httpx parses the embedded credentials and sends the required `Proxy-Authorization` header automatically.
+- **`provision-tenant-vault` step 5 did not set `SSL_CERT_FILE`, causing SSL verification failures.** The Dockerfile installs the Agent Vault self-signed MITM CA into the system CA bundle via `update-ca-certificates`, but Python's `ssl` module (used by httpx/openai SDK) defaults to the `certifi` bundle, which does not include it. Without `SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt`, TLS verification of the intercepted connection failed even when the CA was correctly installed in the image. Step 5 now appends `SSL_CERT_FILE` to the injected proxy config block.
+- **`platform/templates/_base/env.template` proxy stub did not reflect the token-in-URL format or `SSL_CERT_FILE`.** Updated to match the corrected SOP output.
+
+### Changed
+- README Credential Security Model step 3 updated to document that the proxy token is embedded in the `HTTP_PROXY`/`HTTPS_PROXY` URL and that `SSL_CERT_FILE` is required for Python SSL trust.
+
+### Follow-up (operator action required)
+- Tenants provisioned before this release (`u-moon-cafe`, `vrewards`, and any others) have the old proxy URLs and are missing `SSL_CERT_FILE`. Update each affected tenant's `.env` by embedding the existing `AGENT_VAULT_TOKEN` value into the proxy URL and appending `SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt`, then force-recreate the container.
 
 ### Added
 - **Per-tenant knowledge vault: an Obsidian-compatible second brain for each tenant business.** New per-tenant directory `/opt/aaas/tenants/{tenant-id}/vault/` (mounted into the container at `/home/hermes/vault`) holds curated, structured Markdown notes (`Customers/`, `Suppliers/`, `Recurring/`, `Reference/`) maintained by the tenant agent itself at runtime — not the admin agent. This is a third tenant-side knowledge system alongside Mnemosyne (in-conversation recall) and `business-data.md` (today's prices/menu/hours); none of the three overlap by design.

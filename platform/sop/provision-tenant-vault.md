@@ -98,12 +98,21 @@ cat >> /opt/aaas/tenants/{tenant-id}/.env <<EOF
 # Only the LLM provider host above is routed through the proxy; NO_PROXY keeps
 # everything else (Telegram, future integrations) on a direct connection so
 # Agent Vault never sees traffic it wasn't scoped to handle.
-HTTP_PROXY=http://agent-vault:14322
-HTTPS_PROXY=http://agent-vault:14322
+# The token is embedded as the Basic auth username in the proxy URL so that
+# httpx/openai SDK sends a Proxy-Authorization header on every CONNECT request.
+# Agent Vault's MITM proxy (port 14322) requires this — unauthenticated CONNECT
+# requests are rejected with 407.
+HTTP_PROXY=http://${VAULT_TOKEN}@agent-vault:14322
+HTTPS_PROXY=http://${VAULT_TOKEN}@agent-vault:14322
 NO_PROXY=api.telegram.org,localhost,127.0.0.1
 AGENT_VAULT_ADDR=http://agent-vault:14321
 AGENT_VAULT_TOKEN=${VAULT_TOKEN}
 AGENT_VAULT_VAULT={tenant-id}-vault
+# Python's SSL context (used by httpx/openai SDK) defaults to the certifi bundle,
+# which does not include Agent Vault's self-signed MITM CA. Pointing SSL_CERT_FILE
+# to the system CA bundle causes Python to trust the CA that was installed into
+# the image by the Dockerfile's update-ca-certificates step.
+SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 EOF
 ```
 
