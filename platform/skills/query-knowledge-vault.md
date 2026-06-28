@@ -1,0 +1,38 @@
+---
+name: query-knowledge-vault
+description: Search the Obsidian knowledge vault at /opt/aaas/platform/vault for prior incidents, tenant history, and SOP friction before troubleshooting, onboarding, or proposing a platform change. Use when the operator asks "have we seen this before", "check the vault", "what do we know about tenant X", or before starting troubleshoot-tenant.md or improve-sop.md.
+---
+
+Before treating an issue as new, check whether the second brain already has
+an answer.
+
+## Steps
+1. If `/opt/aaas/platform/vault` does not exist yet, say so and stop - there
+   is nothing to query. Suggest running
+   `/opt/aaas/platform/scripts/vault-init.sh` if the operator wants to start
+   one.
+2. Search by keyword across the vault first:
+   `grep -ril "{keyword}" /opt/aaas/platform/vault --include='*.md'`
+   Try a few keyword variants (error text, tenant ID, SOP name, symptom)
+   rather than a single exact phrase.
+3. If a tenant ID is involved, read `Tenants/{tenant-id}.md` directly if it
+   exists - it is the fastest path to that tenant's history.
+4. If the keyword search surfaces an incident note, read it fully and follow
+   its `[[links]]` to the related tenant and SOP notes - the answer is often
+   in a linked note, not the first match.
+5. If the keyword search surfaces a `SOPs/{sop-name}.md` note, read it before
+   running that SOP - it may record a known gotcha the native SOP text
+   doesn't cover yet.
+6. Summarize what you found for the operator before proceeding: cite which
+   vault note(s) informed your next step, or state plainly that the vault
+   had no relevant history and this is a new issue.
+7. After resolving the issue, follow `/opt/aaas/platform/sop/sync-knowledge-vault.md`
+   to write back what was learned, so the next search finds it.
+
+## Notes
+- This is a read-first habit, not a blocking gate - if the vault is empty or
+  irrelevant, say so in one line and move on to the normal SOP.
+- Do not treat an absence of vault notes as evidence the issue never
+  happened before - the vault only contains what was deliberately written
+  down. Cross-check `INDEX.jsonl` via `analyze-reports.sh` for anything the
+  vault might be missing.

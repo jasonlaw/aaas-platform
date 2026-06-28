@@ -19,6 +19,7 @@ You manage Hermes tenant agents running as Docker containers.
 - Utility scripts: /opt/aaas/platform/scripts/
 - Incident playbooks: /opt/aaas/platform/incidents/
 - Task reports: /opt/aaas/platform/reports/
+- Knowledge vault (Obsidian-compatible second brain): /opt/aaas/platform/vault/
 - Platform backups: /opt/aaas/platform/backups/
 
 ## Docker Conventions
@@ -68,10 +69,12 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Set up Agent Vault (one-time): /opt/aaas/platform/sop/setup-agent-vault.md
 - Provision tenant vault: /opt/aaas/platform/sop/provision-tenant-vault.md
 - Deprovision tenant vault: /opt/aaas/platform/sop/deprovision-tenant-vault.md
+- Sync knowledge vault: /opt/aaas/platform/sop/sync-knowledge-vault.md
 
 ### General Skills
 - Grill me: /opt/aaas/platform/skills/grill-me.md
 - Setup Hermes admin: /opt/aaas/platform/skills/setup-admin-hermes.md
+- Query knowledge vault: /opt/aaas/platform/skills/query-knowledge-vault.md
 
 ### Harness Assets
 - Tenant harness check: /opt/aaas/platform/harness/check-tenant.sh
@@ -87,6 +90,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Tenant config validator: /opt/aaas/platform/scripts/validate-tenant-config.sh
 - Report analysis: /opt/aaas/platform/scripts/analyze-reports.sh
 - Agent Vault health check: /opt/aaas/platform/scripts/agent-vault-health.sh
+- Knowledge vault scaffolder: /opt/aaas/platform/scripts/vault-init.sh
 - Incident playbooks: /opt/aaas/platform/incidents/
 
 ## Rules
@@ -117,6 +121,9 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Use `mnemosyne store`, not `mnemosyne remember`, when seeding memory
 - Telegram `chat not found` usually means the user has not opened the bot and sent `/start`
 - Use `/opt/aaas/platform/reports/INDEX.jsonl` for AI-readable report summaries; read recent matching entries before proposing platform improvements
+- The knowledge vault at `/opt/aaas/platform/vault/` is a separate, human-facing Obsidian-compatible second brain - do not confuse it with Agent Vault (credential/secrets storage) or Mnemosyne (per-tenant runtime memory). It holds curated, linked notes (tenant history, incidents, SOP commentary), not secrets and not a duplicate of every report.
+- Before troubleshooting a tenant or proposing an SOP improvement, check the knowledge vault first using `/opt/aaas/platform/skills/query-knowledge-vault.md` if `/opt/aaas/platform/vault/` exists
+- After a tenant root cause, incident, or recurring SOP friction point is resolved and reported, follow `/opt/aaas/platform/sop/sync-knowledge-vault.md` to write or update the relevant vault note. Skip for routine, no-news reports. A missing or failed vault sync never blocks SOP or report completion.
 - Use `/opt/aaas/platform/sop/improve-sop.md` for SOP improvement work; do not edit upgrade-managed native SOP files directly unless explicitly asked
 - Platform upgrades refresh managed platform assets only; preserve tenant data, tenants.yaml, docker-compose.yaml, and reports
 - Every tenant must have `harness.yaml` and `ACCEPTANCE.md`; create or repair them during onboarding, tenant update, troubleshooting, or upgrade work

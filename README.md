@@ -76,6 +76,7 @@ From there, OpenCode can use the platform SOPs to help you:
 - Upgrade tenants to a newer image
 - Update tenant configuration safely
 - Improve SOPs through local overrides or proposals without editing upgrade-managed native SOPs
+- Build and search a knowledge vault of durable tenant, incident, and SOP learnings
 
 Ask the admin agent what skills are available, then tell it the tenant operation you want to perform.
 
@@ -131,6 +132,37 @@ cd /opt/aaas/platform
 This summarizes issues, improvement signals, partial/failed SOPs, and pending next actions from recent reports without rereading every full Markdown file.
 
 **Important:** Reports must never contain secrets; redact API keys, bot tokens, access tokens, private URLs, and customer private data.
+
+## Knowledge Vault
+
+The platform maintains an [Obsidian](https://obsidian.md)-compatible knowledge vault at `/opt/aaas/platform/vault` — a curated, cross-linked layer of plain Markdown notes that sits on top of the raw task reports. It is the platform's second brain: somewhere a human operator can open in the Obsidian app, browse, search, and follow links between tenants, incidents, and recurring SOP friction, rather than rereading every full report.
+
+It is intentionally separate from two other systems with similar-sounding names:
+- **Agent Vault** stores tenant credentials and secrets — never knowledge.
+- **Mnemosyne** is each tenant's own runtime memory — business-facing, not operator-facing.
+
+The knowledge vault is scaffolded automatically during install/upgrade and is safe to open immediately:
+
+```bash
+# Open /opt/aaas/platform/vault as a vault in the Obsidian app
+```
+
+The admin agent writes to it following `/opt/aaas/platform/sop/sync-knowledge-vault.md` — typically right after writing a task report for a tenant root cause, an incident, or a recurring SOP friction point. Routine, no-news reports are not mirrored into the vault; it is for durable judgment and cross-links, not a duplicate of `INDEX.jsonl`.
+
+Before troubleshooting a tenant or proposing an SOP change, the admin agent checks the vault first using `/opt/aaas/platform/skills/query-knowledge-vault.md`:
+
+```bash
+grep -ril "{keyword}" /opt/aaas/platform/vault --include='*.md'
+```
+
+Vault layout:
+- `Tenants/{tenant-id}.md` — one evolving note per tenant
+- `Incidents/{timestamp}-{slug}.md` — timestamped write-ups with root cause and fix
+- `SOPs/{sop-name}.md` — accumulated commentary and gotchas per SOP (links to, never duplicates, the native SOP file)
+- `Platform/{topic}.md` — architecture decisions and platform-wide notes
+- `Daily/{YYYY-MM-DD}.md` — optional running log
+
+The vault is additive and never blocks SOP completion: if it is missing or a write fails, the admin agent reports it as a minor follow-up and continues. Like reports, the vault must never contain secrets, API keys, tokens, or customer private data.
 
 ## Tenant Harness
 
@@ -194,8 +226,8 @@ curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts
 ```
 
 This refreshes managed platform assets: `AGENTS.md`, `VERSION`, `CHANGELOG.md`, SOPs, skills,
-templates, harness assets, eval assets, scripts, Hermes admin templates, and
-`platform/docker/Dockerfile`.
+templates, harness assets, eval assets, scripts, Hermes admin templates,
+`platform/docker/Dockerfile`, and the knowledge vault scaffold (existing notes are never overwritten).
 
 It preserves:
 
@@ -205,6 +237,7 @@ It preserves:
 - `/opt/aaas/agent-vault/.env` (Agent Vault master password — back this up externally; loss requires a full vault reset, see `platform/incidents/agent-vault-failure.md`)
 - `/opt/aaas/agent-vault/data/` (Agent Vault database)
 - `/opt/aaas/platform/reports/`
+- `/opt/aaas/platform/vault/` (knowledge vault notes — only missing folders/files are scaffolded in; existing notes are left untouched)
 
 If the installed `VERSION` is missing or older than the repository `VERSION`,
 the installer upgrades the managed assets. Versioned upgrades save a backup

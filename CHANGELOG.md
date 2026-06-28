@@ -4,6 +4,16 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.8.0 - 2026-06-28
+
+### Added
+- **Knowledge vault: an Obsidian-compatible second brain for the platform.** New managed directory `platform/vault/` holds curated, cross-linked Markdown notes (`Tenants/`, `Incidents/`, `SOPs/`, `Platform/`, `Daily/`) separate from the raw `reports/` audit trail and `INDEX.jsonl` machine index. Scaffolded automatically on install/upgrade via the new `platform/scripts/vault-init.sh` (idempotent; never overwrites existing notes), with a minimal `.obsidian/app.json` so the folder opens cleanly in the Obsidian app with no community plugins required.
+  - New SOP `platform/sop/sync-knowledge-vault.md`: when and how to turn a task report into a durable vault note. Non-blocking — a missing or failed vault sync never fails the originating SOP or report.
+  - New skill `platform/skills/query-knowledge-vault.md`: search the vault for prior tenant/incident/SOP history before troubleshooting or proposing changes.
+  - `platform/sop/write-report.md`, `platform/sop/improve-sop.md`, and `platform/sop/troubleshoot-tenant.md` now reference the vault sync/query steps at the appropriate points in their flow.
+  - `AGENTS.md` documents the vault path and rules, and is explicit that it is unrelated to Agent Vault (credential storage) and Mnemosyne (per-tenant runtime memory) despite the similar name.
+  - README adds a "Knowledge Vault" section describing the layout and usage.
+
 ## 0.7.3 - 2026-06-28
 
 ### Fixed

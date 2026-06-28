@@ -7,30 +7,31 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
 1. Ask operator for tenant ID, symptoms, and when the issue started.
 2. Read recent matching report entries before acting:
    `grep '"tenant_id":"{tenant-id}"' /opt/aaas/platform/reports/INDEX.jsonl | tail -n 10`
-3. Run platform pre-flight:
+3. Check the knowledge vault for prior history on this tenant or this symptom before treating it as new: follow `/opt/aaas/platform/skills/query-knowledge-vault.md`, starting with `/opt/aaas/platform/vault/Tenants/{tenant-id}.md` if it exists. Skip this step only if the vault does not exist yet.
+4. Run platform pre-flight:
    `/opt/aaas/platform/scripts/preflight-check.sh`
    If this fails, fix host/platform readiness before changing tenant files.
-4. Check tenant registry and compose membership:
+5. Check tenant registry and compose membership:
    - `grep -n "{tenant-id}" /opt/aaas/platform/tenants.yaml`
    - `grep -n "hermes_{tenant-id}" /opt/aaas/platform/docker/docker-compose.yaml`
-5. Run tenant config validation:
+6. Run tenant config validation:
    `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
-6. Run the tenant harness check:
+7. Run the tenant harness check:
    `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`
-7. Check container state:
+8. Check container state:
    - `docker ps -a --filter name=hermes_{tenant-id}`
    - `docker logs hermes_{tenant-id} --tail 80`
-8. Check network only if the container is running:
+9. Check network only if the container is running:
    - `docker exec hermes_{tenant-id} ping -c 1 -W 2 api.telegram.org`
    - `docker exec hermes_{tenant-id} curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 https://api.telegram.org && echo`
-9. Check memory only if the container is running:
+10. Check memory only if the container is running:
    - `docker exec hermes_{tenant-id} hermes memory status`
    - `docker exec hermes_{tenant-id} hermes mnemosyne stats`
    - If `hermes mnemosyne` is unavailable, try `hermes hermes-mnemosyne`.
-10. Apply the narrowest recovery that matches the evidence. Do not delete tenant data during troubleshooting.
-11. Re-run config validation and harness check after the fix.
-12. If the issue affected brand recall, confirmation-before-posting, confirmation-before-deleting, files, uploads, Telegram behavior, privacy, or generated vertical behavior, run or operator-assist BOTH eval profiles once the tenant container is running: `/opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml` and `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml`. Use `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` for automated literal checks and record results in `ACCEPTANCE.md`.
-13. Write a task report using `/opt/aaas/platform/sop/write-report.md` with `sop` set to `troubleshoot-tenant`.
+11. Apply the narrowest recovery that matches the evidence. Do not delete tenant data during troubleshooting.
+12. Re-run config validation and harness check after the fix.
+13. If the issue affected brand recall, confirmation-before-posting, confirmation-before-deleting, files, uploads, Telegram behavior, privacy, or generated vertical behavior, run or operator-assist BOTH eval profiles once the tenant container is running: `/opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml` and `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml`. Use `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` for automated literal checks and record results in `ACCEPTANCE.md`.
+14. Write a task report using `/opt/aaas/platform/sop/write-report.md` with `sop` set to `troubleshoot-tenant`.
 
 ## Common Recovery Paths
 

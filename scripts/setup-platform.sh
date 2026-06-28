@@ -221,6 +221,9 @@ validate_asset_source() {
     "$ASSET_ROOT/sop/setup-agent-vault.md"
     "$ASSET_ROOT/sop/provision-tenant-vault.md"
     "$ASSET_ROOT/sop/deprovision-tenant-vault.md"
+    "$ASSET_ROOT/sop/sync-knowledge-vault.md"
+    "$ASSET_ROOT/skills/query-knowledge-vault.md"
+    "$ASSET_ROOT/scripts/vault-init.sh"
     "$ASSET_ROOT/scripts/agent-vault-health.sh"
     "$ASSET_ROOT/incidents/agent-vault-failure.md"
     "$ASSET_ROOT/templates/_base/config.yaml.template"
@@ -284,6 +287,9 @@ validate_installed_matches_source() {
     "sop/setup-agent-vault.md"
     "sop/provision-tenant-vault.md"
     "sop/deprovision-tenant-vault.md"
+    "sop/sync-knowledge-vault.md"
+    "skills/query-knowledge-vault.md"
+    "scripts/vault-init.sh"
     "scripts/agent-vault-health.sh"
     "incidents/agent-vault-failure.md"
     "templates/_base/config.yaml.template"
@@ -408,6 +414,7 @@ install_assets() {
   mkdir -p "$PLATFORM_ROOT/evals"
   mkdir -p "$PLATFORM_ROOT/incidents"
   mkdir -p "$PLATFORM_ROOT/scripts"
+  mkdir -p "$PLATFORM_ROOT/vault"
   mkdir -p "$INSTALL_ROOT/tenants"
 
   if [ "$BACKUP_BEFORE_INSTALL" = true ]; then
@@ -435,6 +442,7 @@ install_assets() {
   chmod +x "$PLATFORM_ROOT/scripts/_eval-check-single.sh"
   chmod +x "$PLATFORM_ROOT/scripts/tenant/skill-verify.sh"
   chmod +x "$PLATFORM_ROOT/scripts/agent-vault-health.sh"
+  chmod +x "$PLATFORM_ROOT/scripts/vault-init.sh"
   cp "$ASSET_ROOT/AGENTS.md" "$PLATFORM_ROOT/AGENTS.md"
   cp "$ASSET_ROOT/VERSION" "$PLATFORM_ROOT/VERSION"
   cp "$REPO_ROOT/CHANGELOG.md" "$PLATFORM_ROOT/CHANGELOG.md"
@@ -656,6 +664,9 @@ validate_install() {
     "$PLATFORM_ROOT/sop/setup-agent-vault.md"
     "$PLATFORM_ROOT/sop/provision-tenant-vault.md"
     "$PLATFORM_ROOT/sop/deprovision-tenant-vault.md"
+    "$PLATFORM_ROOT/sop/sync-knowledge-vault.md"
+    "$PLATFORM_ROOT/skills/query-knowledge-vault.md"
+    "$PLATFORM_ROOT/scripts/vault-init.sh"
     "$PLATFORM_ROOT/scripts/agent-vault-health.sh"
     "$PLATFORM_ROOT/incidents/agent-vault-failure.md"
     "$PLATFORM_ROOT/templates/_base/config.yaml.template"
@@ -730,6 +741,10 @@ validate_install() {
     || error "AGENTS.md must require task reports after SOP execution"
   grep -q "check-tenant.sh" "$PLATFORM_ROOT/AGENTS.md" \
     || error "AGENTS.md must advertise tenant harness checks"
+  grep -q "vault/" "$PLATFORM_ROOT/AGENTS.md" \
+    || error "AGENTS.md must document the knowledge vault path"
+  grep -q "sync-knowledge-vault.md" "$PLATFORM_ROOT/sop/write-report.md" \
+    || error "write-report SOP must point to the knowledge vault sync step"
   grep -q "tenant-harness.yaml.template" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must create tenant harness manifests"
   grep -q "_fixed-safety-v1.yaml" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
@@ -784,6 +799,8 @@ if [ "$VALIDATE_ONLY" = false ]; then
   resolve_asset_root
   install_assets
   setup_agent_vault
+  bash "$PLATFORM_ROOT/scripts/vault-init.sh" "$PLATFORM_ROOT/vault" \
+    || warn "Knowledge vault scaffold step failed - run /opt/aaas/platform/scripts/vault-init.sh manually later"
 else
   warn "Validate-only mode - no files will be copied"
 fi
