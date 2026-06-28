@@ -61,10 +61,10 @@ setup is out of date - do not attempt to author it inline; report this and stop.
 6.1. Validate the rendered tenant config:
    `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
 6.2. Copy the tenant-side skill verification script into the tenant volume so the container can call it at runtime:
-   ```bash
+```bash
    cp /opt/aaas/platform/scripts/tenant/skill-verify.sh /opt/aaas/tenants/{tenant-id}/scripts/skill-verify.sh
    chmod +x /opt/aaas/tenants/{tenant-id}/scripts/skill-verify.sh
-   ```
+```
    The tenant agent calls this as `/opt/data/scripts/skill-verify.sh` from inside the container.
 6.3. **Provision the tenant vault in Agent Vault:**
    Run `/opt/aaas/platform/sop/provision-tenant-vault.md` now — after `.env` exists
@@ -77,13 +77,19 @@ setup is out of date - do not attempt to author it inline; report this and stop.
      under that same provider env var name
    - Write `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, `AGENT_VAULT_TOKEN`, and
      `AGENT_VAULT_VAULT` into `.env`
-   - Set the vault's unmatched-host policy to deny so only the registered LLM
-     provider host (and anything else explicitly added) can be reached through it
+   - The vault is scoped to only the registered LLM provider host by
+     construction (registering a service is what permits a host through the
+     proxy; unregistered hosts are denied by default), so only that host
+     (and anything else explicitly added) can be reached through it
    After this step, `.env` must contain no real LLM API key — verify with
    provision-tenant-vault's step 6 checks, not just a visual scan.
 7. Set tenant volume ownership for the Hermes container user before starting the container:
    `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    The tenant container runs as UID `10000`; without this, mounted `/opt/data` paths such as logs and Mnemosyne data can fail with `Permission denied`. Use `sudo cat` from the host when inspecting seeded files after this point.
+   `chown -R` only changes ownership, not mode — immediately repair host-side access so the `docker compose` CLI (run as the operator/automation user, not root) can still read the files it needs:
+   `sudo chmod 755 /opt/aaas/tenants/{tenant-id}/`
+   `sudo chmod 644 /opt/aaas/tenants/{tenant-id}/.env`
+   Without this, `docker compose up` for the tenant can fail to read `.env` even though the daemon itself runs as root, because the CLI parses `env_file` client-side before submitting the request.
 8. Update `/opt/aaas/platform/docker/docker-compose.yaml` structurally under the top-level `services:` mapping. If the file only contains an empty placeholder, replace it with a normal `services:` block plus the tenant service:
    - service/container name: `hermes_{tenant-id}`
    - image: `hermes-tenant:latest`

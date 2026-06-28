@@ -306,7 +306,11 @@ sudo mkdir -p /opt/aaas/platform/templates/verticals/services
 sudo mkdir -p /opt/aaas/platform/docker
 sudo mkdir -p /opt/aaas/tenants
 sudo mkdir -p /opt/aaas/agent-vault/data
-sudo chmod 700 /opt/aaas/agent-vault/data
+# The agent-vault image runs as a non-root, unprivileged user whose host
+# UID/GID is not exposed/configurable, so 700 leaves this bind mount
+# unwritable to the container and it fails to report healthy. Keep this in
+# sync with the equivalent fix in scripts/setup-platform.sh.
+sudo chmod 777 /opt/aaas/agent-vault/data
 sudo chown -R "$USER":"$USER" /opt/aaas
 
 if [ ! -f /opt/aaas/platform/reports/INDEX.jsonl ]; then

@@ -33,12 +33,14 @@ docker logs agent-vault --tail 30
 ### 2. Register the owner account
 This is a one-time interactive registration. Follow the prompts:
 ```bash
-agent-vault register --addr http://localhost:14321
-agent-vault login --addr http://localhost:14321
+agent-vault auth register --address http://localhost:14321
+agent-vault auth login --address http://localhost:14321
 ```
 
 Your session is saved to `~/.agent-vault/session.json`. Subsequent CLI
-commands default to `http://localhost:14321`.
+commands default to `http://localhost:14321` and do not accept an `--address`
+flag of their own — only `agent-vault auth register`/`agent-vault auth login`
+take it.
 
 Verify login:
 ```bash

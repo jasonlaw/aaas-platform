@@ -64,8 +64,11 @@ else
 fi
 
 # --- CLI session check (non-blocking) ---
+# agent-vault v0.39.0+ does not accept --addr/--address on subcommands; the
+# CLI resolves the server from the saved session file (~/.agent-vault/session.json)
+# established by `agent-vault auth login`. Do not add an address flag here.
 if command -v agent-vault >/dev/null 2>&1; then
-  if agent-vault vault list --addr "$VAULT_MGMT_URL" >/dev/null 2>&1; then
+  if agent-vault vault list >/dev/null 2>&1; then
     pass "agent_vault_cli_authenticated"
   else
     warn "agent_vault_cli_not_authenticated_or_session_expired"

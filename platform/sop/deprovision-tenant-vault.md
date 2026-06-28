@@ -28,7 +28,7 @@ agent-vault vault list
 
 ### 2. Verify no orphan tokens remain
 ```bash
-agent-vault vault agent list {tenant-id}-vault 2>&1 | grep -q "not found" \
+agent-vault agent list --vault {tenant-id}-vault 2>&1 | grep -q "not found" \
   && echo "OK: vault gone" \
   || echo "WARN: vault may still exist"
 ```

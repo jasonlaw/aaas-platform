@@ -4,6 +4,12 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.7.3 - 2026-06-28
+
+### Fixed
+- Move scripts/agent-vault-health.sh → platform/scripts/agent-vault-health.sh.
+- Some fixes based on runtime upgrade reports.
+
 ## 0.7.2 - 2026-06-28
 
 ### Fixed

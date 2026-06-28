@@ -491,7 +491,14 @@ setup_agent_vault() {
   # --- Directory ---
   if [ ! -d "$vault_data" ]; then
     mkdir -p "$vault_data"
-    chmod 700 "$vault_data"
+    # The agent-vault image runs as a non-root, unprivileged user whose host
+    # UID/GID is not exposed/configurable. 700 leaves the bind mount
+    # unwritable to that user and the container fails to start healthy.
+    # 770 is not sufficient either, since the container's UID is not a
+    # member of any host group we control. Until the image exposes a
+    # configurable UID (or a PUID/PGID-style entrypoint), this directory
+    # must stay world-writable for the container to initialise its database.
+    chmod 777 "$vault_data"
     success "Created Agent Vault data directory: $vault_data"
   else
     warn "Agent Vault data directory already exists — leaving it unchanged"

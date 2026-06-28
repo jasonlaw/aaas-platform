@@ -67,7 +67,7 @@ contains "$CONFIG" '^model:' "config_has_model_section"
 contains "$CONFIG" 'provider:[[:space:]]*mnemosyne' "config_memory_provider_mnemosyne"
 contains "$CONFIG" 'memory_enabled:[[:space:]]*false' "config_native_memory_disabled"
 contains "$CONFIG" 'user_profile_enabled:[[:space:]]*false' "config_native_user_profile_disabled"
-contains "$CONFIG" 'home_chat_id:[[:space:]]*""' "config_home_chat_empty"
+contains "$CONFIG" 'home_chat_id:[[:space:]]*["'"'"']["'"'"']' "config_home_chat_empty"
 
 contains "$HARNESS" '^tenant_harness_version:[[:space:]]*1' "harness_version_1"
 contains "$HARNESS" "^tenant_id:[[:space:]]*\"?$TENANT_ID\"?" "harness_tenant_id_matches"

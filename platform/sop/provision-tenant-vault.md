@@ -26,7 +26,7 @@ agent-vault vault create {tenant-id}-vault
 If the vault already exists (re-onboarding or recovery), skip creation and
 proceed to step 2.
 
-### 2. Register the LLM provider service
+### 2. Store the credential and register the LLM provider service
 Identify the provider hostname from the tenant's LLM provider:
 
 | Provider         | Hostname                |
@@ -37,24 +37,37 @@ Identify the provider hostname from the tenant's LLM provider:
 | Nous             | `api.nous.ai`           |
 | OpenCode Zen     | `opencode.ai`           |
 
-Register the credential (replace `{hostname}` and `{real-api-key}`):
+Store the credential (replace `{tenant-id}`, `{provider-env-var}` — the exact
+var name collected in onboard-tenant step 1 — and `{real-api-key}`):
 ```bash
-agent-vault vault credential add {tenant-id}-vault \
+agent-vault vault credential set {provider-env-var}={real-api-key} --vault {tenant-id}-vault
+```
+
+Then register the service mapping: which hostname this credential is allowed
+to be injected into, and how:
+```bash
+agent-vault vault service add \
+  --vault {tenant-id}-vault \
+  --name {provider-env-var} \
   --host {hostname} \
   --auth-type Bearer \
-  --secret {real-api-key}
+  --token-key {provider-env-var}
 ```
 
 The key is stored encrypted in Agent Vault. It must not be written to `.env`
-or any other file after this point.
+or any other file after this point. Only hosts with a registered service are
+reachable through the proxy — see step 7 (no separate policy command needed
+in this CLI version; this is what scopes egress).
 
 ### 3. Create an agent token for this tenant
 ```bash
-VAULT_TOKEN=$(agent-vault vault agent create {tenant-id}-vault --name hermes_{tenant-id} --print-token)
+VAULT_TOKEN=$(agent-vault agent create --vault {tenant-id}-vault:proxy --name hermes_{tenant-id} --token-only)
 ```
 
-This token grants the tenant container proxy access to `{tenant-id}-vault` only.
-It cannot read the raw credential value — it can only route requests through the proxy.
+The `:proxy` suffix on `--vault` scopes the token to proxy access only — it
+grants the tenant container proxy access to `{tenant-id}-vault` only and
+cannot read the raw credential value, only route requests through the proxy.
+`--token-only` prints just the token (replaces the older `--print-token` flag).
 
 ### 4. Set a placeholder for the LLM API key env var — BEFORE injecting proxy config
 The tenant `.env` was rendered in onboard-tenant step 5 with the real key under the
@@ -96,9 +109,9 @@ EOF
 
 If the tenant's harness or skills call other external APIs beyond the LLM
 provider and Telegram, add their hostnames to `NO_PROXY` too, unless you have
-also registered a credential for them in step 2 — anything not registered and
-not in `NO_PROXY` either fails (if the vault is in strict deny mode, see the
-note below) or transits the MITM proxy unmanaged.
+also registered a service for them in step 2 — anything not registered and
+not in `NO_PROXY` is rejected by the proxy by default (see step 7), it does
+not transit unmanaged.
 
 ### 6. Verify the real key is gone
 Two checks — both must pass before continuing:
@@ -117,23 +130,16 @@ grep -E "(sk-[A-Za-z0-9_-]{10,}|sk-ant-|sk-or-v1-)" /opt/aaas/tenants/{tenant-id
 # Expected: no output. Any match here is a real key that step 4 failed to scrub.
 ```
 
-### 7. Set the vault's egress policy (deny unmatched hosts)
-By default Agent Vault forwards requests to hosts that don't match a registered
-service as plain passthrough traffic instead of blocking them. Since the proxy
-is also the tenant's only route to the wider internet, leaving this on the
-default lets a compromised or misbehaving tenant agent reach arbitrary hosts
-through it. Set the vault to reject anything unregistered instead:
-
-```bash
-agent-vault vault update {tenant-id}-vault --unmatched-host-policy deny
-```
-
-(Flag name per the installed `agent-vault` CLI version — confirm with
-`agent-vault vault update --help` if this errors; the setting itself is
-documented upstream as `unmatched_host_policy`.) Combined with the `NO_PROXY`
-entries in step 5, this means: known non-LLM hosts (Telegram) bypass the proxy
-entirely, and anything neither registered nor excluded is rejected rather than
-silently passed through.
+### 7. Confirm the vault's egress scope
+Unlike earlier Agent Vault versions, CLI v0.39.0 has no separate
+`vault update --unmatched-host-policy` command — there is no policy to set.
+A vault denies any host that does not have a registered service by default.
+Step 2 already scoped this vault to exactly one reachable host (the LLM
+provider hostname registered there); nothing further is required here. If the
+tenant's harness or skills call other external APIs, either register an
+additional service for that host (step 2's pattern) or route it outside the
+proxy via `NO_PROXY` (step 5) — anything neither registered nor excluded is
+rejected by the proxy, not passed through.
 
 ### 8. Attach the tenant service to agent-vault-net
 When the onboard-tenant SOP writes the service block in `docker-compose.yaml`,
@@ -166,12 +172,13 @@ Compose files must pin the literal name `agent-vault-net`.
 
 ### 9. Confirm
 ```bash
-# Verify vault exists with correct credential
-agent-vault vault credential list {tenant-id}-vault
-# Expected: one entry for the provider hostname
+# Verify vault exists with correct credential and service
+agent-vault vault credential list --vault {tenant-id}-vault
+agent-vault vault service list --vault {tenant-id}-vault
+# Expected: one credential and one service entry for the provider hostname
 
 # Verify token
-agent-vault vault agent list {tenant-id}-vault
+agent-vault agent list --vault {tenant-id}-vault
 # Expected: hermes_{tenant-id} agent listed
 ```
 
@@ -180,7 +187,15 @@ Return control to the calling SOP (onboard-tenant step 9 or update-tenant step 1
 ## Notes
 - Never store the real API key in `.env`, `config.yaml`, or any file in the tenant volume.
 - The `AGENT_VAULT_TOKEN` in `.env` is a scoped proxy token, not a credential — it
-  grants no direct access to the stored key.
+  grants no direct access to the stored key. Tokens minted by `agent-vault agent create`
+  are prefixed `av_agt_`; that prefix identifies a proxy token, not a credential
+  key, so it is safe to keep in `.env` and should not be mistaken for a leaked secret.
+- Tenant `.env` files sometimes accumulate provider key variables left over from a
+  prior choice of LLM provider, even though only one provider is active per
+  `config.yaml`. Step 4 only scrubs the currently active `{provider-env-var}`; if
+  the `.env` file holds stale keys under a different provider's variable name,
+  remove those lines (or store and scrub them the same way) rather than leaving a
+  live, unscrubbed key sitting in the file unused.
 - To change a tenant's LLM API key, re-run the full onboard-tenant flow for that
   tenant (offboard and re-onboard), or contact the platform operator to update
   the credential directly in Agent Vault via `agent-vault vault credential update`.
