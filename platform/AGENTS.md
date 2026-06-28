@@ -72,6 +72,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Set up Agent Vault (one-time): /opt/aaas/platform/sop/setup-agent-vault.md
 - Provision tenant vault: /opt/aaas/platform/sop/provision-tenant-vault.md
 - Deprovision tenant vault: /opt/aaas/platform/sop/deprovision-tenant-vault.md
+- Provision pending credentials: /opt/aaas/platform/sop/provision-pending-credentials.md
 - Sync knowledge vault: /opt/aaas/platform/sop/sync-knowledge-vault.md
 
 ### General Skills
@@ -156,3 +157,9 @@ Always read the relevant SOP before executing ANY tenant operation.
 - During health checks or troubleshooting, an operator may optionally inspect a
   tenant's `skills/PROVENANCE.jsonl` for skills stuck at status=provisional or
   flagged, but this is opportunistic review, never a blocking requirement.
+- **When `check-tenant.sh` reports `pending_vault_credentials_require_admin_action`
+  for any tenant, run `/opt/aaas/platform/sop/provision-pending-credentials.md`
+  for that tenant immediately.** Do not defer. The credential is in plaintext in
+  `.env` until the SOP runs.
+- **Never read, log, or include `PENDING_VAULT_` credential values in task
+  reports.** Record only the credential NAME and hostname.

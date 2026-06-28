@@ -184,6 +184,16 @@ else
   record PASS "env_template_has_no_obvious_secrets"
 fi
 
+# Scan .env for PENDING_VAULT_ entries — tenant agent has written a credential
+# that the admin agent needs to process and move into Agent Vault.
+if [ -f "$TENANT_DIR/.env" ] && grep -q '^PENDING_VAULT_' "$TENANT_DIR/.env" 2>/dev/null; then
+  PENDING_COUNT=$(grep -c '^PENDING_VAULT_' "$TENANT_DIR/.env")
+  record WARN "pending_vault_credentials_require_admin_action" \
+    "${PENDING_COUNT} PENDING_VAULT_ entries in .env — run provision-pending-credentials SOP"
+else
+  record PASS "no_pending_vault_credentials"
+fi
+
 contains "$COMPOSE_FILE" "^  $SERVICE:" "compose_has_tenant_service"
 service_contains "$SERVICE" "restart:[[:space:]]*unless-stopped" "compose_has_restart_policy"
 service_contains "$SERVICE" "mem_limit:[[:space:]]*1g" "compose_has_memory_limit"

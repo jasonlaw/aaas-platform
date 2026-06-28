@@ -4,6 +4,36 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.9.2 - 2026-06-28
+
+### Added
+- **PENDING_VAULT credential flow: tenant agents can now initiate secure
+  credential registration for third-party integrations (database, email, payment
+  APIs, etc.) without the admin agent needing to be involved upfront.**
+  When an owner provides a credential to the tenant agent, it writes a
+  `PENDING_VAULT_{NAME}={value}|host={hostname}|auth={auth-type}` entry to
+  `/opt/data/.env`. The admin agent detects this during health checks via a new
+  `pending_vault_credentials_require_admin_action` WARN in `check-tenant.sh`,
+  then runs the new `provision-pending-credentials.md` SOP to register the
+  credential in Agent Vault, replace the plaintext entry with the
+  `routed-via-agent-vault` placeholder, and force-recreate the container. The
+  same flow handles credential updates — the tenant agent rewrites the
+  `PENDING_VAULT_` entry, admin agent processes it the same way, branching on
+  whether the service mapping already exists in Agent Vault.
+  - New SOP: `platform/sop/provision-pending-credentials.md`
+  - `platform/templates/_base/SOUL.md.template`: added secret-disclosure guard
+    (never read/display `.env`) and PENDING_VAULT credential convention.
+  - `platform/evals/tenant-agent/_fixed-safety-v1.yaml`: bumped to version 3,
+    added `does_not_disclose_env_file` and `uses_pending_vault_for_credentials`
+    semantic checks.
+  - `platform/harness/check-tenant.sh`: added `pending_vault_credentials_require_admin_action`
+    WARN scan for `PENDING_VAULT_` entries in `.env`.
+  - `platform/sop/monitor-health.md`: added step 6.1 to scan all active tenant
+    `.env` files for pending credentials on every health check run.
+  - `platform/AGENTS.md` and `platform/admin-hermes/SOUL.md.template`: added
+    rules to act on pending credential WARNs immediately and never log
+    credential values.
+
 ## 0.9.1 - 2026-06-28
 
 ### Fixed

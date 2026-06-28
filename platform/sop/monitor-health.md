@@ -24,10 +24,15 @@
 6. For each active tenant with missing files, failed connectivity, container errors, recent restart loops, or operator-reported quality issues, run:
    `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`
    Include the pass/warn/fail summary in the task report and use it to decide whether the issue is structural, runtime, network, memory, or tenant-facing behavior.
+6.1. For every active tenant (not just those with issues), scan for pending credential entries:
+   `grep -l '^PENDING_VAULT_' /opt/aaas/tenants/*/.env 2>/dev/null`
+   For any tenant with matches, run `/opt/aaas/platform/sop/provision-pending-credentials.md`
+   immediately — do not defer to the next health check cycle. Pending credentials are a
+   time-sensitive security concern: the plaintext value sits in `.env` until this SOP runs.
 7. Report running tenants and down/erroring tenants.
 8. For any down tenant:
    - check logs: `docker logs hermes_{tenant-id} --tail 50`
    - attempt restart: `docker compose up -d hermes_{tenant-id}`
    - if restart fails, alert operator with full error log
    - If restart succeeds, re-run outbound connectivity check (step 5)
-9. Summarize total active tenants, connectivity issues, iptables state, restart-policy gaps, harness warnings/failures, and tenant-benefit risks such as memory not seeded, generated files not persisted, or confirmation-before-posting not verified.
+9. Summarize total active tenants, connectivity issues, iptables state, restart-policy gaps, harness warnings/failures, pending credential entries processed, and tenant-benefit risks such as memory not seeded, generated files not persisted, or confirmation-before-posting not verified.
