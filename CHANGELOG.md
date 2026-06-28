@@ -4,6 +4,27 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.7.0 - 2026-06-26
+
+### Added
+- Integrated [Agent Vault](https://github.com/Infisical/agent-vault) as the platform credential broker. Real LLM API keys are now stored exclusively in Agent Vault and injected at the network layer via MITM proxy. Tenant containers never hold live credentials.
+- `platform/sop/setup-agent-vault.md`: post-install SOP covering the operator steps that require a running container — account registration, MITM CA fetch, Dockerfile patch, and tenant image rebuild. Heavy lifting (directory creation, Compose file, image pull, container start) is handled automatically by `setup-platform.sh`.
+- `platform/sop/provision-tenant-vault.md`: sub-SOP called from `onboard-tenant` (step 6.3) to create a scoped vault per tenant, store the real LLM key, mint a proxy agent token, and write proxy vars into the tenant `.env`.
+- `platform/sop/deprovision-tenant-vault.md`: sub-SOP called from `offboard-tenant` (step 6.1) to cascade-delete the tenant vault, credentials, and agent tokens from Agent Vault.
+- `platform/scripts/agent-vault-health.sh`: checks Agent Vault container state, Docker health status, management API reachability, MITM proxy port reachability, and CLI authentication. Returns PASS/WARN/FAIL per check.
+- `platform/incidents/agent-vault-failure.md`: incident runbook with three recovery paths — container crashed, database lost, and master password lost.
+
+### Changed
+- `scripts/setup-prerequisites.sh`: updated "next steps" message to explain the full Agent Vault setup flow across both scripts. Agent Vault CLI install (Step 7) and `/opt/aaas/agent-vault/data` directory creation (Step 8) were already present from the previous session.
+- `scripts/setup-platform.sh`: added `setup_agent_vault()` call to the main install flow (after `install_assets`). The function creates `/opt/aaas/agent-vault/` as a peer to `platform/` (not inside it), writes a standalone `docker-compose.yaml` and `.env` stub, pulls the image, and starts the container if the master password is already set. Added Agent Vault infrastructure existence checks to `validate_install`. Updated "next steps" message to branch on whether the master password is set. Added `agent-vault` CLI check to `ensure_plan0_ready`.
+- `platform/sop/onboard-tenant.md`: added step 6.3 (call `provision-tenant-vault` after `.env` is created, before container start) and updated step 8 to attach tenant service to `agent-vault-net`.
+- `platform/sop/offboard-tenant.md`: added step 6.1 to call `deprovision-tenant-vault` before tenant data deletion.
+- `platform/sop/monitor-health.md`: added step 0.1 to run `agent-vault-health.sh` before checking tenants — vault down means all LLM calls fail.
+- `platform/scripts/preflight-check.sh`: added Agent Vault container check (WARN-level so platforms not yet migrated are not blocked).
+- `platform/templates/_base/env.template`: LLM provider key vars now use the `routed-via-agent-vault` placeholder; added `HTTP_PROXY`, `HTTPS_PROXY`, `AGENT_VAULT_ADDR`, `AGENT_VAULT_TOKEN`, and `AGENT_VAULT_VAULT` stubs with a note that `provision-tenant-vault` fills them in.
+- `platform/AGENTS.md`: registered new SOPs and health script; added rules — Agent Vault must be set up before first tenant, never store real keys in `.env`, always call provision/deprovision SOPs, rotate keys via vault (no container restart needed).
+- `README.md`: added credential security model section, Agent Vault first-time setup instructions, key rotation example, updated preserved-paths list and monitoring section.
+
 ## 0.6.1 - 2026-06-24
 
 ### Fixed
@@ -92,5 +113,3 @@ All notable changes to this platform setup are tracked here. The platform setup 
 ### Removed
 - Removed predefined vertical template folders under `platform/templates/verticals/`.
 - Removed the old fixed F&B tenant eval profile `fnb-marketing-v1.yaml`.
-
-

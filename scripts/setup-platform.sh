@@ -218,6 +218,11 @@ validate_asset_source() {
     "$ASSET_ROOT/sop/monitor-logs.md"
     "$ASSET_ROOT/sop/troubleshoot-tenant.md"
     "$ASSET_ROOT/sop/write-report.md"
+    "$ASSET_ROOT/sop/setup-agent-vault.md"
+    "$ASSET_ROOT/sop/provision-tenant-vault.md"
+    "$ASSET_ROOT/sop/deprovision-tenant-vault.md"
+    "$ASSET_ROOT/scripts/agent-vault-health.sh"
+    "$ASSET_ROOT/incidents/agent-vault-failure.md"
     "$ASSET_ROOT/templates/_base/config.yaml.template"
     "$ASSET_ROOT/templates/_base/env.template"
     "$ASSET_ROOT/templates/_base/SOUL.md.template"
@@ -276,6 +281,11 @@ validate_installed_matches_source() {
     "sop/monitor-logs.md"
     "sop/troubleshoot-tenant.md"
     "sop/write-report.md"
+    "sop/setup-agent-vault.md"
+    "sop/provision-tenant-vault.md"
+    "sop/deprovision-tenant-vault.md"
+    "scripts/agent-vault-health.sh"
+    "incidents/agent-vault-failure.md"
     "templates/_base/config.yaml.template"
     "templates/_base/env.template"
     "templates/_base/SOUL.md.template"
@@ -377,6 +387,7 @@ ensure_plan0_ready() {
   docker --version >/dev/null
   docker info >/dev/null 2>&1 || error "Docker Engine is not reachable. Start Docker, then rerun platform setup."
   opencode --version >/dev/null
+  command -v agent-vault >/dev/null 2>&1 || error "agent-vault CLI not found. Run scripts/setup-prerequisites.sh first."
   success "Prerequisite tools and folders are present"
 }
 
@@ -423,6 +434,7 @@ install_assets() {
   chmod +x "$PLATFORM_ROOT/scripts/eval-judge.sh"
   chmod +x "$PLATFORM_ROOT/scripts/_eval-check-single.sh"
   chmod +x "$PLATFORM_ROOT/scripts/tenant/skill-verify.sh"
+  chmod +x "$PLATFORM_ROOT/scripts/agent-vault-health.sh"
   cp "$ASSET_ROOT/AGENTS.md" "$PLATFORM_ROOT/AGENTS.md"
   cp "$ASSET_ROOT/VERSION" "$PLATFORM_ROOT/VERSION"
   cp "$REPO_ROOT/CHANGELOG.md" "$PLATFORM_ROOT/CHANGELOG.md"
@@ -466,6 +478,112 @@ EOF
   fi
 
   success "Platform assets installed under $PLATFORM_ROOT"
+}
+
+setup_agent_vault() {
+  local vault_root="$INSTALL_ROOT/agent-vault"
+  local vault_data="$vault_root/data"
+  local vault_compose="$vault_root/docker-compose.yaml"
+  local vault_env="$vault_root/.env"
+
+  log "Setting up Agent Vault infrastructure..."
+
+  # --- Directory ---
+  if [ ! -d "$vault_data" ]; then
+    mkdir -p "$vault_data"
+    chmod 700 "$vault_data"
+    success "Created Agent Vault data directory: $vault_data"
+  else
+    warn "Agent Vault data directory already exists — leaving it unchanged"
+  fi
+
+  # --- Compose file (own file, peer to platform/) ---
+  if [ ! -f "$vault_compose" ]; then
+    cat > "$vault_compose" <<'EOF'
+# Agent Vault — AaaS credential broker
+# Managed independently of the tenant Compose file.
+# Start/stop with: docker compose -f /opt/aaas/agent-vault/docker-compose.yaml up -d
+# Tenant containers join agent-vault-net (declared external: true in the tenant Compose file).
+
+services:
+  agent-vault:
+    image: infisical/agent-vault:latest
+    container_name: agent-vault
+    ports:
+      - "127.0.0.1:14321:14321"
+      - "127.0.0.1:14322:14322"
+    volumes:
+      - /opt/aaas/agent-vault/data:/data
+    env_file:
+      - /opt/aaas/agent-vault/.env
+    environment:
+      - AGENT_VAULT_ADDR=http://localhost:14321
+      - AGENT_VAULT_ALLOW_PRIVATE_RANGES=true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:14321/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - agent-vault-net
+
+networks:
+  agent-vault-net:
+    driver: bridge
+    internal: false
+EOF
+    success "Created Agent Vault docker-compose.yaml: $vault_compose"
+  else
+    warn "Agent Vault docker-compose.yaml already exists — leaving it unchanged"
+  fi
+
+  # --- .env stub (master password — never overwrite) ---
+  if [ ! -f "$vault_env" ]; then
+    cat > "$vault_env" <<'EOF'
+# Agent Vault master password — DO NOT COMMIT THIS FILE
+# Fill in AGENT_VAULT_MASTER_PASSWORD before starting Agent Vault.
+# Loss of this password requires a vault reset and re-entry of all credentials.
+AGENT_VAULT_MASTER_PASSWORD=
+EOF
+    chmod 600 "$vault_env"
+    success "Created Agent Vault .env stub: $vault_env"
+    warn "ACTION REQUIRED: Set AGENT_VAULT_MASTER_PASSWORD in $vault_env before starting Agent Vault"
+  else
+    warn "Agent Vault .env already exists — leaving it unchanged (master password preserved)"
+  fi
+
+  # --- Pull image ---
+  log "Pulling Agent Vault image..."
+  docker pull infisical/agent-vault:latest
+  success "Agent Vault image ready"
+
+  # --- Start container if master password is set ---
+  if grep -q "^AGENT_VAULT_MASTER_PASSWORD=.\+" "$vault_env" 2>/dev/null; then
+    log "Starting Agent Vault container..."
+    docker compose -f "$vault_compose" up -d agent-vault
+    # Wait up to 30s for healthy
+    local i=0
+    while [ $i -lt 6 ]; do
+      HEALTH="$(docker inspect --format='{{.State.Health.Status}}' agent-vault 2>/dev/null || echo 'unknown')"
+      [ "$HEALTH" = "healthy" ] && break
+      sleep 5
+      i=$((i + 1))
+    done
+    HEALTH="$(docker inspect --format='{{.State.Health.Status}}' agent-vault 2>/dev/null || echo 'unknown')"
+    if [ "$HEALTH" = "healthy" ]; then
+      success "Agent Vault container is healthy"
+    else
+      warn "Agent Vault container health status: $HEALTH — check logs with: docker logs agent-vault --tail 30"
+    fi
+  else
+    warn "AGENT_VAULT_MASTER_PASSWORD is not set in $vault_env"
+    warn "Agent Vault container NOT started. Set the password, then run:"
+    warn "  docker compose -f $vault_compose up -d agent-vault"
+    warn "Then complete setup by following: /opt/aaas/platform/sop/setup-agent-vault.md"
+  fi
+
+  success "Agent Vault infrastructure setup complete"
 }
 
 build_image() {
@@ -527,6 +645,11 @@ validate_install() {
     "$PLATFORM_ROOT/sop/monitor-logs.md"
     "$PLATFORM_ROOT/sop/troubleshoot-tenant.md"
     "$PLATFORM_ROOT/sop/write-report.md"
+    "$PLATFORM_ROOT/sop/setup-agent-vault.md"
+    "$PLATFORM_ROOT/sop/provision-tenant-vault.md"
+    "$PLATFORM_ROOT/sop/deprovision-tenant-vault.md"
+    "$PLATFORM_ROOT/scripts/agent-vault-health.sh"
+    "$PLATFORM_ROOT/incidents/agent-vault-failure.md"
     "$PLATFORM_ROOT/templates/_base/config.yaml.template"
     "$PLATFORM_ROOT/templates/_base/env.template"
     "$PLATFORM_ROOT/templates/_base/SOUL.md.template"
@@ -617,6 +740,13 @@ validate_install() {
     || error "AGENTS.md must advertise tenant troubleshooting SOP"
   grep -q "AaaS pre-flight check" "$PLATFORM_ROOT/scripts/preflight-check.sh" \
     || error "Pre-flight script must contain expected banner"
+  # Agent Vault infrastructure (runtime, not managed assets — existence checks only)
+  [ -d "$INSTALL_ROOT/agent-vault/data" ] \
+    || error "Agent Vault data directory missing: $INSTALL_ROOT/agent-vault/data — run setup-prerequisites.sh"
+  [ -f "$INSTALL_ROOT/agent-vault/docker-compose.yaml" ] \
+    || error "Agent Vault docker-compose.yaml missing: $INSTALL_ROOT/agent-vault/docker-compose.yaml"
+  [ -f "$INSTALL_ROOT/agent-vault/.env" ] \
+    || error "Agent Vault .env missing: $INSTALL_ROOT/agent-vault/.env"
   grep -q "INDEX.jsonl" "$PLATFORM_ROOT/sop/write-report.md" \
     || error "Report SOP must document AI-readable INDEX.jsonl"
   grep -q "directly under /opt/aaas/platform/reports" "$PLATFORM_ROOT/sop/write-report.md" \
@@ -639,6 +769,7 @@ ensure_plan0_ready
 if [ "$VALIDATE_ONLY" = false ]; then
   resolve_asset_root
   install_assets
+  setup_agent_vault
 else
   warn "Validate-only mode - no files will be copied"
 fi
@@ -658,10 +789,31 @@ echo "=============================================="
 echo ""
 echo "Installed platform version: $(cat "$PLATFORM_ROOT/VERSION")"
 echo ""
-echo "Next steps:"
-echo "  1. cd /opt/aaas/platform"
-echo "  2. opencode"
-echo "  3. Ask: what skills do you have available?"
-echo "  4. When ready, build the image with:"
-echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash -s -- --build-image"
+
+VAULT_ENV="$INSTALL_ROOT/agent-vault/.env"
+if grep -q "^AGENT_VAULT_MASTER_PASSWORD=.\+" "$VAULT_ENV" 2>/dev/null; then
+  echo "Agent Vault: running (master password already set)"
+  echo ""
+  echo "Next steps:"
+  echo "  1. cd /opt/aaas/platform && opencode"
+  echo "  2. Ask the admin agent: \'Complete the Agent Vault setup\'"
+  echo "     This registers the account, fetches the MITM CA, patches"
+  echo "     the Dockerfile, and rebuilds the tenant image."
+  echo "  3. Onboard your first tenant."
+else
+  echo "Agent Vault: NOT started — master password required"
+  echo ""
+  echo "Next steps:"
+  echo "  1. Set the master password:"
+  echo "       nano $VAULT_ENV"
+  echo "     Fill in: AGENT_VAULT_MASTER_PASSWORD=<your-password>"
+  echo ""
+  echo "  2. Start Agent Vault:"
+  echo "       docker compose -f $INSTALL_ROOT/agent-vault/docker-compose.yaml up -d agent-vault"
+  echo ""
+  echo "  3. cd /opt/aaas/platform && opencode"
+  echo "  4. Ask the admin agent: \'Complete the Agent Vault setup\'"
+  echo "     This registers the account, fetches the MITM CA, patches"
+  echo "     the Dockerfile, and rebuilds the tenant image."
+fi
 echo ""

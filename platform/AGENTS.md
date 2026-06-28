@@ -65,6 +65,9 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Troubleshoot tenant: /opt/aaas/platform/sop/troubleshoot-tenant.md
 - Improve SOP: /opt/aaas/platform/sop/improve-sop.md
 - Write report: /opt/aaas/platform/sop/write-report.md
+- Set up Agent Vault (one-time): /opt/aaas/platform/sop/setup-agent-vault.md
+- Provision tenant vault: /opt/aaas/platform/sop/provision-tenant-vault.md
+- Deprovision tenant vault: /opt/aaas/platform/sop/deprovision-tenant-vault.md
 
 ### General Skills
 - Grill me: /opt/aaas/platform/skills/grill-me.md
@@ -83,6 +86,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Pre-flight check: /opt/aaas/platform/scripts/preflight-check.sh
 - Tenant config validator: /opt/aaas/platform/scripts/validate-tenant-config.sh
 - Report analysis: /opt/aaas/platform/scripts/analyze-reports.sh
+- Agent Vault health check: /opt/aaas/platform/scripts/agent-vault-health.sh
 - Incident playbooks: /opt/aaas/platform/incidents/
 
 ## Rules
@@ -90,6 +94,11 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Always read the relevant required checklist before executing an SOP when one exists
 - Run `/opt/aaas/platform/scripts/preflight-check.sh` before major tenant, image, upgrade, or troubleshooting work when Docker/host state matters
 - For platform setup upgrades, read `/opt/aaas/platform/sop/upgrade-platform.md`
+- **Agent Vault must be set up before onboarding the first tenant.** If `agent-vault` container is not running, run `/opt/aaas/platform/sop/setup-agent-vault.md` first.
+- **Never store real LLM API keys in `.env` files.** After running `provision-tenant-vault`, the provider key env var in `.env` must be the placeholder `routed-via-agent-vault`. Real keys live only in Agent Vault.
+- **Always run `provision-tenant-vault` SOP during tenant onboarding** (step 6.3) and `deprovision-tenant-vault` during offboarding (step 6.1).
+- **When rotating a tenant's LLM API key**, update it via `agent-vault vault credential update` — do not edit `.env`. No container restart is required for a key rotation.
+- Run `/opt/aaas/platform/scripts/agent-vault-health.sh` at the start of every health check and before any onboarding operation to confirm the vault is reachable.
 - Always write a task report with `/opt/aaas/platform/sop/write-report.md` before declaring any SOP task or operational troubleshooting task complete
 - When identifying and fixing a tenant-related issue, record the root cause, analysis evidence, exact fix applied, validation results, and any prevention/follow-up in the task report
 - Always confirm with operator before destructive actions

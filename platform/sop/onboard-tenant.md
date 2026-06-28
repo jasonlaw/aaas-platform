@@ -66,6 +66,14 @@ setup is out of date - do not attempt to author it inline; report this and stop.
    chmod +x /opt/aaas/tenants/{tenant-id}/scripts/skill-verify.sh
    ```
    The tenant agent calls this as `/opt/data/scripts/skill-verify.sh` from inside the container.
+6.3. **Provision the tenant vault in Agent Vault:**
+   Run `/opt/aaas/platform/sop/provision-tenant-vault.md` now — after `.env` exists
+   but before container start. This SOP will:
+   - Create `{tenant-id}-vault` in Agent Vault
+   - Store the real LLM API key in the vault (remove it from `.env`)
+   - Write `HTTP_PROXY`, `HTTPS_PROXY`, `AGENT_VAULT_TOKEN`, and `AGENT_VAULT_VAULT` into `.env`
+   - Set the LLM key env var to the placeholder `routed-via-agent-vault`
+   After this step, `.env` must contain no real LLM API key.
 7. Set tenant volume ownership for the Hermes container user before starting the container:
    `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    The tenant container runs as UID `10000`; without this, mounted `/opt/data` paths such as logs and Mnemosyne data can fail with `Permission denied`. Use `sudo cat` from the host when inspecting seeded files after this point.
@@ -77,6 +85,7 @@ setup is out of date - do not attempt to author it inline; report this and stop.
    - mounts tenant folder to `/opt/data` and files folder to `/home/hermes/files`
    - `env_file` points to the tenant `.env`
    - resource limits: `mem_limit: 1g` and `cpus: "1.0"`
+   - network: `agent-vault-net` (so the container can reach the Agent Vault proxy on `http://agent-vault:14322`). Declare this network as `external: true` at the bottom of docker-compose.yaml if not already present.
 9. Start only this tenant: `docker compose up -d hermes_{tenant-id}`.
 10. **Verify container outbound connectivity** (critical for Telegram and external APIs):
     - Wait 5 seconds for container to stabilize
@@ -107,6 +116,3 @@ setup is out of date - do not attempt to author it inline; report this and stop.
    Once the tenant container is running, run `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` against both profiles for automated PASS/FAIL results on `match_type: literal` checks (this runs prompts inside the container via `hermes -z`, not over Telegram); the script will print `SKIP` for `match_type: semantic` checks, which still require the operator or admin agent to read the actual reply against that check's `judge_for` field. Fall back to fully manual review only if `eval-runner.sh` reports a missing dependency or the container is not running (exit code 2). At minimum, verify brand recall, confirmation before posting, confirmation before deleting, generated/upload folder behavior, owner-friendly language, no cross-tenant memory leakage, and the tenant's own generated vertical-specific checks. Record results from both files in `ACCEPTANCE.md`.
 18. Update `/opt/aaas/tenants/{tenant-id}/harness.yaml` with status, last verification timestamp, and verification notes if your editor/tooling can do so safely.
 19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, welcome message delivery status per user ID, registry update status, alternate brand sources used, and whether operational details were written to `files/assets/business-data.md` or a stub was created for future owner use.
-
-
-

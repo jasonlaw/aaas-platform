@@ -274,9 +274,26 @@ log "Step 6: Installing OpenCode admin agent..."
 install_opencode
 
 # ------------------------------------------------------------------------------
-# Step 7: Create Platform Folder Structure
+# Step 7: Install Agent Vault CLI
 # ------------------------------------------------------------------------------
-log "Step 7: Creating platform folder structure..."
+log "Step 7: Installing Agent Vault CLI..."
+
+if command -v agent-vault >/dev/null 2>&1; then
+  warn "Agent Vault CLI already installed at: $(which agent-vault) — skipping"
+  agent-vault --version
+else
+  curl -fsSL https://raw.githubusercontent.com/Infisical/agent-vault/main/install.sh | sh
+  # Installer may write to ~/.local/bin — ensure it is on PATH for this session
+  export PATH="$HOME/.local/bin:$PATH"
+fi
+
+agent-vault --version || error "Agent Vault CLI installation failed"
+success "Agent Vault CLI ready: $(which agent-vault)"
+
+# ------------------------------------------------------------------------------
+# Step 8: Create Platform Folder Structure
+# ------------------------------------------------------------------------------
+log "Step 8: Creating platform folder structure..."
 
 sudo mkdir -p /opt/aaas/platform/sop
 sudo mkdir -p /opt/aaas/platform/skills
@@ -288,6 +305,8 @@ sudo mkdir -p /opt/aaas/platform/templates/verticals/retail
 sudo mkdir -p /opt/aaas/platform/templates/verticals/services
 sudo mkdir -p /opt/aaas/platform/docker
 sudo mkdir -p /opt/aaas/tenants
+sudo mkdir -p /opt/aaas/agent-vault/data
+sudo chmod 700 /opt/aaas/agent-vault/data
 sudo chown -R "$USER":"$USER" /opt/aaas
 
 if [ ! -f /opt/aaas/platform/reports/INDEX.jsonl ]; then
@@ -297,9 +316,9 @@ fi
 success "Folder structure created at /opt/aaas/"
 
 # ------------------------------------------------------------------------------
-# Step 8: Initialise Tenant Registry
+# Step 9: Initialise Tenant Registry
 # ------------------------------------------------------------------------------
-log "Step 8: Initialising tenant registry..."
+log "Step 9: Initialising tenant registry..."
 
 if [ ! -f /opt/aaas/platform/tenants.yaml ]; then
   cat > /opt/aaas/platform/tenants.yaml << 'EOF'
@@ -316,9 +335,9 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# Step 9: Initialise Docker Compose File
+# Step 10: Initialise Docker Compose File
 # ------------------------------------------------------------------------------
-log "Step 9: Initialising docker-compose.yaml..."
+log "Step 10: Initialising docker-compose.yaml..."
 
 if [ ! -f /opt/aaas/platform/docker/docker-compose.yaml ]; then
   cat > /opt/aaas/platform/docker/docker-compose.yaml << 'EOF'
@@ -343,11 +362,12 @@ log "Verifying setup..."
 
 echo ""
 echo "--- Tool Versions ---"
-echo "git:       $(git --version)"
-echo "node:      $(node --version)  ($(which node))"
-echo "npm:       $(npm --version)   ($(which npm))"
-echo "docker:    $(docker --version)"
-echo "opencode:  $(opencode --version)"
+echo "git:           $(git --version)"
+echo "node:          $(node --version)  ($(which node))"
+echo "npm:           $(npm --version)   ($(which npm))"
+echo "docker:        $(docker --version)"
+echo "opencode:      $(opencode --version)"
+echo "agent-vault:   $(agent-vault --version)"
 echo ""
 
 echo "--- SSH Public Key ---"
@@ -388,9 +408,19 @@ echo ""
 echo "  3. Run 'source ~/.bashrc' or open a new terminal"
 echo "     to activate nvm, Docker auto-start, and SSH agent."
 echo ""
-echo "  4. Proceed with the main setup entrypoint"
+echo "  4. Proceed with the main setup entrypoint:"
 echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash"
 echo ""
-echo "     Or force a Hermes tenant image build:"
-echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash -s -- --build-image"
+echo "     The setup script will:"
+echo "       - Install platform assets (SOPs, scripts, templates)"
+echo "       - Create /opt/aaas/agent-vault/ and write its docker-compose.yaml"
+echo "       - Pull the Agent Vault image"
+echo "       - Start Agent Vault if AGENT_VAULT_MASTER_PASSWORD is already set in"
+echo "           /opt/aaas/agent-vault/.env"
+echo ""
+echo "  5. After setup completes, follow the printed next steps to:"
+echo "       - Set the master password (if not set before setup)"
+echo "       - Start Agent Vault"
+echo "       - Complete Agent Vault setup via OpenCode (register account,"
+echo "           fetch MITM CA, rebuild tenant image)"
 echo ""

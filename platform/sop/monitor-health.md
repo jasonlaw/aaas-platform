@@ -1,7 +1,10 @@
 # SOP: Monitor Platform Health
 
-## Steps
 0. Read `/opt/aaas/platform/checklists/monitor-health.required.json`. Treat every item as a completion gate; unresolved items must appear in the final task report.
+0.1. **Check Agent Vault health** before checking tenants — if the vault is down, all tenant LLM calls will fail:
+   `/opt/aaas/platform/scripts/agent-vault-health.sh`
+   If it returns FAIL, follow `/opt/aaas/platform/incidents/agent-vault-failure.md` before proceeding.
+   If it returns WARN (e.g. CLI not authenticated), note it in the report but continue.
 1. **Verify iptables and Docker state:**
    - Run `/opt/aaas/platform/scripts/preflight-check.sh`. If it fails because Docker is down or iptables is not legacy, stop and fix host readiness before changing tenant state.
    - `iptables --version` must show `legacy`. If not, switch with `sudo update-alternatives --set iptables /usr/sbin/iptables-legacy && sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy && sudo systemctl restart docker`

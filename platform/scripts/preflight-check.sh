@@ -51,6 +51,21 @@ else
   warn "jq_not_found:report analysis will use fallback summaries"
 fi
 
+# Agent Vault — warn only; setup may not have been run yet
+if command -v docker >/dev/null 2>&1; then
+  if docker ps --filter name=agent-vault --filter status=running --format '{{.Names}}' \
+      | grep -q '^agent-vault$'; then
+    VAULT_HEALTH="$(docker inspect --format='{{.State.Health.Status}}' agent-vault 2>/dev/null || echo 'unknown')"
+    case "$VAULT_HEALTH" in
+      healthy)  pass "agent_vault_running_and_healthy" ;;
+      starting) warn "agent_vault_starting:health_check_pending" ;;
+      *)        warn "agent_vault_unhealthy:status=$VAULT_HEALTH" ;;
+    esac
+  else
+    warn "agent_vault_not_running:credential_proxy_unavailable_run_setup-agent-vault_sop"
+  fi
+fi
+
 echo ""
 echo "summary warn=$WARNINGS fail=$ERRORS"
 [ "$ERRORS" -eq 0 ]
