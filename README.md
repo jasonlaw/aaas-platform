@@ -95,7 +95,7 @@ Tenant containers never hold real LLM API keys. The flow is:
 4. When the tenant container makes an outbound LLM API call, Agent Vault intercepts the TLS connection, injects the real key into the `Authorization` header, and forwards the request. The tenant container sees only the proxy token.
 5. Traffic that isn't the registered LLM provider is either excluded from the proxy via `NO_PROXY` (Telegram and other non-LLM integrations connect directly, never through the MITM) or, if neither registered nor excluded, rejected — a vault only forwards requests to hosts that have a registered service, and anything without one is denied by default rather than passed through unmanaged. This keeps Agent Vault scoped to brokering the LLM credential, not silently intercepting or permitting everything else the tenant container does.
 6. Each tenant runs on its own isolated Docker network (`hermes-{tenant-id}-net`), with only that tenant's container and Agent Vault as members — never a network shared with any other tenant. This stops a compromised tenant container from reaching any other tenant's container. Agent Vault's management port (`:14321`) is bound to `127.0.0.1` on the host and is never reachable from inside any tenant container regardless of network membership; only the proxy port (`:14322`) is used, and only implicitly via `HTTP_PROXY`/`HTTPS_PROXY`.
-7. The only place credential data may ever be persisted for a tenant is `.env`, and only the platform operator/admin agent writes that file during onboarding or update. The tenant agent itself never writes a credential to `.env`, Mnemosyne, a self-written skill, a knowledge vault note, or any other file — this is enforced behaviorally by the `no_credential_persistence` platform rule (rendered into every tenant's `SOUL.md`) and mechanically by an automatic credential scan that runs on every self-written skill before it can be trusted (see [Policy Framework](#policy-framework) below).
+7. The only places credential data may ever be persisted for a tenant are `/opt/data/.env` and nothing else. The tenant agent may **append** a single new `KEY=value` line to `.env` — but only after the owner gives explicit confirmation in the same conversation, and immediately followed by a `--force-recreate` so the value takes effect. The agent never edits or removes an existing line (append-only), and the `no_env_disclosure` rule still applies in full: the agent never reveals the value it just wrote. All other persistence targets remain strictly off-limits: Mnemosyne, self-written skills, knowledge vault notes, generated files, and all other files. This is enforced behaviorally by the `no_credential_persistence` platform rule (rendered into every tenant's `SOUL.md`) and mechanically by an automatic credential scan that runs on every self-written skill before it can be trusted (see [Policy Framework](#policy-framework) below).
 
 LLM API keys are managed exclusively inside Agent Vault. To change a tenant's key,
 contact the platform operator to update it directly in Agent Vault, or offboard and
@@ -113,10 +113,11 @@ Supported LLM providers and their Agent Vault hostnames:
 
 ## Policy Framework
 
-Platform-wide hard rules (the agent never discloses `.env` contents, never persists
-credentials anywhere except `.env`, never scans the network, always confirms before
-an irreversible action, never leaks one tenant's data to another, always uses
-owner-friendly language) live in exactly one place: `platform/policy/platform-policy.yaml`.
+Platform-wide hard rules (the agent never discloses `.env` contents, persists
+credentials only to `/opt/data/.env` and only append-only after explicit owner confirmation,
+never scans the network, always confirms before an irreversible action, never leaks one
+tenant's data to another, always uses owner-friendly language) live in exactly one place:
+`platform/policy/platform-policy.yaml`.
 Each rule there is a single `agent_instruction` plus its own `eval_checks` — both the
 text rendered into every tenant's `SOUL.md` and the automated/judge-assisted checks
 that verify the agent actually follows it are generated from this one file, so there
@@ -138,7 +139,31 @@ is nothing to keep in sync by hand.
   before it can be trusted — this runs automatically as part of skill verification,
   independent of whatever the skill's own spec checks for.
 
+## Enhancement Proposal: Operator-Approved Credential Write via Hermes Hook + inotify
+
+> **Status: Proposal** — not yet implemented. The current mechanism (tenant agent appends to `.env` after owner confirmation in-conversation) is the active behaviour.
+
+The current flow requires the owner to confirm in the tenant agent’s conversation before it writes to `.env`. A complementary mechanism for higher-assurance environments would route the write through an admin-agent approval step:
+
+1. **Tenant agent writes a meta-info request via the Hermes hook** — instead of appending to `.env` directly, the agent writes a structured pending-approval record (e.g. `/opt/data/pending-env-write.json`) that includes the variable name, a redacted hint of the value, and the conversation context, using the existing Hermes hook channel.
+2. **inotify pushes an approval request to the admin operator via ntfy.sh** — a host-side inotify watch on the pending-approval path triggers a push notification to the operator’s ntfy.sh topic, presenting the variable name and context for approval or rejection.
+3. **Approval reply wakes the OpenCode admin agent** — the operator’s reply (via ntfy.sh or direct webhook) is received by the admin agent, which validates the request, writes the actual `KEY=value` line to the tenant’s `.env` (the admin agent is always the writer in this path), and runs `--force-recreate` on the tenant container.
+4. **Tenant agent receives confirmation** — the Hermes hook delivers a status update back to the tenant agent’s conversation so the owner knows the credential is now active.
+
+**Trade-offs vs. the current approach:**
+
+| | Current (agent appends after owner confirm) | Proposed (admin-agent write via ntfy approval) |
+|---|---|---|
+| Approval authority | Owner (in-conversation) | Operator (out-of-band push) |
+| Audit trail | Conversation transcript | Approval webhook + admin agent report |
+| Complexity | Low | Requires inotify watcher + ntfy.sh integration |
+| Latency | Immediate | Asynchronous (operator must respond) |
+| Suited for | Single-owner tenants, low-stakes vars | Multi-admin, regulated, or high-assurance environments |
+
+If this proposal is implemented, the `no_credential_persistence` rule’s `agent_instruction` would need to be updated to describe both paths, and the `suggests_env_for_automation` eval check updated to accept either the direct-append response or the approval-request response as passing.
+
 ## Task Reports
+
 
 After every SOP task or operational troubleshooting work, the admin agent must write a report before declaring completion.
 Use the [write-report](platform/sop/write-report.md) SOP for detailed guidance.
