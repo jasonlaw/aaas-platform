@@ -22,6 +22,7 @@ This file is the tenant-local proof that the agent was set up for the owner, not
 - [ ] Agent saves owner uploads under `/home/hermes/files/uploads/`.
 - [ ] Agent keeps this tenant's memory and files isolated from other tenants.
 - [ ] Owner can open `/home/hermes/vault/` as an Obsidian vault and see a README explaining how it differs from Mnemosyne and business-data.md.
+- [ ] Agent never persists a credential anywhere except `.env` (verified by the fixed safety eval's `refuses_credential_in_skill`/`refuses_credential_in_memory`/`refuses_credential_in_vault_note` checks).
 
 ## Platform Checks
 - [ ] Required tenant files exist.
@@ -34,6 +35,9 @@ This file is the tenant-local proof that the agent was set up for the owner, not
 - [ ] Knowledge vault was scaffolded (`vault/` with README and section folders) and is owned by UID 10000.
 - [ ] Telegram welcome delivery succeeded or was clearly blocked by user action.
 - [ ] Fixed safety eval profile and generated tenant eval profile were reviewed or run.
+- [ ] `tenant-policy.yaml` exists, declares `inherits: platform-policy`, and is owned by UID 10000.
+- [ ] `SOUL.md` has both BEGIN/END PLATFORM RULES and BEGIN/END TENANT RULES marker blocks, rendered (not empty placeholders) for the platform rules block.
+- [ ] This tenant has its own isolated Docker network (`hermes-{{TENANT_ID}}-net`) with only this tenant's container and Agent Vault as members.
 
 ## Verification Evidence
 - Last harness command:

@@ -94,6 +94,8 @@ Tenant containers never hold real LLM API keys. The flow is:
 3. The tenant `.env` receives `HTTP_PROXY`/`HTTPS_PROXY` pointing at Agent Vault's MITM proxy port, with the scoped proxy token embedded as the Basic auth username in the URL (e.g. `http://<token>@agent-vault:14322`) so the openai/httpx SDK sends a `Proxy-Authorization` header on every `CONNECT` request — the proxy rejects unauthenticated connections with 407. `SSL_CERT_FILE` is also set to the system CA bundle so Python's SSL context trusts the Agent Vault MITM CA (the certifi bundle bundled with the SDK does not include it). The LLM key env var is set to the placeholder `routed-via-agent-vault`.
 4. When the tenant container makes an outbound LLM API call, Agent Vault intercepts the TLS connection, injects the real key into the `Authorization` header, and forwards the request. The tenant container sees only the proxy token.
 5. Traffic that isn't the registered LLM provider is either excluded from the proxy via `NO_PROXY` (Telegram and other non-LLM integrations connect directly, never through the MITM) or, if neither registered nor excluded, rejected — a vault only forwards requests to hosts that have a registered service, and anything without one is denied by default rather than passed through unmanaged. This keeps Agent Vault scoped to brokering the LLM credential, not silently intercepting or permitting everything else the tenant container does.
+6. Each tenant runs on its own isolated Docker network (`hermes-{tenant-id}-net`), with only that tenant's container and Agent Vault as members — never a network shared with any other tenant. This stops a compromised tenant container from reaching any other tenant's container. Agent Vault's management port (`:14321`) is bound to `127.0.0.1` on the host and is never reachable from inside any tenant container regardless of network membership; only the proxy port (`:14322`) is used, and only implicitly via `HTTP_PROXY`/`HTTPS_PROXY`.
+7. The only place credential data may ever be persisted for a tenant is `.env`, and only the platform operator/admin agent writes that file during onboarding or update. The tenant agent itself never writes a credential to `.env`, Mnemosyne, a self-written skill, a knowledge vault note, or any other file — this is enforced behaviorally by the `no_credential_persistence` platform rule (rendered into every tenant's `SOUL.md`) and mechanically by an automatic credential scan that runs on every self-written skill before it can be trusted (see [Policy Framework](#policy-framework) below).
 
 LLM API keys are managed exclusively inside Agent Vault. To change a tenant's key,
 contact the platform operator to update it directly in Agent Vault, or offboard and
@@ -108,6 +110,33 @@ Supported LLM providers and their Agent Vault hostnames:
 | Anthropic        | `api.anthropic.com` | `ANTHROPIC_API_KEY`    |
 | Nous             | `api.nous.ai`       | `NOUS_API_KEY`         |
 | OpenCode Zen     | `opencode.ai`       | `OPENCODE_API_KEY`     |
+
+## Policy Framework
+
+Platform-wide hard rules (the agent never discloses `.env` contents, never persists
+credentials anywhere except `.env`, never scans the network, always confirms before
+an irreversible action, never leaks one tenant's data to another, always uses
+owner-friendly language) live in exactly one place: `platform/policy/platform-policy.yaml`.
+Each rule there is a single `agent_instruction` plus its own `eval_checks` — both the
+text rendered into every tenant's `SOUL.md` and the automated/judge-assisted checks
+that verify the agent actually follows it are generated from this one file, so there
+is nothing to keep in sync by hand.
+
+- After editing `platform-policy.yaml`, run `platform/scripts/generate-platform-eval.sh`
+  to regenerate `evals/tenant-agent/_fixed-safety-v1.yaml`, then
+  `platform/scripts/validate-platform-rules.sh` to confirm every rule has matching eval
+  coverage. Never hand-edit `_fixed-safety-v1.yaml` directly.
+- Each tenant additionally has its own `tenant-policy.yaml` for business-specific
+  restrictions an operator sets at onboarding (e.g. "only post to these two channels",
+  "only query this one database"). Tenant policy is additive-only — it can narrow what
+  the agent is allowed to do but can never widen past a platform rule.
+- Both files are rendered into the tenant's `SOUL.md` as two marked blocks
+  (`<!-- BEGIN/END PLATFORM RULES -->` and `<!-- BEGIN/END TENANT RULES -->`) during
+  onboarding and whenever either policy file changes.
+- Every self-written tenant skill is scanned for credential-shaped patterns
+  (API keys, `password=`/`token=`-style assignments, embedded connection strings)
+  before it can be trusted — this runs automatically as part of skill verification,
+  independent of whatever the skill's own spec checks for.
 
 ## Task Reports
 

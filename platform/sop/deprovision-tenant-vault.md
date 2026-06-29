@@ -33,7 +33,19 @@ agent-vault agent list --vault {tenant-id}-vault 2>&1 | grep -q "not found" \
   || echo "WARN: vault may still exist"
 ```
 
-### 3. Confirm to calling SOP
+### 3. Remove the tenant's isolated network
+```bash
+# Disconnect Agent Vault from the tenant network
+docker network disconnect hermes-{tenant-id}-net agent-vault || true
+
+# Remove the tenant network
+docker network rm hermes-{tenant-id}-net || true
+```
+Both commands are safe to run even if the network or connection no longer
+exists (e.g. the tenant container was already removed) — `|| true` keeps
+this step from blocking the rest of offboarding on a harmless "not found".
+
+### 4. Confirm to calling SOP
 Return control to offboard-tenant. The tenant's proxy token in `.env` will be
 deleted as part of the tenant data directory removal in offboard-tenant step 7.
 

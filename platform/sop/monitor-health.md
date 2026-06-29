@@ -21,6 +21,23 @@
 5. For each running active tenant, verify outbound connectivity:
    - Ping check: `docker exec hermes_{tenant-id} ping -c 1 -W 2 api.telegram.org > /dev/null 2>&1 && echo "OK" || echo "FAILED"`
    - If ping fails, check iptables rules for this tenant's bridge and alert operator
+5.1. **Verify tenant network isolation** for each active tenant:
+   - Confirm the tenant's isolated network exists:
+     ```bash
+     for tenant_id in $(grep 'status: active' /opt/aaas/platform/tenants.yaml | awk '{print $2}'); do
+       docker network inspect hermes-${tenant_id}-net >/dev/null 2>&1 \
+         && echo "PASS  tenant_network_exists:${tenant_id}" \
+         || echo "FAIL  tenant_network_missing:${tenant_id}"
+     done
+     ```
+   - Confirm Agent Vault's management port is not reachable from inside a tenant container (proves isolation, not just network existence):
+     ```bash
+     docker exec hermes_{tenant-id} curl -s --connect-timeout 2 \
+       http://agent-vault:14321/health >/dev/null 2>&1 \
+       && echo "FAIL  mgmt_port_reachable_from_tenant:{tenant-id}" \
+       || echo "PASS  mgmt_port_not_reachable_from_tenant:{tenant-id}"
+     ```
+   - A missing tenant network means that tenant predates the network isolation feature; run the backfill block from `upgrade-tenants.md` step 3 for that tenant rather than improvising a fix here.
 6. For each active tenant with missing files, failed connectivity, container errors, recent restart loops, or operator-reported quality issues, run:
    `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`
    Include the pass/warn/fail summary in the task report and use it to decide whether the issue is structural, runtime, network, memory, or tenant-facing behavior.
@@ -30,4 +47,4 @@
    - attempt restart: `docker compose up -d hermes_{tenant-id}`
    - if restart fails, alert operator with full error log
    - If restart succeeds, re-run outbound connectivity check (step 5)
-9. Summarize total active tenants, connectivity issues, iptables state, restart-policy gaps, harness warnings/failures, and tenant-benefit risks such as memory not seeded, generated files not persisted, or confirmation-before-posting not verified.
+9. Summarize total active tenants, connectivity issues, iptables state, tenant network isolation status, restart-policy gaps, harness warnings/failures, and tenant-benefit risks such as memory not seeded, generated files not persisted, or confirmation-before-posting not verified.

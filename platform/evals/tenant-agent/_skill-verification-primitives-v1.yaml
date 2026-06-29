@@ -24,6 +24,32 @@ primitives:
       For any skill step that posts, sends, or deletes, a confirmation message
       was sent to the owner and a positive reply received before that step ran.
     params: [action_description]
+  - type: credential_scan
+    description: >
+      Scans the skill file for patterns that suggest embedded credentials,
+      API keys, passwords, or connection strings. Fails if any match is found.
+      Pattern list is sourced from platform-policy.yaml's no_credential_persistence
+      and no_credential_in_skills rules, which require that the only persistent
+      home for credential data is /opt/data/.env. This check runs automatically
+      on every self-written skill — the tenant agent does not need to specify
+      it; skill-verify.sh applies it unconditionally before evaluating the
+      agent-supplied spec.
+    params: []
+    patterns:
+      # Common API key prefixes
+      - "sk-[A-Za-z0-9_-]{10,}"        # OpenAI / OpenRouter style
+      - "sk-ant-[A-Za-z0-9_-]{10,}"    # Anthropic style
+      - "av_agt_[A-Za-z0-9_-]{10,}"    # Agent Vault proxy token
+      # Generic credential patterns in skill file text
+      - "password[[:space:]]*=[[:space:]]*[^{]"
+      - "passwd[[:space:]]*=[[:space:]]*[^{]"
+      - "secret[[:space:]]*=[[:space:]]*[^{]"
+      - "token[[:space:]]*=[[:space:]]*[^{]"
+      # Connection strings
+      - "://[^[:space:]]*:[^[:space:]]*@"   # user:pass@host pattern
+      - "mongodb\\+srv://"
+      - "postgresql://"
+      - "mysql://"
 fallback:
   type: judge
   description: >

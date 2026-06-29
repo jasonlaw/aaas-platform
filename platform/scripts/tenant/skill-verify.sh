@@ -314,9 +314,48 @@ run_judge_fallback() {
   update_provenance "provisional" "judge-not-available-in-container" 0
 }
 
+PRIMITIVES_FILE="${PRIMITIVES_FILE:-/opt/aaas/platform/evals/tenant-agent/_skill-verification-primitives-v1.yaml}"
+SKILL_FILE="$TENANT_DIR/skills/${SKILL_NAME}.md"
+
+run_credential_scan() {
+  [ -f "$SKILL_FILE" ] || return 0   # no file to scan yet; spec check handles missing
+
+  local patterns_file="$PRIMITIVES_FILE"
+  local failed=0
+
+  # Extract credential_scan patterns from primitives YAML (simple grep
+  # approach; avoids adding a yq dependency inside the tenant container).
+  # Pattern lines are indented under the credential_scan type block.
+  local in_cred_scan=0
+  while IFS= read -r line; do
+    case "$line" in
+      *"type: credential_scan"*) in_cred_scan=1 ;;
+      "  - type:"*) in_cred_scan=0 ;;           # next primitive block
+    esac
+    if [ "$in_cred_scan" = "1" ]; then
+      # Extract quoted pattern strings
+      pattern=$(echo "$line" | sed -n 's/.*"\(.*\)".*/\1/p')
+      [ -z "$pattern" ] && continue
+      if grep -Eq "$pattern" "$SKILL_FILE" 2>/dev/null; then
+        record FAIL credential_scan "credential pattern detected: $pattern"
+        failed=1
+      fi
+    fi
+  done < "$patterns_file"
+
+  if [ "$failed" = "0" ]; then
+    record PASS credential_scan "no credential patterns detected"
+    return 0
+  fi
+  # Mark skill as flagged immediately — do not evaluate agent-supplied spec
+  update_provenance "flagged" "credential_scan" 1
+  exit 1
+}
+
 require_setup
 TYPE="$(spec_value .type)"
 [ -n "$TYPE" ] || { record FAIL setup "verification spec missing type"; exit 2; }
+run_credential_scan
 
 case "$TYPE" in
   file_exists_at)
