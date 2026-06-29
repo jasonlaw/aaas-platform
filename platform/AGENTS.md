@@ -15,6 +15,7 @@ You manage Hermes tenant agents running as Docker containers.
 - Hermes admin templates: /opt/aaas/platform/admin-hermes/
 - Harness checks: /opt/aaas/platform/harness/
 - Required checklists: /opt/aaas/platform/checklists/
+- Policy framework (platform rules, canonical source of truth): /opt/aaas/platform/policy/platform-policy.yaml
 - Tenant eval profiles: /opt/aaas/platform/evals/
 - Utility scripts: /opt/aaas/platform/scripts/
 - Incident playbooks: /opt/aaas/platform/incidents/
@@ -39,6 +40,7 @@ You manage Hermes tenant agents running as Docker containers.
 - Config: /opt/aaas/tenants/{id}/config.yaml
 - Tenant harness manifest: /opt/aaas/tenants/{id}/harness.yaml
 - Tenant acceptance record: /opt/aaas/tenants/{id}/ACCEPTANCE.md
+- Tenant policy (operator-set additive restrictions, never widens past platform-policy.yaml): /opt/aaas/tenants/{id}/tenant-policy.yaml
 - Business metadata: /opt/aaas/platform/tenants.yaml
 - Container management: /opt/aaas/platform/docker/docker-compose.yaml
 - Current operational facts (prices, menu, hours): /opt/aaas/tenants/{id}/files/assets/business-data.md - owner-editable, read directly by the tenant agent at runtime, never seeded into Mnemosyne
@@ -85,7 +87,11 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Tenant acceptance template: /opt/aaas/platform/harness/ACCEPTANCE.md.template
 - Onboarding required checklist: /opt/aaas/platform/checklists/onboard-tenant.required.json
 - Health required checklist: /opt/aaas/platform/checklists/monitor-health.required.json
-- Fixed tenant safety eval profile: /opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml
+- Platform policy (canonical source of truth for all platform-wide hard rules): /opt/aaas/platform/policy/platform-policy.yaml
+- Tenant policy template (operator-set additive restrictions): /opt/aaas/platform/templates/_base/tenant-policy.yaml.template
+- Generate fixed safety eval from platform policy (run after editing platform-policy.yaml and during platform upgrades): /opt/aaas/platform/scripts/generate-platform-eval.sh
+- Validate every platform-policy.yaml rule has eval coverage (run before platform upgrades): /opt/aaas/platform/scripts/validate-platform-rules.sh
+- Fixed tenant safety eval profile (generated, never hand-edited): /opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml
 - Generated tenant eval profiles: /opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml
 - Automated eval runner (match_type: literal checks only; match_type: semantic checks need manual review): /opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {eval-file-path}
 - Admin meta-eval profile: /opt/aaas/platform/evals/admin-agent/meta-eval-generation-v1.yaml
@@ -109,6 +115,11 @@ Always read the relevant SOP before executing ANY tenant operation.
 - **Agent Vault's MITM proxy must stay scoped to the LLM provider host.** `provision-tenant-vault` sets `NO_PROXY` for non-LLM hosts (Telegram, etc.); a vault only forwards requests to hosts with a registered service, and anything unregistered is denied by default, so the proxy neither silently intercepts unrelated traffic nor passes unmatched requests through unmanaged.
 - **Tenant directory/file permission standard:** `chown -R 10000:10000` (used in onboard-tenant, update-tenant, and upgrade-tenants) sets ownership only, not mode, and changes nothing about whether the `docker compose` CLI — run as the operator/automation user, not root — can read the files it needs. After every `chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`, also run `chmod 755` on the tenant directory and `chmod 644` on its `.env` file so Compose can parse `env_file` client-side before submitting to the daemon. The `owned_by_hermes` checks in `validate-tenant-config.sh` only verify UID:GID, not mode, so this does not conflict with them.
 - **LLM API keys are managed exclusively in Agent Vault and are not updated through the update-tenant SOP.** If a tenant's LLM API key must change, contact the platform operator to update it directly in Agent Vault, or offboard and re-onboard the tenant.
+- **Platform-wide hard rules live in one place: `/opt/aaas/platform/policy/platform-policy.yaml`.** It is upgrade-managed; never edit it per-tenant. Editing it changes what every tenant agent is instructed to do (via the rendered `SOUL.md` block) and what gets checked (via the generated `_fixed-safety-v1.yaml`) — both are derived, not independently maintained.
+- **Never hand-edit `/opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml`.** It is generated from `platform-policy.yaml` by `/opt/aaas/platform/scripts/generate-platform-eval.sh`. Hand-edits are overwritten on the next generation run. After editing `platform-policy.yaml`, run `generate-platform-eval.sh` and then `/opt/aaas/platform/scripts/validate-platform-rules.sh` to confirm every rule has eval coverage, before the next platform upgrade ships it.
+- **Tenant policy (`tenant-policy.yaml`) is additive-only.** It may only narrow what a tenant agent is allowed to do, never widen past `platform-policy.yaml`. `validate-tenant-config.sh` checks structural presence but does not semantically diff rule content — when reviewing a tenant policy change, read it against `platform-policy.yaml` yourself and reject anything that contradicts or loosens a platform rule.
+- **Rendering platform/tenant policy into `SOUL.md`:** during onboarding (step 5) and whenever policy changes (update-tenant step 5, or the backfill in upgrade-tenants step 3), render each rule's `agent_instruction` from `platform-policy.yaml` and the tenant's `tenant-policy.yaml` as bullet points inside the `<!-- BEGIN PLATFORM RULES -->`/`<!-- BEGIN TENANT RULES -->` marker blocks in `SOUL.md.template`. Copy `agent_instruction` text verbatim — do not paraphrase. After rendering, `--force-recreate` the tenant container so it reads the updated `SOUL.md`.
+- **Credential data has exactly one persistent home: the tenant's `.env`, written only by the platform operator/admin agent during onboarding or update.** The tenant agent itself never writes a credential to `.env`, Mnemosyne, a skill file, a vault note, or any other persistent location — this is rule `no_credential_persistence` in `platform-policy.yaml` and is enforced both behaviorally (rendered into every `SOUL.md`) and mechanically (`credential_scan` in `skill-verify.sh` flags any self-written skill containing a credential-shaped pattern before it can be trusted).
 - Run `/opt/aaas/platform/scripts/agent-vault-health.sh` at the start of every health check and before any onboarding operation to confirm the vault is reachable.
 - Always write a task report with `/opt/aaas/platform/sop/write-report.md` before declaring any SOP task or operational troubleshooting task complete
 - When identifying and fixing a tenant-related issue, record the root cause, analysis evidence, exact fix applied, validation results, and any prevention/follow-up in the task report
@@ -121,6 +132,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Never use `docker compose restart` for config, secret, or model provider changes - it does not guarantee a clean reload; always use `--force-recreate`
 - If a single-tenant issue cannot be resolved with `--force-recreate`, stop and ask the operator before any action that affects other tenants
 - **iptables must be in legacy mode ? this system uses Docker 29.x which has a critical bug with iptables-nftables where bridge networks lose forwarding rules after daemon restart, causing complete network isolation for containers. Verify with `iptables --version` (must show `legacy`). If not set during bootstrap, switch with `sudo update-alternatives --set iptables /usr/sbin/iptables-legacy && sudo update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy && sudo systemctl restart docker`**
+- **Each tenant has its own isolated Docker network (`hermes-{tenant-id}-net`), never the old shared `agent-vault-net`.** Created and connected to Agent Vault in `provision-tenant-vault.md` steps 1a/1b, before the tenant container starts. Tenants must never share a network with each other — this is what stops a compromised tenant container from probing or reaching any other tenant's container. Agent Vault's management port (`:14321`) is bound to `127.0.0.1` on the host only, so it is unreachable from inside any container regardless of network membership.
 - Onboarding tenant volumes must be owned by UID `10000` before container startup
 - Every tenant must have a scaffolded `vault/` directory created during onboarding (step 4.2); if it is missing during troubleshooting or an update, run `/opt/aaas/platform/scripts/tenant/vault-init-tenant.sh` to repair it - this is safe to re-run and never overwrites existing tenant vault notes
 - Use `HERMES_HOME=/opt/data mnemosyne-hermes install`; do not use a `--hermes-home` flag
@@ -153,6 +165,14 @@ Always read the relevant SOP before executing ANY tenant operation.
   `/opt/aaas/platform/evals/tenant-agent/_skill-verification-primitives-v1.yaml`
   and are vertical-agnostic; do not generate per-tenant verification primitives
   during onboarding.
+- **`skill-verify.sh` runs an unconditional `credential_scan` before evaluating
+  any agent-supplied verification spec.** The tenant agent does not request
+  this check; it always runs first against every self-written skill file, and
+  immediately flags the skill if a credential-shaped pattern is found,
+  regardless of whether the spec itself would have passed. Pattern list lives
+  in `_skill-verification-primitives-v1.yaml`'s `credential_scan` primitive -
+  update it there, not in `skill-verify.sh` itself, if a new credential
+  pattern needs coverage.
 - During health checks or troubleshooting, an operator may optionally inspect a
   tenant's `skills/PROVENANCE.jsonl` for skills stuck at status=provisional or
   flagged, but this is opportunistic review, never a blocking requirement.

@@ -73,10 +73,30 @@ contains "$HARNESS" '^tenant_harness_version:[[:space:]]*1' "harness_version_1"
 contains "$HARNESS" "^tenant_id:[[:space:]]*\"?$TENANT_ID\"?" "harness_tenant_id_matches"
 contains "$HARNESS" '^verification_profile:' "harness_has_verification_profile"
 
+# --- Policy framework checks ---
+POLICY="$TENANT_DIR/tenant-policy.yaml"
+SOUL="$TENANT_DIR/SOUL.md"
+
+contains "$POLICY" "tenant_id:.*$TENANT_ID" "tenant_policy_tenant_id_matches"
+contains "$POLICY" "inherits:.*platform-policy" "tenant_policy_inherits_platform"
+
+contains "$SOUL" "BEGIN PLATFORM RULES" "soul_has_platform_rules_begin_marker"
+contains "$SOUL" "END PLATFORM RULES" "soul_has_platform_rules_end_marker"
+contains "$SOUL" "BEGIN TENANT RULES" "soul_has_tenant_rules_begin_marker"
+contains "$SOUL" "END TENANT RULES" "soul_has_tenant_rules_end_marker"
+
+# Spot-check that rendering actually happened (markers present but empty
+# would mean rendering was skipped). This checks for a representative
+# phrase from one platform-policy.yaml rule's agent_instruction; the admin
+# agent itself is responsible for verifying every rule rendered, per the
+# rendering instruction in onboard-tenant.md step 5 / update-tenant.md step 5.
+contains "$SOUL" "[Nn]ever perform irreversible actions" "soul_md_platform_rules_present"
+
 owned_by_hermes "$TENANT_DIR" "tenant_directory_owner_is_10000"
 owned_by_hermes "$HARNESS" "harness_owner_is_10000"
 owned_by_hermes "$TENANT_DIR/ACCEPTANCE.md" "acceptance_owner_is_10000"
 owned_by_hermes "$TENANT_DIR/vault" "knowledge_vault_owner_is_10000"
+owned_by_hermes "$POLICY" "tenant_policy_owner_is_10000"
 
 echo ""
 echo "summary fail=$ERRORS"

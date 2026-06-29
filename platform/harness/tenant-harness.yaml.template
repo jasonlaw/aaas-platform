@@ -24,12 +24,15 @@ required_checks:
   - knowledge_vault_scaffolded
   - telegram_welcome
   - tenant_isolation
+  - policy_rendered
+  - network_isolation
 tenant_benefits:
   - "Remembers the business identity and owner preferences through Mnemosyne."
   - "Keeps generated work in files/generated and owner uploads in files/uploads."
   - "Requires owner confirmation before posting or irreversible action."
-  - "Keeps this tenant isolated from every other tenant's data and memory."
+  - "Keeps this tenant isolated from every other tenant's data and memory, including at the network level."
   - "Maintains an Obsidian-browsable knowledge vault of durable, structured notes (customers, suppliers, recurring patterns, reference material) the owner can open directly."
+  - "Never persists credential data anywhere except .env, which only the platform operator writes."
 last_verified_at_utc: ""
 last_verified_by: ""
 status: "provisioning"

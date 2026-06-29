@@ -4,6 +4,36 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.10.0 - 2026-06-29
+
+### Added
+- **Policy framework: a single canonical source of truth for platform-wide hard rules, plus per-tenant additive restrictions.** New `platform/policy/platform-policy.yaml` holds every platform-wide rule (`no_env_disclosure`, `no_credential_persistence`, `no_credential_in_skills`, `no_network_scan`, `confirm_before_irreversible`, `no_cross_tenant_leakage`, `owner_friendly_language`) as a single `agent_instruction` plus its own `eval_checks`, replacing the previous arrangement where the same rules were duplicated by hand across `SOUL.md.template`'s scattered inline sentences and the separately hand-authored `_fixed-safety-v1.yaml`. Editing a rule now means editing it in exactly one place.
+  - **New rule: `no_credential_persistence`.** The tenant agent must never persist a credential, password, API key, connection string, or token anywhere except `/opt/data/.env` — not in a self-written skill, not in Mnemosyne, not in a knowledge vault note, not in a generated/uploaded file. `.env` is written only by the platform operator during onboarding/update; the tenant agent never writes to it itself. This was previously only partially covered by `no_credential_in_skills` (skills only); the new rule covers every persistent tenant-side store.
+  - New `platform/scripts/generate-platform-eval.sh` renders `evals/tenant-agent/_fixed-safety-v1.yaml` from `platform-policy.yaml`. **`_fixed-safety-v1.yaml` is no longer hand-edited** — run this script after any `platform-policy.yaml` change, and as part of `upgrade-platform.md`.
+  - New `platform/scripts/validate-platform-rules.sh` confirms every `platform-policy.yaml` rule has matching coverage in the generated eval file; run before shipping a platform upgrade.
+  - New per-tenant `tenant-policy.yaml` (from `templates/_base/tenant-policy.yaml.template`) holds operator-set, business-specific restrictions in the same rule shape as `platform-policy.yaml`. Additive-only — a tenant rule may narrow but never widen past a platform rule. Empty `rules: []` is the common case.
+  - `templates/_base/SOUL.md.template` replaces its scattered inline safety sentences with two rendered marker blocks, `<!-- BEGIN/END PLATFORM RULES -->` and `<!-- BEGIN/END TENANT RULES -->`. `onboard-tenant.md` step 5.1 and `update-tenant.md` step 5.1 render each rule's `agent_instruction` verbatim into the matching block.
+  - `harness/check-tenant.sh` and `scripts/validate-tenant-config.sh` check for the marker blocks, `tenant-policy.yaml`'s existence/ownership/`inherits: platform-policy` declaration, and a representative rendered phrase, rather than grepping for the old hand-written sentences.
+  - `sop/upgrade-tenants.md` step 3 backfills `tenant-policy.yaml` and re-renders both SOUL.md policy blocks for tenants onboarded before this feature existed.
+  - `AGENTS.md` documents the policy directory, the generate/validate scripts, the rendering instruction, and the additive-only constraint on tenant policy.
+
+- **Per-tenant network isolation: every tenant now has its own isolated Docker bridge network instead of sharing `agent-vault-net`.** Previously all tenant containers shared one bridge network with each other and with Agent Vault, meaning a compromised tenant container could potentially reach any other tenant's container. Each tenant now gets `hermes-{tenant-id}-net`, with only that tenant's container and Agent Vault as members.
+  - `provision-tenant-vault.md` steps 1a/1b create the network and join Agent Vault to it, before the tenant container starts.
+  - `provision-tenant-vault.md` step 5 stops injecting `AGENT_VAULT_ADDR` into tenant `.env` — tenant containers have no legitimate reason to reach Agent Vault's management API (`:14321`), only the proxy port (`:14322`, used implicitly via `HTTP_PROXY`/`HTTPS_PROXY`). `templates/_base/env.template` updated to match.
+  - `provision-tenant-vault.md` step 8 and `onboard-tenant.md` step 8 attach the tenant's compose service to `hermes-{tenant-id}-net` (`external: true`) instead of the shared `agent-vault-net`.
+  - `deprovision-tenant-vault.md` step 3 disconnects Agent Vault and removes the network during offboarding.
+  - `upgrade-tenants.md` step 3 backfills the isolated network (and migrates the compose service onto it) for tenants onboarded before this feature existed.
+  - `monitor-health.md` step 5.1 and `harness/check-tenant.sh` verify each active tenant's isolated network exists and, separately, that Agent Vault's management port is actually unreachable from inside that tenant's container — proving isolation, not just network existence.
+  - **Note:** Agent Vault's management port (`:14321`) and proxy port (`:14322`) were already bound to `127.0.0.1` on the host in `scripts/setup-platform.sh`'s generated `docker-compose.yaml` — that binding only affects host-to-container access and was never the source of the lateral-movement risk, since containers reach each other directly over a shared bridge network regardless of host port bindings. The per-tenant network change above is the actual fix; no change was needed to the host port bindings.
+
+- **Skill credential scanning: self-written tenant skills are now scanned for embedded credentials before they can be trusted.** New `credential_scan` primitive in `evals/tenant-agent/_skill-verification-primitives-v1.yaml` defines a pattern list (API key prefixes, `password=`/`secret=`/`token=`-style assignments, `user:pass@host` connection strings) sourced from the `no_credential_persistence` and `no_credential_in_skills` platform rules.
+  - `scripts/tenant/skill-verify.sh` now runs `run_credential_scan()` unconditionally, immediately after `require_setup`, before evaluating any agent-supplied verification spec. Any match flags the skill (`status: flagged`) and exits non-zero regardless of whether the spec itself would have passed — credential exposure is checked first and independently of what the skill claims to do.
+  - `AGENTS.md` documents that this check is automatic and not requested by the tenant agent, and that new patterns are added to the primitives file, not to `skill-verify.sh` itself.
+
+### Changed
+- `harness/tenant-harness.yaml.template` and `harness/ACCEPTANCE.md.template` add `policy_rendered` and `network_isolation` as required checks / owner-benefit and platform-check items.
+- `README.md` Credential Security Model section documents the policy framework, per-tenant network isolation, and skill credential scanning alongside the existing Agent Vault proxy explanation.
+
 ## 0.9.1 - 2026-06-28
 
 ### Fixed

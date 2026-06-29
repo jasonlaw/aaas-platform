@@ -11,6 +11,7 @@ Upgrade the installed platform assets to the latest repository version while pre
 - `/opt/aaas/platform/templates/`
 - `/opt/aaas/platform/harness/`
 - `/opt/aaas/platform/checklists/`
+- `/opt/aaas/platform/policy/`
 - `/opt/aaas/platform/evals/`
 - `/opt/aaas/platform/scripts/`
 - `/opt/aaas/platform/incidents/`
@@ -45,6 +46,11 @@ Upgrade the installed platform assets to the latest repository version while pre
    `test -f /opt/aaas/platform/tenants.yaml`
    `test -f /opt/aaas/platform/docker/docker-compose.yaml`
    `test -f /opt/aaas/platform/reports/INDEX.jsonl`
+9.1. **Regenerate the fixed safety eval profile** in case `platform-policy.yaml` changed in this version:
+   `/opt/aaas/platform/scripts/generate-platform-eval.sh`
+   `/opt/aaas/platform/scripts/validate-platform-rules.sh`
+   If validation fails, do not proceed to tenant backfill — report the failure and stop; a platform-policy.yaml rule shipped without matching eval coverage.
+9.2. Run the upgrade-tenants SOP to backfill all active tenants onto this version, including re-rendering each tenant's `SOUL.md` policy blocks and isolated network if missing — see `upgrade-tenants.md` step 3.
 10. **Post-upgrade iptables verification:**
     - `iptables --version` must still show `legacy`. If it reverted to `nf_tables`, switch again and restart Docker
     - `sudo iptables -L DOCKER-FORWARD -n | head -5` should show bridge forwarding rules

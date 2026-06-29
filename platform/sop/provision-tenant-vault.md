@@ -26,6 +26,31 @@ agent-vault vault create {tenant-id}-vault
 If the vault already exists (re-onboarding or recovery), skip creation and
 proceed to step 2.
 
+### 1a. Create the tenant's isolated bridge network
+Each tenant gets its own isolated Docker bridge network, distinct from the
+shared `agent-vault-net`. This prevents lateral movement between tenant
+containers — a compromised tenant can no longer probe any other tenant's
+container on a shared network.
+
+```bash
+docker network create hermes-{tenant-id}-net
+```
+
+If the network already exists (re-onboarding or recovery), skip creation.
+
+### 1b. Connect Agent Vault to this tenant's network
+Agent Vault joins every tenant's isolated network so it can still serve the
+proxy port (`:14322`) to that tenant. The Agent Vault container stays
+running — no restart needed.
+
+```bash
+docker network connect hermes-{tenant-id}-net agent-vault
+```
+
+If Agent Vault is already connected to this network (re-onboarding or
+recovery), this command will fail harmlessly with "endpoint already
+exists" — safe to ignore.
+
 ### 2. Store the credential and register the LLM provider service
 Identify the provider hostname from the tenant's LLM provider:
 
@@ -105,7 +130,6 @@ cat >> /opt/aaas/tenants/{tenant-id}/.env <<EOF
 HTTP_PROXY=http://${VAULT_TOKEN}@agent-vault:14322
 HTTPS_PROXY=http://${VAULT_TOKEN}@agent-vault:14322
 NO_PROXY=api.telegram.org,localhost,127.0.0.1
-AGENT_VAULT_ADDR=http://agent-vault:14321
 AGENT_VAULT_TOKEN=${VAULT_TOKEN}
 AGENT_VAULT_VAULT={tenant-id}-vault
 # Python's SSL context (used by httpx/openai SDK) defaults to the certifi bundle,
@@ -115,6 +139,13 @@ AGENT_VAULT_VAULT={tenant-id}-vault
 SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 EOF
 ```
+
+**`AGENT_VAULT_ADDR` is intentionally not injected here.** Tenant containers
+have no legitimate reason to call Agent Vault's management API (`:14321`) —
+only the proxy port (`:14322`, reached implicitly via `HTTP_PROXY`/
+`HTTPS_PROXY`) is needed. Each tenant's isolated network (step 1a/1b) means
+the management port is unreachable from inside the tenant container anyway,
+but omitting the env var removes even the path of least resistance.
 
 If the tenant's harness or skills call other external APIs beyond the LLM
 provider and Telegram, add their hostnames to `NO_PROXY` too, unless you have
@@ -150,34 +181,41 @@ additional service for that host (step 2's pattern) or route it outside the
 proxy via `NO_PROXY` (step 5) — anything neither registered nor excluded is
 rejected by the proxy, not passed through.
 
-### 8. Attach the tenant service to agent-vault-net
+### 8. Attach the tenant service to its isolated network
 When the onboard-tenant SOP writes the service block in `docker-compose.yaml`,
-it must include the `agent-vault-net` network:
+it must include this tenant's isolated network (created in step 1a, with
+Agent Vault already joined to it in step 1b) — **not** the shared
+`agent-vault-net`:
 
 ```yaml
   hermes_{tenant-id}:
     ...
     networks:
-      - agent-vault-net
+      - hermes-{tenant-id}-net
 ```
 
-If the network block is not already declared at the bottom of docker-compose.yaml,
-add it:
+Declare the network block at the bottom of docker-compose.yaml if not already
+present:
 ```yaml
 networks:
-  agent-vault-net:
-    name: agent-vault-net
+  hermes-{tenant-id}-net:
+    name: hermes-{tenant-id}-net
     external: true
 ```
 
-Using `external: true` tells Compose that this network was created by the
-agent-vault service's own Compose file and should not be recreated. The
-explicit `name: agent-vault-net` is required — without it Compose resolves the
-network name to `agent-vault-net` literally on this side but the producing
-Compose file (`/opt/aaas/agent-vault/docker-compose.yaml`) would otherwise
-create it as `agent-vault_agent-vault-net` (project-prefixed), and `docker
-compose up` for this service would fail with "network not found". Both
-Compose files must pin the literal name `agent-vault-net`.
+Using `external: true` tells Compose that this network was created outside
+this Compose file (by step 1a's `docker network create`) and should not be
+recreated. The explicit `name:` is required for the same reason it was
+required for `agent-vault-net` in earlier platform versions — without it,
+Compose would project-prefix the network name and `docker compose up` would
+fail with "network not found".
+
+Each tenant's network has exactly two members: that tenant's container and
+Agent Vault. A compromised tenant container can no longer reach any other
+tenant's container, since they no longer share a network. Agent Vault's
+management port (`:14321`) is bound to `127.0.0.1` on the host only (see
+`/opt/aaas/agent-vault/docker-compose.yaml`), so it is unreachable from any
+container regardless of which Docker network that container is on.
 
 ### 9. Confirm
 ```bash
@@ -189,12 +227,20 @@ agent-vault vault service list --vault {tenant-id}-vault
 # Verify token
 agent-vault agent list --vault {tenant-id}-vault
 # Expected: hermes_{tenant-id} agent listed
+
+# Verify the tenant's isolated network exists and Agent Vault has joined it
+docker network inspect hermes-{tenant-id}-net --format '{{range .Containers}}{{.Name}} {{end}}'
+# Expected: agent-vault listed (the tenant container itself joins when its
+# compose service starts in onboard-tenant step 9 / update-tenant step 10)
 ```
 
 Return control to the calling SOP (onboard-tenant step 9 or update-tenant step 10).
 
 ## Notes
 - Never store the real API key in `.env`, `config.yaml`, or any file in the tenant volume.
+- Each tenant has its own isolated Docker network (`hermes-{tenant-id}-net`),
+  created in step 1a, with only that tenant's container and Agent Vault as
+  members. Tenants never share a network with each other.
 - The `AGENT_VAULT_TOKEN` in `.env` is a scoped proxy token, not a credential — it
   grants no direct access to the stored key. Tokens minted by `agent-vault agent create`
   are prefixed `av_agt_`; that prefix identifies a proxy token, not a credential

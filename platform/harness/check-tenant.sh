@@ -155,7 +155,10 @@ contains "$TENANT_DIR/config.yaml" 'memory_enabled:[[:space:]]*false' "config_di
 contains "$TENANT_DIR/config.yaml" 'user_profile_enabled:[[:space:]]*false' "config_disables_native_user_profile"
 contains "$TENANT_DIR/.env" '^TELEGRAM_ALLOWED_USERS=[0-9, ]+$' "env_has_allowed_telegram_users"
 contains "$TENANT_DIR/.env" '^MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data$' "env_pins_mnemosyne_data"
-contains "$TENANT_DIR/SOUL.md" 'never perform irreversible actions' "soul_requires_owner_confirmation"
+contains "$TENANT_DIR/SOUL.md" 'BEGIN PLATFORM RULES' "soul_has_platform_rules_begin_marker"
+contains "$TENANT_DIR/SOUL.md" 'END PLATFORM RULES' "soul_has_platform_rules_end_marker"
+contains "$TENANT_DIR/SOUL.md" 'BEGIN TENANT RULES' "soul_has_tenant_rules_begin_marker"
+contains "$TENANT_DIR/SOUL.md" 'END TENANT RULES' "soul_has_tenant_rules_end_marker"
 contains "$TENANT_DIR/SOUL.md" 'try to work it out yourself' "soul_has_self_improvement_conduct"
 contains "$TENANT_DIR/SOUL.md" 'short progress update' "soul_has_progress_reporting_conduct"
 contains "$TENANT_DIR/SOUL.md" '/home/hermes/files/generated' "soul_directs_generated_files"
@@ -165,7 +168,12 @@ contains "$TENANT_DIR/SOUL.md" 'business-data.md' "soul_documents_business_data_
 contains "$TENANT_DIR/harness.yaml" '^tenant_harness_version:[[:space:]]*1' "manifest_has_harness_version"
 contains "$TENANT_DIR/harness.yaml" '^verification_profile:' "manifest_has_verification_profile"
 contains "$TENANT_DIR/harness.yaml" '^fixed_safety_profile:[[:space:]]*"?_fixed-safety-v1"?' "manifest_has_fixed_safety_profile"
-contains "$TENANT_DIR/SOUL.md" 'never perform irreversible actions' "soul_has_fixed_safety_language"
+# Spot-check that at least one platform rule's agent_instruction text actually
+# landed inside the rendered BEGIN/END PLATFORM RULES block (not just that the
+# markers exist). This is a representative phrase, not full per-rule coverage -
+# the admin agent itself spot-checks every rule from platform-policy.yaml
+# during onboarding/update per provision-tenant-vault's rendering instruction.
+contains "$TENANT_DIR/SOUL.md" '[Nn]ever perform irreversible actions' "soul_has_fixed_safety_language"
 exists_file "$PLATFORM_ROOT/evals/tenant-agent/generated/$TENANT_ID-v1.yaml" "tenant_generated_eval_file"
 
 if [ -f "$TENANT_DIR/skills/PROVENANCE.jsonl" ]; then
@@ -192,9 +200,16 @@ contains "$COMPOSE_FILE" "$TENANT_DIR:/opt/data" "compose_mounts_tenant_data"
 contains "$COMPOSE_FILE" "$TENANT_DIR/files:/home/hermes/files" "compose_mounts_tenant_files"
 contains "$COMPOSE_FILE" "$TENANT_DIR/vault:/home/hermes/vault" "compose_mounts_tenant_vault"
 contains "$COMPOSE_FILE" "$TENANT_DIR/.env" "compose_uses_tenant_env"
+service_contains "$SERVICE" "hermes-${TENANT_ID}-net" "compose_uses_isolated_tenant_network"
 contains "$TENANTS_FILE" "id:[[:space:]]*$TENANT_ID|tenant_id:[[:space:]]*$TENANT_ID|$TENANT_ID" "tenant_registry_mentions_tenant"
 
 if command -v docker >/dev/null 2>&1; then
+  if docker network inspect "hermes-${TENANT_ID}-net" >/dev/null 2>&1; then
+    record PASS "tenant_isolated_network_exists" "hermes-${TENANT_ID}-net"
+  else
+    record FAIL "tenant_isolated_network_exists" "missing: hermes-${TENANT_ID}-net"
+  fi
+
   if docker ps --filter "name=^/${SERVICE}$" --format '{{.Names}}' 2>/dev/null | grep -qx "$SERVICE"; then
     record PASS "container_running" "$SERVICE"
   else
@@ -217,6 +232,16 @@ if command -v docker >/dev/null 2>&1; then
     record PASS "container_outbound_https"
   else
     record WARN "container_outbound_https" "Telegram API HTTPS check did not return expected code"
+  fi
+
+  # Proves isolation, not just network existence: Agent Vault's management
+  # port must be unreachable from inside this tenant container even though
+  # both share hermes-{tenant-id}-net (the proxy port :14322 should still
+  # work; only :14321 management is host-bound and must be unreachable).
+  if docker exec "$SERVICE" sh -lc 'curl -s --connect-timeout 2 http://agent-vault:14321/health' >/dev/null 2>&1; then
+    record FAIL "agent_vault_mgmt_port_not_reachable_from_tenant" "tenant container could reach :14321"
+  else
+    record PASS "agent_vault_mgmt_port_not_reachable_from_tenant"
   fi
 else
   record WARN "docker_available" "docker command not found; skipped runtime checks"
