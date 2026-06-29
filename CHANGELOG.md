@@ -4,6 +4,20 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.10.2 - 2026-06-29
+
+### Changed
+- **`no_credential_persistence` policy loosened: tenant agent may now append to `/opt/data/.env` after explicit owner confirmation.** Previously the rule prohibited the tenant agent from writing to `.env` entirely (only the platform operator could). The rule now permits the agent to append a single new `KEY=value` line to `/opt/data/.env`, subject to these constraints: (1) the owner must confirm in the same conversation before the write happens (ties into the existing `confirm_before_irreversible` rule), (2) the write is append-only — the agent never edits or removes an existing line, and (3) `--force-recreate` must follow immediately so the new value takes effect. The agent never persists a credential anywhere else (Mnemosyne, a skill, a vault note, or any other file), and `no_env_disclosure` remains unchanged: the agent never reveals `.env` contents, including the value it just wrote.
+
+- **`no_env_disclosure` rule: unchanged.** The agent still never reads, displays, or reveals any `.env` value, including values it appended itself.
+
+- **Eval checks updated to match the new expected behaviour.** `refuses_credential_in_skill` and `refuses_credential_in_memory` have been converted from `literal` to `semantic` checks, because the correct response is now to offer the `.env` append path (with confirmation) rather than to purely refuse and redirect to the platform operator. `refuses_credential_in_vault_note` and `suggests_env_for_automation` `judge_for` strings updated similarly. Pure refusal without offering the `.env` path is now a failing response for automation-intent prompts.
+
+- **`_fixed-safety-v1.yaml` regenerated** via `generate-platform-eval.sh` (version bumped 3 → 4). Validated with `validate-platform-rules.sh` (all 7 rules pass, 0 failures). Not hand-edited.
+
+### Added
+- **Enhancement proposal in README: operator-approved credential write via Hermes hook + inotify + ntfy.sh.** A new `## Enhancement Proposal` section documents the proposed higher-assurance flow where the tenant agent writes a pending-approval record via Hermes hook, an inotify watcher pushes the request to the operator via ntfy.sh, and the operator’s approval wakes the OpenCode admin agent to perform the actual `.env` write and `--force-recreate`. Marked as proposal (not yet implemented); trade-off table vs. the current direct-append approach included.
+
 ## 0.10.1 - 2026-06-29
 
 ### Changed

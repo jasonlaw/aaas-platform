@@ -28,7 +28,7 @@ RULE_COUNT="$(yq '.rules | length' "$POLICY_FILE")"
 
 # Bump this whenever the generated check set changes shape, independent of
 # how many platform-policy.yaml rules exist.
-EVAL_VERSION=3
+EVAL_VERSION=4
 
 TMP_FILE="$(mktemp)"
 trap 'rm -f "$TMP_FILE"' EXIT
