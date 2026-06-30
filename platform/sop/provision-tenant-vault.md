@@ -38,18 +38,34 @@ docker network create hermes-{tenant-id}-net
 
 If the network already exists (re-onboarding or recovery), skip creation.
 
-### 1b. Connect Agent Vault to this tenant's network
-Agent Vault joins every tenant's isolated network so it can still serve the
-proxy port (`:14322`) to that tenant. The Agent Vault container stays
-running — no restart needed.
+### 1b. Start a forwarding-only sidecar on this tenant's network
+Agent Vault itself must never join a tenant network — it listens on both the
+proxy port (`:14322`) and the management API (`:14321`) on the same
+interface, so joining a tenant network directly would make the management
+API reachable from inside that tenant's container too (confirmed by the
+`agent_vault_mgmt_port_not_reachable_from_tenant` harness check). Instead,
+start a minimal TCP-forwarding sidecar that joins both `agent-vault-net` and
+this tenant's network, and only ever forwards the proxy port:
 
 ```bash
-docker network connect hermes-{tenant-id}-net agent-vault
+docker run -d \
+  --name agent-vault-proxy-{tenant-id} \
+  --restart unless-stopped \
+  --network agent-vault-net \
+  alpine/socat \
+  TCP-LISTEN:14322,fork,reuseaddr TCP:agent-vault:14322
+
+docker network connect hermes-{tenant-id}-net agent-vault-proxy-{tenant-id}
 ```
 
-If Agent Vault is already connected to this network (re-onboarding or
-recovery), this command will fail harmlessly with "endpoint already
-exists" — safe to ignore.
+If the sidecar container already exists (re-onboarding or recovery), skip
+creation and only run the `docker network connect` line; it fails harmlessly
+with "endpoint already exists" if already connected — safe to ignore.
+
+The sidecar has no route to `:14321` to forward in the first place, so even
+full compromise of the sidecar process does not expose the management API —
+this is a structural property of what the container can reach, not an
+access-control rule that could be misconfigured.
 
 ### 2. Store the credential and register the LLM provider service
 Identify the provider hostname from the tenant's LLM provider:
@@ -127,8 +143,8 @@ cat >> /opt/aaas/tenants/{tenant-id}/.env <<EOF
 # httpx/openai SDK sends a Proxy-Authorization header on every CONNECT request.
 # Agent Vault's MITM proxy (port 14322) requires this — unauthenticated CONNECT
 # requests are rejected with 407.
-HTTP_PROXY=http://${VAULT_TOKEN}@agent-vault:14322
-HTTPS_PROXY=http://${VAULT_TOKEN}@agent-vault:14322
+HTTP_PROXY=http://${VAULT_TOKEN}@agent-vault-proxy-{tenant-id}:14322
+HTTPS_PROXY=http://${VAULT_TOKEN}@agent-vault-proxy-{tenant-id}:14322
 NO_PROXY=api.telegram.org,localhost,127.0.0.1
 AGENT_VAULT_TOKEN=${VAULT_TOKEN}
 AGENT_VAULT_VAULT={tenant-id}-vault

@@ -43,6 +43,11 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
 ### Permission Denied In Logs
 - Repair tenant ownership:
   `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
+- `chown -R` only fixes ownership for the *container*; it does not restore
+  host-side read access for the operator/automation user. Repair that too,
+  recursively (a top-level-only chmod misses subdirectories the container
+  creates later at runtime and they silently revert to unreadable):
+  `sudo chmod -R go+rX /opt/aaas/tenants/{tenant-id}/`
 - Force-recreate only this tenant (ownership changes require a clean container reload):
   `cd /opt/aaas/platform/docker && docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`
 
@@ -83,8 +88,9 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
   the `vault -> /home/hermes/vault` mount and recreate the container with
   `docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`.
 - If ownership is wrong, the standard `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
-  repair (see Permission Denied In Logs above) covers `vault/` too, since it
-  is recursive over the whole tenant directory.
+  plus `sudo chmod -R go+rX /opt/aaas/tenants/{tenant-id}/` repair (see
+  Permission Denied In Logs above) covers `vault/` too, since both are
+  recursive over the whole tenant directory.
 - If the owner reports the assistant is writing business facts (current
   prices, menu items) into the vault instead of `business-data.md`, this is a
   SOUL.md prompting issue, not a structural one - confirm `SOUL.md` still

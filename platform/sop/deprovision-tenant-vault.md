@@ -33,15 +33,16 @@ agent-vault agent list --vault {tenant-id}-vault 2>&1 | grep -q "not found" \
   || echo "WARN: vault may still exist"
 ```
 
-### 3. Remove the tenant's isolated network
+### 3. Remove the tenant's forwarding sidecar and isolated network
 ```bash
-# Disconnect Agent Vault from the tenant network
-docker network disconnect hermes-{tenant-id}-net agent-vault || true
+# Remove the per-tenant forwarding sidecar (Agent Vault itself was never
+# connected to this network — see provision-tenant-vault.md step 1b)
+docker rm -f agent-vault-proxy-{tenant-id} || true
 
 # Remove the tenant network
 docker network rm hermes-{tenant-id}-net || true
 ```
-Both commands are safe to run even if the network or connection no longer
+Both commands are safe to run even if the sidecar/network no longer
 exists (e.g. the tenant container was already removed) — `|| true` keeps
 this step from blocking the rest of offboarding on a harmless "not found".
 

@@ -33,8 +33,12 @@ tenant using the full onboard-tenant SOP.
    `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    Files created with `sudo tee` or a root editor after onboarding can otherwise remain root-owned even when the existing volume is correct.
    `chown -R` does not change file mode, so also repair host-side access for the `docker compose` CLI:
-   `sudo chmod 755 /opt/aaas/tenants/{tenant-id}/`
-   `sudo chmod 644 /opt/aaas/tenants/{tenant-id}/.env`
+   `sudo chmod -R go+rX /opt/aaas/tenants/{tenant-id}/`
+   Use `-R`, not a top-level-only chmod — subdirectories the tenant container
+   creates at runtime (UID 10000) inherit a restrictive default umask and
+   will otherwise stay unreadable to the host operator even after this step.
+   Re-check with `harness/check-tenant.sh`'s `tenant_volume_host_readable`
+   result.
 9. Validate the updated tenant config:
    `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
 10. Recreate only this tenant's container to guarantee a clean config reload:

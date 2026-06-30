@@ -20,16 +20,21 @@ Upgrade all active tenants to the latest Docker image after build-image.md compl
      This is safe to re-run even if the vault already exists — it never overwrites existing notes. After backfilling, also add the `vault -> /home/hermes/vault` mount to this tenant's compose service block if it is missing, since older services predate this mount.
    - ensure `/opt/aaas/tenants/{tenant-id}/tenant-policy.yaml` exists (tenants onboarded before the policy framework existed will not have it); if missing, create it from `/opt/aaas/platform/tenant-hermes/policy/tenant-policy.yaml.template` with `{{TENANT_ID}}` and `{{BUSINESS_NAME}}` filled in
    - re-render the `## Platform rules` and `## Tenant rules` BEGIN/END blocks in `SOUL.md` from `/opt/aaas/platform/policy/platform-policy.yaml` and this tenant's `tenant-policy.yaml`, following the same rendering instruction as onboard-tenant.md step 5/update-tenant.md step 5, so pre-existing tenants pick up policy changes shipped with this platform version
-   - backfill: create this tenant's isolated network if it does not exist, and ensure Agent Vault has joined it:
+   - backfill: create this tenant's isolated network if it does not exist, and ensure the per-tenant forwarding sidecar is connected to it. Agent Vault itself must never join a tenant network directly (its management port `:14321` listens on the same interface as the proxy port and would become reachable from inside the tenant container — this is what the harness's `agent_vault_mgmt_port_not_reachable_from_tenant` check catches):
      ```bash
      if ! docker network inspect hermes-{tenant-id}-net >/dev/null 2>&1; then
        docker network create hermes-{tenant-id}-net
-       docker network connect hermes-{tenant-id}-net agent-vault
      fi
+     if ! docker ps -a --format '{{.Names}}' | grep -qx agent-vault-proxy-{tenant-id}; then
+       docker run -d --name agent-vault-proxy-{tenant-id} --restart unless-stopped \
+         --network agent-vault-net alpine/socat \
+         TCP-LISTEN:14322,fork,reuseaddr TCP:agent-vault:14322
+     fi
+     docker network connect hermes-{tenant-id}-net agent-vault-proxy-{tenant-id} 2>/dev/null || true
      ```
-     Then update this tenant's compose service block to use `hermes-{tenant-id}-net` instead of the old shared `agent-vault-net`, if it still references the shared network. Declare the network block (`external: true`, `name: hermes-{tenant-id}-net`) at the bottom of docker-compose.yaml if not already present.
+     Then update this tenant's compose service block to use `hermes-{tenant-id}-net` instead of the old shared `agent-vault-net`, if it still references the shared network, and update `HTTP_PROXY`/`HTTPS_PROXY` in `.env` to point at `agent-vault-proxy-{tenant-id}:14322` if either still references `agent-vault:14322` directly. Declare the network block (`external: true`, `name: hermes-{tenant-id}-net`) at the bottom of docker-compose.yaml if not already present.
    - repair ownership after any edits or file creation: `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
-   - `chown -R` does not change file mode, so also repair host-side access for the `docker compose` CLI: `sudo chmod 755 /opt/aaas/tenants/{tenant-id}/` and `sudo chmod 644 /opt/aaas/tenants/{tenant-id}/.env`
+   - `chown -R` does not change file mode, so also repair host-side access for the `docker compose` CLI, recursively — a top-level-only chmod misses subdirectories the tenant container creates at runtime, which is exactly the gap that has been leaving tenant directories unreadable after past upgrades: `sudo chmod -R go+rX /opt/aaas/tenants/{tenant-id}/`
    - run `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
    - `docker compose stop hermes_{tenant-id}`
    - `docker compose rm -f hermes_{tenant-id}`

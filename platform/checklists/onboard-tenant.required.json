@@ -11,6 +11,7 @@
     "tenant_acceptance_record_created",
     "tenant_vault_provisioned_and_key_scrubbed",
     "tenant_volume_owner_is_10000",
+    "tenant_volume_host_readable",
     "docker_compose_updated_structurally",
     "tenant_container_started",
     "container_outbound_connectivity_checked",

@@ -192,6 +192,22 @@ else
   record PASS "env_template_has_no_obvious_secrets"
 fi
 
+# Ownership (chown -R 10000:10000) doesn't grant the host operator/automation
+# user read access, and a one-time top-level chmod misses subdirectories the
+# tenant container creates later at runtime (mnemosyne data, logs, etc.),
+# which inherit the container's restrictive default umask. Check recursively,
+# not just the top-level directory, or this regresses silently between runs.
+if [ -d "$TENANT_DIR" ]; then
+  unreadable="$(find "$TENANT_DIR" \( -type d -not -perm -005 \) -o \( -type f -not -perm -004 \) 2>/dev/null | head -5)"
+  if [ -z "$unreadable" ]; then
+    record PASS "tenant_volume_host_readable"
+  else
+    record FAIL "tenant_volume_host_readable" "not group/other-readable: $(echo "$unreadable" | tr '\n' ' ')"
+  fi
+else
+  record WARN "tenant_volume_host_readable" "tenant dir not found: $TENANT_DIR"
+fi
+
 contains "$COMPOSE_FILE" "^  $SERVICE:" "compose_has_tenant_service"
 service_contains "$SERVICE" "restart:[[:space:]]*unless-stopped" "compose_has_restart_policy"
 service_contains "$SERVICE" "mem_limit:[[:space:]]*1g" "compose_has_memory_limit"
@@ -235,13 +251,25 @@ if command -v docker >/dev/null 2>&1; then
   fi
 
   # Proves isolation, not just network existence: Agent Vault's management
-  # port must be unreachable from inside this tenant container even though
-  # both share hermes-{tenant-id}-net (the proxy port :14322 should still
-  # work; only :14321 management is host-bound and must be unreachable).
+  # port must be unreachable from inside this tenant container. Agent Vault
+  # itself is never joined to a tenant network — only a forwarding-only
+  # sidecar (agent-vault-proxy-{tenant-id}) is, and that sidecar has no route
+  # to :14321 to forward in the first place, so this should fail to resolve
+  # or connect by construction, not because of an access-control rule that
+  # could later be misconfigured. The proxy port (:14322), reached via the
+  # sidecar hostname, is what tenants actually use and is checked separately.
   if docker exec "$SERVICE" sh -lc 'curl -s --connect-timeout 2 http://agent-vault:14321/health' >/dev/null 2>&1; then
     record FAIL "agent_vault_mgmt_port_not_reachable_from_tenant" "tenant container could reach :14321"
   else
     record PASS "agent_vault_mgmt_port_not_reachable_from_tenant"
+  fi
+
+  # The sidecar itself must also never expose :14321 — confirm only :14322 is
+  # reachable from the tenant container via the sidecar hostname.
+  if docker exec "$SERVICE" sh -lc "curl -s --connect-timeout 2 http://agent-vault-proxy-${TENANT_ID}:14321/health" >/dev/null 2>&1; then
+    record FAIL "agent_vault_sidecar_mgmt_port_not_reachable" "tenant container could reach sidecar :14321"
+  else
+    record PASS "agent_vault_sidecar_mgmt_port_not_reachable"
   fi
 else
   record WARN "docker_available" "docker command not found; skipped runtime checks"
