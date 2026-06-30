@@ -4,7 +4,7 @@
 - Watchdog alert file present at `/opt/aaas/platform/reports/HERMES-ADMIN-ALERT.txt`
 - Dashboard at `http://127.0.0.1:9119` is unreachable
 - `pgrep -f "hermes.*dashboard"` returns no results
-- Watchdog log at `/opt/aaas/platform/reports/hermes-admin-watchdog.log` shows restart failures
+- Watchdog log at `/opt/aaas/platform/logs/hermes-admin-watchdog.log` shows restart failures
 
 ## Impact
 Hermes admin being down does not affect running tenant agents — they operate
@@ -38,7 +38,7 @@ curl -sf http://127.0.0.1:9119/health && echo "dashboard responsive" || echo "da
 ### 2. Check Hermes admin log
 
 ```bash
-tail -50 /opt/aaas/platform/reports/hermes-admin.log
+tail -50 /opt/aaas/platform/logs/hermes-admin.log
 ```
 
 ### 3. Check Agent Vault (proxy dependency)
@@ -80,7 +80,7 @@ sleep 2
 cd /opt/aaas/platform/admin
 set -a; . ./.env; set +a
 nohup hermes dashboard --no-open \
-  >> /opt/aaas/platform/reports/hermes-admin.log 2>&1 &
+  >> /opt/aaas/platform/logs/hermes-admin.log 2>&1 &
 ```
 
 Wait up to 15 seconds for the dashboard to become responsive:

@@ -8,6 +8,14 @@ Run this before declaring any SOP task or operational troubleshooting task compl
 
 Use this SOP even when the operator's request did not start from a named SOP, such as "check why tenant X is failing", "inspect this container error", or "fix tenant Y's bot".
 
+## Trigger Field
+Every report's `trigger` field records what caused OpenCode to run this task, not which agent wrote the report — reports are always written by OpenCode itself; Hermes (admin or tenant) is never the author, only ever the subject of troubleshooting.
+
+- `operator` — a human operator started this session interactively (the normal case for onboarding, upgrades, and operator-initiated troubleshooting).
+- `watchdog` — `hermes-admin-watchdog.sh` invoked OpenCode unattended after automatic Hermes admin restart attempts failed. Set `operator_request` to the watchdog's actual invocation message in this case (do not paraphrase it as if a human typed it) — see `hermes-admin-watchdog.sh`'s `--message` argument for the exact text.
+
+If a task is unsure which value applies (rare — this should only happen for new automation, not regular operator sessions), default to `operator` rather than leaving the field blank; an unset `trigger` is harder to distinguish from a missed report than a possibly-wrong-but-present value.
+
 ## Report Locations
 - Full report: `/opt/aaas/platform/reports/{timestamp}_{sop-or-task-name}_{tenant-or-platform}_{status}.md`
 - AI index: `/opt/aaas/platform/reports/INDEX.jsonl`
@@ -25,6 +33,7 @@ platform_version: "{contents of /opt/aaas/platform/VERSION}"
 sop: "{sop-or-task-name}"
 status: "success|partial|failed|cancelled|validation-only"
 tenant_id: "{tenant-id-or-empty}"
+trigger: "operator|watchdog"
 operator_request: "{brief request}"
 ---
 
@@ -80,6 +89,7 @@ Required keys:
 - `sop`
 - `status`
 - `tenant_id`
+- `trigger`
 - `report_path`
 - `summary`
 - `issues`
@@ -99,7 +109,7 @@ Recommended keys for tenant harness work:
 Example:
 
 ```json
-{"report_version":1,"timestamp_utc":"2026-06-17T05:30:00Z","platform_version":"0.1.0","sop":"onboard-tenant","status":"partial","tenant_id":"u-moon-cafe","report_path":"/opt/aaas/platform/reports/20260617T053000Z_onboard-tenant_u-moon-cafe_partial.md","summary":"Tenant onboarded; Telegram welcome could not be delivered because users had not started bot.","issues":["Telegram chat not found for two user IDs"],"improvement_signals":["SOP should mention Telegram 400 chat not found"],"next_action":"Owners must open bot and send /start"}
+{"report_version":1,"timestamp_utc":"2026-06-17T05:30:00Z","platform_version":"0.1.0","sop":"onboard-tenant","status":"partial","tenant_id":"u-moon-cafe","trigger":"operator","report_path":"/opt/aaas/platform/reports/20260617T053000Z_onboard-tenant_u-moon-cafe_partial.md","summary":"Tenant onboarded; Telegram welcome could not be delivered because users had not started bot.","issues":["Telegram chat not found for two user IDs"],"improvement_signals":["SOP should mention Telegram 400 chat not found"],"next_action":"Owners must open bot and send /start"}
 ```
 
 ## Rules

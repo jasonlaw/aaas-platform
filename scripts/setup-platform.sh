@@ -758,6 +758,36 @@ validate_install() {
     || error "Onboarding SOP must document Telegram chat-not-found handling"
   grep -q "Always write a task report" "$PLATFORM_ROOT/AGENTS.md" \
     || error "AGENTS.md must require task reports after SOP execution"
+  # The deployed admin/SOUL.md, admin/config.yaml, and admin/.env (not the
+  # templates) are only created by the separate setup-admin-hermes skill, not
+  # by this script — so they may legitimately not exist yet on a fresh
+  # platform install. But once they exist, nothing else in this codebase ever
+  # re-syncs or content-checks them (see upgrade-platform.md steps 9.3-9.4),
+  # so re-running --validate-only against an already-configured admin
+  # instance is the only automated backstop against silent drift behind the
+  # shipped templates. This already happened for real with config.yaml: it
+  # gained a Telegram gateway block in 0.13.1 and had a wrong comment fixed
+  # in 0.13.2, and nothing flagged admin instances set up before either.
+  if [ -f "$PLATFORM_ROOT/admin/SOUL.md" ]; then
+    grep -q "Always write a task report" "$PLATFORM_ROOT/admin/SOUL.md" \
+      || error "Deployed admin/SOUL.md is missing the task report rule — it has drifted from admin-hermes/SOUL.md.template. Run upgrade-platform.md step 9.3 to diff and refresh it."
+    grep -q "Agent Vault is for LLM API keys only" "$PLATFORM_ROOT/admin/SOUL.md" \
+      || error "Deployed admin/SOUL.md is missing the credential/secret rules — it has drifted from admin-hermes/SOUL.md.template. Run upgrade-platform.md step 9.3 to diff and refresh it."
+  fi
+  if [ -f "$PLATFORM_ROOT/admin/config.yaml" ]; then
+    grep -q "provider: mnemosyne" "$PLATFORM_ROOT/admin/config.yaml" \
+      || error "Deployed admin/config.yaml no longer specifies the mnemosyne memory provider — it has drifted from admin-hermes/config.yaml.template. Run upgrade-platform.md step 9.3 to diff and refresh it."
+    grep -q "memory_enabled: false" "$PLATFORM_ROOT/admin/config.yaml" \
+      || error "Deployed admin/config.yaml no longer disables native Hermes memory — it has drifted from admin-hermes/config.yaml.template. Run upgrade-platform.md step 9.3 to diff and refresh it."
+    grep -q "user_profile_enabled: false" "$PLATFORM_ROOT/admin/config.yaml" \
+      || error "Deployed admin/config.yaml no longer disables native Hermes user profile — it has drifted from admin-hermes/config.yaml.template. Run upgrade-platform.md step 9.3 to diff and refresh it."
+  fi
+  if [ -f "$PLATFORM_ROOT/admin/.env" ]; then
+    for key in $(grep -oE '^#?\s*[A-Za-z_]+=' "$PLATFORM_ROOT/admin-hermes/env.template" | sed -E 's/^#\s*//; s/=$//' | sort -u); do
+      grep -q "^${key}=\|^# ${key}=" "$PLATFORM_ROOT/admin/.env" \
+        || error "Deployed admin/.env is missing the '${key}' key present in admin-hermes/env.template. Run upgrade-platform.md step 9.4 to add it (never wholesale-overwrite .env, it holds real secrets)."
+    done
+  fi
   grep -q "check-tenant.sh" "$PLATFORM_ROOT/AGENTS.md" \
     || error "AGENTS.md must advertise tenant harness checks"
   grep -q "vault/" "$PLATFORM_ROOT/AGENTS.md" \
