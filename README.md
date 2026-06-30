@@ -221,29 +221,6 @@ is nothing to keep in sync by hand.
   before it can be trusted — this runs automatically as part of skill verification,
   independent of whatever the skill's own spec checks for.
 
-## Enhancement Proposal: Operator-Approved Credential Write via Hermes Hook + inotify
-
-> **Status: Proposal** — not yet implemented. The current mechanism (tenant agent appends to `.env` after owner confirmation in-conversation) is the active behaviour.
-
-The current flow requires the owner to confirm in the tenant agent’s conversation before it writes to `.env`. A complementary mechanism for higher-assurance environments would route the write through an admin-agent approval step:
-
-1. **Tenant agent writes a meta-info request via the Hermes hook** — instead of appending to `.env` directly, the agent writes a structured pending-approval record (e.g. `/opt/data/pending-env-write.json`) that includes the variable name, a redacted hint of the value, and the conversation context, using the existing Hermes hook channel.
-2. **inotify pushes an approval request to the admin operator via ntfy.sh** — a host-side inotify watch on the pending-approval path triggers a push notification to the operator’s ntfy.sh topic, presenting the variable name and context for approval or rejection.
-3. **Approval reply wakes the OpenCode admin agent** — the operator’s reply (via ntfy.sh or direct webhook) is received by the admin agent, which validates the request, writes the actual `KEY=value` line to the tenant’s `.env` (the admin agent is always the writer in this path), and runs `--force-recreate` on the tenant container.
-4. **Tenant agent receives confirmation** — the Hermes hook delivers a status update back to the tenant agent’s conversation so the owner knows the credential is now active.
-
-**Trade-offs vs. the current approach:**
-
-| | Current (agent appends after owner confirm) | Proposed (admin-agent write via ntfy approval) |
-|---|---|---|
-| Approval authority | Owner (in-conversation) | Operator (out-of-band push) |
-| Audit trail | Conversation transcript | Approval webhook + admin agent report |
-| Complexity | Low | Requires inotify watcher + ntfy.sh integration |
-| Latency | Immediate | Asynchronous (operator must respond) |
-| Suited for | Single-owner tenants, low-stakes vars | Multi-admin, regulated, or high-assurance environments |
-
-If this proposal is implemented, the `no_credential_persistence` rule’s `agent_instruction` would need to be updated to describe both paths, and the `suggests_env_for_automation` eval check updated to accept either the direct-append response or the approval-request response as passing.
-
 ## Task Reports
 
 

@@ -59,12 +59,27 @@ admin so it has full context without you re-explaining.
 
 ## After sending
 
-Read the response in the API reply. If admin Hermes needs more information,
-gather it and send a follow-up using the same `conversation` value. Tell
-the owner you've reached out and what you're waiting on — don't leave them
-wondering. For `llm_key_change` specifically, the change requires the human
-operator's confirmation on admin's side, so it may not be instant; let the
-owner know it's pending operator approval if asked.
+Admin Hermes always replies on the spot — it never makes you wait while it
+waits on a human. The reply tells you one of two things:
+
+- **Resolved** — admin investigated (and, for `llm_key_change`, completed
+  the vault update) and the response describes the outcome. Relay it to the
+  owner directly.
+- **Received, pending operator** — admin couldn't finish without the human
+  platform operator (most `llm_key_change` requests, or a `support_request`
+  it had to escalate). Admin has already notified the operator; it does not
+  wait for a reply before responding to you. Tell the owner you've reached
+  out and it's pending operator action — don't leave them wondering, and
+  don't imply a timeline you don't control.
+
+For a pending request, there is no further reply coming on its own — admin
+already told you it can't promise one. If the owner later asks for a status
+update, send a follow-up on the same `conversation` value (e.g.
+`[type: support_request] any update on the pending request?`) rather than
+waiting for one to arrive unprompted.
+
+If admin Hermes needs more information to proceed (for either outcome
+above), gather it and send a follow-up using the same `conversation` value.
 
 If `curl` fails to connect at all, the admin API server may be down —
 mention this plainly to the owner rather than retrying silently in a loop.

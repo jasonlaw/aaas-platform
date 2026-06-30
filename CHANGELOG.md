@@ -4,6 +4,37 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.12.9 - 2026-06-30
+
+### Removed
+- **README's hook+inotify+ntfy.sh credential-write section removed entirely, no trace.** 0.12.8 replaced the unimplemented `## Enhancement Proposal: Operator-Approved Credential Write via Hermes Hook + inotify` section with a `## Note: ... (Superseded)` pointer explaining the goal is now covered by the `llm_key_change` API server flow. Per operator direction, removed outright instead — no superseded note, no mention of inotify/ntfy.sh remains in `README.md`. The underlying facts (no hook/inotify/ntfy.sh code exists; `llm_key_change` now covers the same operator-notify-without-blocking goal for LLM keys only; non-LLM credentials have no operator-approval path) are unchanged and still recorded in the 0.12.7/0.12.8 CHANGELOG entries above.
+
+## 0.12.8 - 2026-06-30
+
+### Changed
+- **README's `## Enhancement Proposal: Operator-Approved Credential Write via Hermes Hook + inotify` replaced with `## Note: Operator-Approved Credential Write (Superseded)`.** The original proposal (tenant agent writes a pending-approval record → host-side inotify watch → push to operator via ntfy.sh → operator's reply wakes the admin agent to perform the write) was never built — see 0.12.7, which confirmed no inotify/ntfy.sh code exists anywhere in the repo. Its underlying goal, getting a human operator into a credential-related approval loop without the tenant agent blocking on them, is now met by the API server channel's `llm_key_change` request type (`tenant-contact-admin.md` / `handle-tenant-request.md`, made non-blocking in 0.12.7): admin notifies the operator via the existing Telegram path, replies to the tenant immediately with a pending status, and completes the vault write once the operator confirms on a later turn. No separate hook/inotify/ntfy.sh build is needed — same notify-then-approve shape already in use for `operator_alert`. Scope note added: this only covers LLM provider keys (the credential type that flows through Agent Vault); non-LLM credentials still use the direct in-conversation append with no operator step, and have no approval path today — if one is wanted later, the API server channel is the thing to extend, not a new hook/inotify mechanism.
+
+## 0.12.7 - 2026-06-30
+
+### Removed
+- **Unused tenant-side API server listener.** Each tenant was provisioned with its own `API_SERVER_ENABLED`/`API_SERVER_HOST`/`API_SERVER_PORT`/`API_SERVER_KEY` (a host-loopback-published Docker port, one per tenant starting at `12000`), intended to let admin Hermes push messages into a tenant. Nothing in the codebase ever called it — the channel is, and always was, tenant-initiated only (`tenant-contact-admin.md` calls admin Hermes's API server; `handle-tenant-request.md` replies on the same conversation thread). Removed:
+  - `platform/tenant-hermes/env.template`: dropped the four `API_SERVER_*` keys; kept `ADMIN_HERMES_API_URL`/`ADMIN_HERMES_API_KEY` (the outbound-only call tenants do make), reworded the surrounding comment to say outbound-only explicitly.
+  - `platform/sop/onboard-tenant.md` step 6.4: dropped per-tenant port assignment and `API_SERVER_KEY` generation; only `ADMIN_HERMES_API_KEY` is still written.
+  - `platform/sop/onboard-tenant.md` step 8 (docker-compose tenant service): dropped the `ports:` publish bullet; replaced with an explicit "no published ports" note explaining the tenant container has no listener to expose.
+  - Admin Hermes's own API server (`admin-hermes/env.template`, `hermes-admin-watchdog.sh`, fixed port `8642`) is unaffected — that's the listener tenants actually call into, and stays as-is.
+- **Stray duplicate `platform/skills/tenant-contact-admin.md`.** The 0.12.1 move of this file to `platform/tenant-hermes/skills/tenant-contact-admin.md` updated every reference but left the original copy on disk un-deleted, identical to the `tenant-policy.yaml.template` stray-duplicate bug fixed in 0.12.5. Removed; the canonical copy at `platform/tenant-hermes/skills/tenant-contact-admin.md` was already what gets installed into tenant volumes.
+
+### Changed
+- **Bidirectional channel no longer lets a tenant's blocking request wait on the human operator.** `tenant-contact-admin.md`'s request call (`POST .../responses`) is synchronous from the tenant agent's side; `handle-tenant-request.md` previously told admin to "wait for explicit confirmation" from the operator over Telegram before replying for `llm_key_change`, with no bound on how long that takes — the tenant agent (and the owner conversation it's part of) would block for the duration. Admin now always replies to the tenant within the same turn: either resolved, or "received, pending operator" if it needs operator action it can't complete itself. The operator notification becomes fire-and-forget (sent, not awaited); admin completes pending work on a later turn once the operator has actually responded, and the tenant agent is expected to send a follow-up on the same `conversation` value if the owner wants a status update, since there's no mechanism to push the result back unprompted. Updated `platform/skills/handle-tenant-request.md` (all three request types, primarily `llm_key_change`), `platform/tenant-hermes/skills/tenant-contact-admin.md` ("After sending" section), `platform/skills/manage-agent-vault.md` section 5 (cross-reference and framing), and `platform/AGENTS.md`'s LLM-key-change bullet.
+
+## 0.12.6 - 2026-06-30
+
+### Fixed
+- **Stale "(Future)" / "not yet implemented" framing for the admin↔tenant bidirectional channel.** The channel (tenant-side: `tenant-contact-admin.md` calling the admin API server; admin-side: `handle-tenant-request.md` routing `support_request`/`operator_alert`/`llm_key_change`) has been operational since the API server channel was added, but two docs still described it as a future state:
+  - **`platform/skills/manage-agent-vault.md` section 5** was titled "(Future)" and instructed the admin agent not to act on `llm_key_change` requests "until the channel is in place" — directly contradicting `handle-tenant-request.md`, whose `llm_key_change` routing already delegates to this same section 2 today. Retitled to drop "(Future)" and reworded the body to describe current, not intended, behaviour.
+  - **`platform/skills/setup-admin-hermes.md` frontmatter** said this skill was "Required before enabling the bidirectional channel," implying the channel has a separate enable step. Reworded to state plainly that this setup is required before the channel can be used (the API server it provisions is what tenant agents call).
+  - No change to `README.md`'s `## Enhancement Proposal: Operator-Approved Credential Write via Hermes Hook + inotify` section — that proposal (Hermes hook + inotify + ntfy.sh push approval for `.env` writes) is a distinct, genuinely unimplemented feature and is already correctly marked `Status: Proposal`.
+
 ## 0.12.5 - 2026-06-30
 
 ### Changed

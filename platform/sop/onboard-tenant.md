@@ -106,20 +106,18 @@ do not attempt to author it inline; report this and stop.
      (and anything else explicitly added) can be reached through it
    After this step, `.env` must contain no real LLM API key — verify with
    provision-tenant-vault's step 6 checks, not just a visual scan.
-6.4. **Copy the tenant-side admin contact skill and provision the API server channel:**
+6.4. **Copy the tenant-side admin contact skill and credentials:**
 ```bash
    cp /opt/aaas/platform/tenant-hermes/skills/tenant-contact-admin.md /opt/aaas/tenants/{tenant-id}/skills/tenant-contact-admin.md
 ```
    The tenant agent loads this from `/opt/data/skills/tenant-contact-admin.md`
    inside the container, same pattern as `skill-verify.sh` above.
-   Assign this tenant the next unused port starting at `12000` (check
-   `/opt/aaas/platform/tenants.yaml` for the highest port already assigned)
-   and generate a random `API_SERVER_KEY`. Write into this tenant's `.env`:
-   - `API_SERVER_PORT={assigned-port}`
-   - `API_SERVER_KEY={generated-key}`
+   Write into this tenant's `.env`:
    - `ADMIN_HERMES_API_KEY={value of API_SERVER_KEY from /opt/aaas/platform/admin/.env}`
-   `ADMIN_HERMES_API_URL` and `API_SERVER_ENABLED`/`API_SERVER_HOST` are
-   already correct from the template and need no per-tenant change.
+   `ADMIN_HERMES_API_URL` is already correct from the template and needs no
+   per-tenant change. This call reaches admin Hermes's own API server
+   (`127.0.0.1:8642`, see step 8 below); the tenant does not run an API
+   server of its own.
 7. Set tenant volume ownership for the Hermes container user before starting the container:
    `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    The tenant container runs as UID `10000`; without this, mounted `/opt/data` paths such as logs and Mnemosyne data can fail with `Permission denied`. Use `sudo cat` from the host when inspecting seeded files after this point.
@@ -135,7 +133,9 @@ do not attempt to author it inline; report this and stop.
    - mounts tenant folder to `/opt/data`, files folder to `/home/hermes/files`, and vault folder to `/home/hermes/vault`
    - `env_file` points to the tenant `.env`
    - resource limits: `mem_limit: 1g` and `cpus: "1.0"`
-   - ports: publish this tenant's `API_SERVER_PORT` (from step 6.4) as `"127.0.0.1:{API_SERVER_PORT}:8642"` — loopback-only, same pattern as Agent Vault's management port, so only the host (including admin Hermes) can reach it, never another container or the network
+   - no published ports — the tenant agent only makes outbound calls (to
+     Agent Vault's proxy and to admin Hermes's API server, both host-side);
+     it does not run a listener of its own that needs to be reachable
    - network: `hermes-{tenant-id}-net` (this tenant's isolated network, created and joined by Agent Vault in provision-tenant-vault.md steps 1a/1b, before this step runs — so the container can reach the Agent Vault proxy on `http://agent-vault:14322` without sharing a network with any other tenant). Declare this network as `external: true` with `name: hermes-{tenant-id}-net` at the bottom of docker-compose.yaml if not already present — the explicit `name:` is required, see provision-tenant-vault.md step 8 for why.
 9. Start only this tenant: `docker compose up -d hermes_{tenant-id}`.
 10. **Verify container outbound connectivity** (critical for Telegram and external APIs):
