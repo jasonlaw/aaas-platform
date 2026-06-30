@@ -17,7 +17,7 @@ Provision a new Hermes tenant agent as a Docker container.
    If checks fail, abort and report the issue before proceeding.
 0.1. Read `/opt/aaas/platform/checklists/onboard-tenant.required.json`. Treat every item as a completion gate; unresolved items must appear in the final task report.
 0.2. Run `/opt/aaas/platform/scripts/preflight-check.sh`. If it fails, fix host/platform readiness before creating tenant files.
-0.3. Confirm `/opt/aaas/platform/evals/tenant-agent/_skill-verification-primitives-v1.yaml`
+0.3. Confirm `/opt/aaas/platform/tenant-hermes/evals/_skill-verification-primitives-v1.yaml`
 exists (platform-level asset, not generated per tenant). If missing, the platform
 setup is out of date - do not attempt to author it inline; report this and stop.
 0.4. Confirm `/opt/aaas/platform/policy/platform-policy.yaml` exists (platform-level
@@ -37,8 +37,8 @@ do not attempt to author it inline; report this and stop.
      Operational examples (cross-vertical): anything with a price or rate, anything described as a current or available offering, anything with a season or expiry, anything the owner would update on a notice board or menu board without contacting an admin.
 
      When a fact is ambiguous, classify it as operational — it is safer for it to live in the owner-editable file than to go stale in Mnemosyne.
-   - A generated eval file following the exact format used in platform/evals/tenant-agent/_fixed-safety-v1.yaml (top-level eval_profile, version, purpose, run_mode, checks list; each check has a name, match_type, prompt, and either expected.must_include/must_not_include for match_type: literal, or judge_for for match_type: semantic). Generate 2-4 checks specific to this business. Prefer match_type: literal checks here where possible, because unlike the fixed file's generic categories, generated checks can reference this specific tenant's actual known facts. Only use match_type: semantic for checks where no specific known literal fact applies (e.g., general tone judgments). Do not add a file_location field to generated tenant-specific factual checks unless the check is deliberately verifying file creation; most generated checks should rely on expected.must_include and expected.must_not_include.
-   - TENANT_POLICY_RULES: if the operator gave tenant-specific access restrictions in step 1, generate one or more rules in the same shape as a platform-policy.yaml rule (id, category, agent_instruction, eval_checks) — see the example rules in `/opt/aaas/platform/templates/_base/tenant-policy.yaml.template`. Each rule must only narrow behavior, never widen past a platform-policy.yaml rule. If the operator gave no restrictions, this is an empty list — that is the common case, not an error.
+   - A generated eval file following the exact format used in platform/tenant-hermes/evals/_fixed-safety-v1.yaml (top-level eval_profile, version, purpose, run_mode, checks list; each check has a name, match_type, prompt, and either expected.must_include/must_not_include for match_type: literal, or judge_for for match_type: semantic). Generate 2-4 checks specific to this business. Prefer match_type: literal checks here where possible, because unlike the fixed file's generic categories, generated checks can reference this specific tenant's actual known facts. Only use match_type: semantic for checks where no specific known literal fact applies (e.g., general tone judgments). Do not add a file_location field to generated tenant-specific factual checks unless the check is deliberately verifying file creation; most generated checks should rely on expected.must_include and expected.must_not_include.
+   - TENANT_POLICY_RULES: if the operator gave tenant-specific access restrictions in step 1, generate one or more rules in the same shape as a platform-policy.yaml rule (id, category, agent_instruction, eval_checks) — see the example rules in `/opt/aaas/platform/tenant-hermes/policy/tenant-policy.yaml.template`. Each rule must only narrow behavior, never widen past a platform-policy.yaml rule. If the operator gave no restrictions, this is an empty list — that is the common case, not an error.
    Show the generated VERTICAL_CAPABILITIES_BLOCK, VERTICAL_BRAND_FACTS_BLOCK, OPERATIONAL_DETAILS, generated eval checks, and TENANT_POLICY_RULES to the operator as part of the confirmation summary in step 2. Do not write any files yet.
 2. Show a full confirmation summary and ask: "Proceed with onboarding? (y/n)"
 3. Generate tenant ID as a lowercase slug from business name.
@@ -67,7 +67,7 @@ do not attempt to author it inline; report this and stop.
    before step 7's `chown -R`, so the ownership pass covers it:
    ```bash
    mkdir -p /opt/aaas/tenants/{tenant-id}/scripts
-   cp /opt/aaas/platform/scripts/tenant/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
+   cp /opt/aaas/platform/tenant-hermes/scripts/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
    chmod +x /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
    TENANT_DIR=/opt/aaas/tenants/{tenant-id} BUSINESS_NAME="{{BUSINESS_NAME}}" \
      /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh {tenant-id}
@@ -78,14 +78,14 @@ do not attempt to author it inline; report this and stop.
    from the actual `{{BUSINESS_NAME}}` (not a template placeholder left
    unfilled). The tenant agent itself maintains this vault at runtime — the
    admin agent's job here is only to scaffold it once during onboarding.
-5. Render templates into `config.yaml`, `.env`, `.env.template`, `SOUL.md`, `memories/MEMORY.md`, `memories/USER.md`, `harness.yaml`, `ACCEPTANCE.md`, and `tenant-policy.yaml`. Use `/opt/aaas/platform/harness/tenant-harness.yaml.template` for the manifest, `/opt/aaas/platform/harness/ACCEPTANCE.md.template` for acceptance, and `/opt/aaas/platform/templates/_base/tenant-policy.yaml.template` for the tenant policy file — fill in `{{TENANT_ID}}` and `{{BUSINESS_NAME}}`, and add the `rules:` list generated in step 1.2 (empty list if the operator gave no restrictions). Keep `home_chat_id: ""` in `config.yaml`; Telegram routing is restricted by `TELEGRAM_ALLOWED_USERS` in `.env`. Substitute `{{VERTICAL_CAPABILITIES_BLOCK}}` into `SOUL.md` and `{{VERTICAL_BRAND_FACTS_BLOCK}}` into `memories/MEMORY.md` using the stable facts generated and confirmed in step 1.2. Operational details classified in step 1.2 must not appear in `MEMORY.md`. Write the generated eval checks from step 1.2 to `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml` using the same YAML structure as `_fixed-safety-v1.yaml` (top-level `eval_profile`, `version`, `purpose`, `run_mode`, `checks` list), with `eval_profile` set to `{tenant-id}-v1`.
+5. Render templates into `config.yaml`, `.env`, `.env.template`, `SOUL.md`, `memories/MEMORY.md`, `memories/USER.md`, `harness.yaml`, `ACCEPTANCE.md`, and `tenant-policy.yaml`. Use `/opt/aaas/platform/harness/tenant-harness.yaml.template` for the manifest, `/opt/aaas/platform/harness/ACCEPTANCE.md.template` for acceptance, and `/opt/aaas/platform/tenant-hermes/policy/tenant-policy.yaml.template` for the tenant policy file — fill in `{{TENANT_ID}}` and `{{BUSINESS_NAME}}`, and add the `rules:` list generated in step 1.2 (empty list if the operator gave no restrictions). Keep `home_chat_id: ""` in `config.yaml`; Telegram routing is restricted by `TELEGRAM_ALLOWED_USERS` in `.env`. Substitute `{{VERTICAL_CAPABILITIES_BLOCK}}` into `SOUL.md` and `{{VERTICAL_BRAND_FACTS_BLOCK}}` into `memories/MEMORY.md` using the stable facts generated and confirmed in step 1.2. Operational details classified in step 1.2 must not appear in `MEMORY.md`. Write the generated eval checks from step 1.2 to `/opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml` using the same YAML structure as `_fixed-safety-v1.yaml` (top-level `eval_profile`, `version`, `purpose`, `run_mode`, `checks` list), with `eval_profile` set to `{tenant-id}-v1`.
 5.1. **Render platform and tenant policy into `SOUL.md`.** Read `/opt/aaas/platform/policy/platform-policy.yaml` and the `tenant-policy.yaml` just rendered in step 5. Render each rule's `agent_instruction` as a bullet point under the appropriate section header, inside the `<!-- BEGIN PLATFORM RULES -->`/`<!-- END PLATFORM RULES -->` and `<!-- BEGIN TENANT RULES -->`/`<!-- END TENANT RULES -->` marker comments already present in `SOUL.md.template`. Copy `agent_instruction` verbatim — do not paraphrase. If `tenant-policy.yaml` has an empty `rules:` list, the tenant rules block is correctly empty (markers present, no bullets); this is not an error.
-6. Verify `config.yaml` contains `memory.provider: mnemosyne`, `memory_enabled: false`, `user_profile_enabled: false`, and no secrets. Verify `.env` contains the selected provider API key env var, `TELEGRAM_ALLOWED_USERS` as comma-separated numeric IDs, and `MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data`. Verify `SOUL.md` still contains, unchanged, every fixed conduct line from `platform/templates/_base/SOUL.md.template` (the "try to work it out yourself," "always save generated content," and "always store owner-uploaded files" lines), the `BEGIN/END PLATFORM RULES` and `BEGIN/END TENANT RULES` marker blocks each containing the rendered `agent_instruction` bullets from step 5.1, and that generation only filled in `{{VERTICAL_CAPABILITIES_BLOCK}}` and the two policy marker blocks without altering any other line.
+6. Verify `config.yaml` contains `memory.provider: mnemosyne`, `memory_enabled: false`, `user_profile_enabled: false`, and no secrets. Verify `.env` contains the selected provider API key env var, `TELEGRAM_ALLOWED_USERS` as comma-separated numeric IDs, and `MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data`. Verify `SOUL.md` still contains, unchanged, every fixed conduct line from `platform/tenant-hermes/SOUL.md.template` (the "try to work it out yourself," "always save generated content," and "always store owner-uploaded files" lines), the `BEGIN/END PLATFORM RULES` and `BEGIN/END TENANT RULES` marker blocks each containing the rendered `agent_instruction` bullets from step 5.1, and that generation only filled in `{{VERTICAL_CAPABILITIES_BLOCK}}` and the two policy marker blocks without altering any other line.
 6.1. Validate the rendered tenant config:
    `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
 6.2. Copy the tenant-side skill verification script into the tenant volume so the container can call it at runtime:
 ```bash
-   cp /opt/aaas/platform/scripts/tenant/skill-verify.sh /opt/aaas/tenants/{tenant-id}/scripts/skill-verify.sh
+   cp /opt/aaas/platform/tenant-hermes/scripts/skill-verify.sh /opt/aaas/tenants/{tenant-id}/scripts/skill-verify.sh
    chmod +x /opt/aaas/tenants/{tenant-id}/scripts/skill-verify.sh
 ```
    The tenant agent calls this as `/opt/data/scripts/skill-verify.sh` from inside the container.
@@ -106,6 +106,20 @@ do not attempt to author it inline; report this and stop.
      (and anything else explicitly added) can be reached through it
    After this step, `.env` must contain no real LLM API key — verify with
    provision-tenant-vault's step 6 checks, not just a visual scan.
+6.4. **Copy the tenant-side admin contact skill and provision the API server channel:**
+```bash
+   cp /opt/aaas/platform/tenant-hermes/skills/tenant-contact-admin.md /opt/aaas/tenants/{tenant-id}/skills/tenant-contact-admin.md
+```
+   The tenant agent loads this from `/opt/data/skills/tenant-contact-admin.md`
+   inside the container, same pattern as `skill-verify.sh` above.
+   Assign this tenant the next unused port starting at `12000` (check
+   `/opt/aaas/platform/tenants.yaml` for the highest port already assigned)
+   and generate a random `API_SERVER_KEY`. Write into this tenant's `.env`:
+   - `API_SERVER_PORT={assigned-port}`
+   - `API_SERVER_KEY={generated-key}`
+   - `ADMIN_HERMES_API_KEY={value of API_SERVER_KEY from /opt/aaas/platform/admin/.env}`
+   `ADMIN_HERMES_API_URL` and `API_SERVER_ENABLED`/`API_SERVER_HOST` are
+   already correct from the template and need no per-tenant change.
 7. Set tenant volume ownership for the Hermes container user before starting the container:
    `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    The tenant container runs as UID `10000`; without this, mounted `/opt/data` paths such as logs and Mnemosyne data can fail with `Permission denied`. Use `sudo cat` from the host when inspecting seeded files after this point.
@@ -121,6 +135,7 @@ do not attempt to author it inline; report this and stop.
    - mounts tenant folder to `/opt/data`, files folder to `/home/hermes/files`, and vault folder to `/home/hermes/vault`
    - `env_file` points to the tenant `.env`
    - resource limits: `mem_limit: 1g` and `cpus: "1.0"`
+   - ports: publish this tenant's `API_SERVER_PORT` (from step 6.4) as `"127.0.0.1:{API_SERVER_PORT}:8642"` — loopback-only, same pattern as Agent Vault's management port, so only the host (including admin Hermes) can reach it, never another container or the network
    - network: `hermes-{tenant-id}-net` (this tenant's isolated network, created and joined by Agent Vault in provision-tenant-vault.md steps 1a/1b, before this step runs — so the container can reach the Agent Vault proxy on `http://agent-vault:14322` without sharing a network with any other tenant). Declare this network as `external: true` with `name: hermes-{tenant-id}-net` at the bottom of docker-compose.yaml if not already present — the explicit `name:` is required, see provision-tenant-vault.md step 8 for why.
 9. Start only this tenant: `docker compose up -d hermes_{tenant-id}`.
 10. **Verify container outbound connectivity** (critical for Telegram and external APIs):
@@ -147,8 +162,8 @@ do not attempt to author it inline; report this and stop.
    The script auto-detects tenant file permission denial after UID `10000` ownership is applied and re-runs itself with `sudo` when available.
    If it fails, fix the failed checks before completion when possible. If a warning or failure is caused by an external precondition such as the owner not starting the Telegram bot, record it clearly in `ACCEPTANCE.md` and the task report.
 17. Run or operator-assist BOTH eval profiles once the tenant container is running:
-   - The fixed profile: `/opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml` (mandatory for every tenant, every onboarding, no exceptions)
-   - The generated profile for this tenant: `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml`
+   - The fixed profile: `/opt/aaas/platform/tenant-hermes/evals/_fixed-safety-v1.yaml` (mandatory for every tenant, every onboarding, no exceptions)
+   - The generated profile for this tenant: `/opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml`
    Once the tenant container is running, run `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` against both profiles for automated PASS/FAIL results on `match_type: literal` checks (this runs prompts inside the container via `hermes -z`, not over Telegram); the script will print `SKIP` for `match_type: semantic` checks, which still require the operator or admin agent to read the actual reply against that check's `judge_for` field. Fall back to fully manual review only if `eval-runner.sh` reports a missing dependency or the container is not running (exit code 2). At minimum, verify brand recall, confirmation before posting, confirmation before deleting, generated/upload folder behavior, owner-friendly language, no cross-tenant memory leakage, and the tenant's own generated vertical-specific checks. Record results from both files in `ACCEPTANCE.md`.
 18. Update `/opt/aaas/tenants/{tenant-id}/harness.yaml` with status, last verification timestamp, and verification notes if your editor/tooling can do so safely.
 19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, knowledge vault scaffold status, tenant-policy.yaml rules generated (or none) and confirmation that both BEGIN/END policy marker blocks rendered in SOUL.md, isolated tenant network created and Agent Vault joined to it, welcome message delivery status per user ID, registry update status, alternate brand sources used, and whether operational details were written to `files/assets/business-data.md` or a stub was created for future owner use.

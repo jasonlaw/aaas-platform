@@ -314,7 +314,7 @@ run_judge_fallback() {
   update_provenance "provisional" "judge-not-available-in-container" 0
 }
 
-PRIMITIVES_FILE="${PRIMITIVES_FILE:-/opt/aaas/platform/evals/tenant-agent/_skill-verification-primitives-v1.yaml}"
+PRIMITIVES_FILE="${PRIMITIVES_FILE:-/opt/aaas/platform/tenant-hermes/evals/_skill-verification-primitives-v1.yaml}"
 SKILL_FILE="$TENANT_DIR/skills/${SKILL_NAME}.md"
 
 run_credential_scan() {

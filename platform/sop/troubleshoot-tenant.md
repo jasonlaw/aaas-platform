@@ -30,7 +30,7 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
    - If `hermes mnemosyne` is unavailable, try `hermes hermes-mnemosyne`.
 11. Apply the narrowest recovery that matches the evidence. Do not delete tenant data during troubleshooting.
 12. Re-run config validation and harness check after the fix.
-13. If the issue affected brand recall, confirmation-before-posting, confirmation-before-deleting, files, uploads, Telegram behavior, privacy, or generated vertical behavior, run or operator-assist BOTH eval profiles once the tenant container is running: `/opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml` and `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml`. Use `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` for automated literal checks and record results in `ACCEPTANCE.md`.
+13. If the issue affected brand recall, confirmation-before-posting, confirmation-before-deleting, files, uploads, Telegram behavior, privacy, or generated vertical behavior, run or operator-assist BOTH eval profiles once the tenant container is running: `/opt/aaas/platform/tenant-hermes/evals/_fixed-safety-v1.yaml` and `/opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml`. Use `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` for automated literal checks and record results in `ACCEPTANCE.md`.
 14. Write a task report using `/opt/aaas/platform/sop/write-report.md` with `sop` set to `troubleshoot-tenant`.
 
 ## Common Recovery Paths
@@ -74,7 +74,7 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
   re-run, never overwrites existing notes):
   ```bash
   mkdir -p /opt/aaas/tenants/{tenant-id}/scripts
-  cp /opt/aaas/platform/scripts/tenant/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
+  cp /opt/aaas/platform/tenant-hermes/scripts/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
   chmod +x /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
   TENANT_DIR=/opt/aaas/tenants/{tenant-id} BUSINESS_NAME="{business-name}" \
     /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh {tenant-id}

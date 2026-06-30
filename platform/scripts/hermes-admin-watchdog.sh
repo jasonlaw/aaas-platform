@@ -24,6 +24,7 @@ WATCHDOG_LOG="${PLATFORM_DIR}/reports/hermes-admin-watchdog.log"
 LOCK_FILE="/tmp/hermes-admin-watchdog.lock"
 DASHBOARD_HOST="127.0.0.1"
 DASHBOARD_PORT="9119"
+API_SERVER_PORT="8642"
 MAX_RESTART_ATTEMPTS=2
 PROBE_TIMEOUT=15    # seconds to wait for dashboard after restart
 OPENCODE_TIMEOUT=300
@@ -71,7 +72,13 @@ log() {
 }
 
 is_responsive() {
-  curl -sf --max-time 5 "http://${DASHBOARD_HOST}:${DASHBOARD_PORT}/" >/dev/null 2>&1
+  curl -sf --max-time 5 "http://${DASHBOARD_HOST}:${DASHBOARD_PORT}/" >/dev/null 2>&1 || return 1
+  # ponytail: reuses ADMIN_DIR/.env already loaded by start_hermes's subshell;
+  # here we just need API_SERVER_KEY in our own env, so source it directly.
+  local key=""
+  [[ -f "${ADMIN_DIR}/.env" ]] && key="$(grep -m1 '^API_SERVER_KEY=' "${ADMIN_DIR}/.env" | cut -d= -f2-)"
+  curl -sf --max-time 5 -H "Authorization: Bearer ${key}" \
+    "http://127.0.0.1:${API_SERVER_PORT}/v1/models" >/dev/null 2>&1
 }
 
 start_hermes() {

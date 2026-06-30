@@ -4,6 +4,44 @@ AaaS Platform is an Agent as a Service operations platform for running Hermes te
 
 Credentials (LLM API keys and other secrets) are never stored in tenant containers or `.env` files. They are managed exclusively by a local [Agent Vault](https://github.com/Infisical/agent-vault) instance that acts as a transparent MITM proxy, injecting credentials at the network layer so agents never hold live keys.
 
+## Repository Structure
+
+The repo splits cleanly into host-platform assets (operated by you and the admin agent) and tenant-agent assets (templated out per tenant, then copied and run inside each tenant's own Docker container). Everything under `platform/tenant-hermes/` is the tenant agent's own asset tree; everything else under `platform/` is host-side.
+
+```
+aaas-platform/
+├── README.md, CHANGELOG.md         — this file, and the platform setup version history
+├── docs/                           — prerequisites, full setup walkthrough, troubleshooting
+├── scripts/                        — top-level install scripts (setup-prerequisites.sh, setup-platform.sh, setup.sh)
+├── archived-dont-read/             — historical design notes, not current; paths inside are intentionally stale
+└── platform/                       — installs to /opt/aaas/platform on the host
+    ├── AGENTS.md                   — admin agent's instructions: path quick-reference, rules, workflows
+    ├── VERSION                     — platform setup version (see Versioning below)
+    ├── admin-hermes/               — HOST: Hermes admin agent's own templates (config/SOUL/USER/MEMORY/env)
+    ├── tenant-hermes/              — TENANT: every asset a tenant agent ships with, copied per-tenant at onboarding
+    │   ├── config.yaml.template, env.template, SOUL.md.template, USER.md.template, MEMORY.md.template
+    │   ├── policy/                 — tenant-policy.yaml.template (per-tenant operator restrictions)
+    │   ├── skills/                 — tenant-contact-admin.md (tenant agent's own skill)
+    │   ├── scripts/                — skill-verify.sh, vault-init-tenant.sh (run inside the tenant container)
+    │   └── evals/                  — tenant agent eval profiles (see below)
+    ├── evals/                      — HOST: admin agent's own eval profile (meta-eval-generation-v1.yaml)
+    ├── sop/                        — host-run SOPs: onboard/update/troubleshoot/upgrade/offboard a tenant, etc.
+    ├── skills/                     — admin agent's own skills (vault management, tenant request handling, …)
+    ├── harness/                    — check-tenant.sh + manifest/acceptance templates used to verify a tenant install
+    ├── checklists/                 — required-step JSON checklists the admin agent must complete
+    ├── policy/                     — platform-policy.yaml, the canonical source of platform-wide safety rules
+    ├── scripts/                    — host-side operational scripts (eval-runner.sh, watchdog, vault-init.sh, …)
+    ├── docker/                     — Dockerfile for the tenant image
+    ├── incidents/                  — incident playbooks
+    └── reports/                    — task reports written by the admin agent during operations
+```
+
+A few path distinctions worth knowing up front, since they're easy to mix up:
+
+- **`platform/tenant-hermes/evals/`** holds the tenant agent's own eval profiles — `_fixed-safety-v1.yaml` (vertical-agnostic safety checks run against every tenant) and `_skill-verification-primitives-v1.yaml` (credential-scanning rules used by `tenant-hermes/scripts/skill-verify.sh` inside the tenant container), plus `generated/{tenant-id}-v1.yaml` per-tenant checks created during onboarding. These are run against a live tenant container.
+- **`platform/evals/`** holds only `meta-eval-generation-v1.yaml`, a static synthetic test of the *admin* agent's onboarding generation step. It has nothing to do with any individual tenant and is run manually whenever `AGENTS.md` or the admin agent's model changes.
+- **`platform/admin-hermes/`** vs **`platform/tenant-hermes/`** mirrors this same host/tenant split for agent templates generally: `admin-hermes/` is the one Hermes admin agent that runs on the host, `tenant-hermes/` is the template every tenant's own Hermes agent is built from.
+
 ## Before You Begin
 
 Have the following ready before starting setup. You will be prompted for them
@@ -168,7 +206,7 @@ that verify the agent actually follows it are generated from this one file, so t
 is nothing to keep in sync by hand.
 
 - After editing `platform-policy.yaml`, run `platform/scripts/generate-platform-eval.sh`
-  to regenerate `evals/tenant-agent/_fixed-safety-v1.yaml`, then
+  to regenerate `tenant-hermes/evals/_fixed-safety-v1.yaml`, then
   `platform/scripts/validate-platform-rules.sh` to confirm every rule has matching eval
   coverage. Never hand-edit `_fixed-safety-v1.yaml` directly.
 - Each tenant additionally has its own `tenant-policy.yaml` for business-specific
@@ -279,7 +317,7 @@ A tenant has **three** distinct memory/knowledge systems, each with one job:
 
 These do not overlap by design. Current pricing/menu/hours always belongs in `business-data.md`, never in the vault; fleeting conversational context belongs in Mnemosyne, not a dedicated vault note. The tenant's `SOUL.md` (rendered from `SOUL.md.template`) carries the exact decision rule the tenant agent follows when it learns a new fact, so this distinction lives with the agent at runtime, not only in platform documentation.
 
-The vault is scaffolded once during onboarding (`onboard-tenant.md` step 4.2) using `/opt/aaas/platform/scripts/tenant/vault-init-tenant.sh`, copied into the tenant volume and run inside the container. It creates `Customers/`, `Suppliers/`, `Recurring/`, and `Reference/` folders, a minimal `.obsidian/` config, and a `README.md` explaining the three-way split to the owner. The same script is safe to re-run for tenants onboarded before this feature existed (see `update-tenant.md` and `upgrade-tenants.md`) — it never overwrites existing notes.
+The vault is scaffolded once during onboarding (`onboard-tenant.md` step 4.2) using `/opt/aaas/platform/tenant-hermes/scripts/vault-init-tenant.sh`, copied into the tenant volume and run inside the container. It creates `Customers/`, `Suppliers/`, `Recurring/`, and `Reference/` folders, a minimal `.obsidian/` config, and a `README.md` explaining the three-way split to the owner. The same script is safe to re-run for tenants onboarded before this feature existed (see `update-tenant.md` and `upgrade-tenants.md`) — it never overwrites existing notes.
 
 The tenant agent has no `platform/skills/`-style loader the way the admin agent does — it only ever reads `SOUL.md` and files it is told to check. So its "search before writing a new note" habit is not a separate skill file; it is written directly into `SOUL.md.template`, backed by a "For the assistant" reference section at the bottom of the generated `vault/README.md` (the same file the owner reads, with the agent-facing part clearly marked so it's easy to skip). The admin-only `query-knowledge-vault.md` skill is unrelated and unreachable from inside a tenant container.
 
@@ -299,14 +337,14 @@ running Docker container.
 
 Tenant behavioral validation has two eval layers:
 
-- Fixed safety eval: `/opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml`
-- Generated tenant eval: `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml`
+- Fixed safety eval: `/opt/aaas/platform/tenant-hermes/evals/_fixed-safety-v1.yaml`
+- Generated tenant eval: `/opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml`
 
 Run evals once the tenant container is running:
 
 ```bash
-/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} /opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml
-/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} /opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml
+/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} /opt/aaas/platform/tenant-hermes/evals/_fixed-safety-v1.yaml
+/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} /opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml
 ```
 
 `eval-runner.sh` runs literal checks inside the tenant container with `hermes -z`.

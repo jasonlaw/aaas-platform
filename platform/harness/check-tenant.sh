@@ -130,7 +130,7 @@ echo "tenant_id=$TENANT_ID"
 echo "platform_root=$PLATFORM_ROOT"
 echo ""
 
-exists_file "$PLATFORM_ROOT/evals/tenant-agent/_skill-verification-primitives-v1.yaml" "platform_skill_verification_primitives"
+exists_file "$PLATFORM_ROOT/tenant-hermes/evals/_skill-verification-primitives-v1.yaml" "platform_skill_verification_primitives"
 
 exists_dir "$TENANT_DIR" "tenant_directory"
 exists_dir "$TENANT_DIR/memories" "tenant_memories_directory"
@@ -174,7 +174,7 @@ contains "$TENANT_DIR/harness.yaml" '^fixed_safety_profile:[[:space:]]*"?_fixed-
 # the admin agent itself spot-checks every rule from platform-policy.yaml
 # during onboarding/update per provision-tenant-vault's rendering instruction.
 contains "$TENANT_DIR/SOUL.md" '[Nn]ever perform irreversible actions' "soul_has_fixed_safety_language"
-exists_file "$PLATFORM_ROOT/evals/tenant-agent/generated/$TENANT_ID-v1.yaml" "tenant_generated_eval_file"
+exists_file "$PLATFORM_ROOT/tenant-hermes/evals/generated/$TENANT_ID-v1.yaml" "tenant_generated_eval_file"
 
 if [ -f "$TENANT_DIR/skills/PROVENANCE.jsonl" ]; then
   record PASS "skills_provenance_present"

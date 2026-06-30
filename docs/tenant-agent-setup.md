@@ -120,8 +120,8 @@ The onboarding SOP also creates harness files that make tenant quality repeatabl
 - `/opt/aaas/tenants/{tenant-id}/harness.yaml` records the tenant's verification profile, required checks, channels, and owner-facing benefit contract.
 - `/opt/aaas/tenants/{tenant-id}/ACCEPTANCE.md` records whether the tenant actually receives a useful brand-aware assistant: brand recall, safe confirmation before posting, persisted generated files, upload handling, and isolation.
 - `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}` is the deterministic structural/runtime check the admin agent must run before completion.
-- `/opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml` is the fixed safety behavior profile for every tenant.
-- `/opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml` is the generated tenant-specific behavior profile created during onboarding.
+- `/opt/aaas/platform/tenant-hermes/evals/_fixed-safety-v1.yaml` is the fixed safety behavior profile for every tenant.
+- `/opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml` is the generated tenant-specific behavior profile created during onboarding.
 - `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {eval-file-path}` runs automated literal eval checks through `docker exec ... hermes -z`; semantic checks are operator-assisted unless `USE_JUDGE=1` is set.
 - `/opt/aaas/platform/scripts/preflight-check.sh` and `/opt/aaas/platform/scripts/validate-tenant-config.sh` help catch host and config drift before restarting a tenant.
 
@@ -755,4 +755,4 @@ Before declaring POC complete:
 
 ## Eval Profiles
 
-Every tenant uses two eval layers: the fixed safety profile at /opt/aaas/platform/evals/tenant-agent/_fixed-safety-v1.yaml and the generated profile at /opt/aaas/platform/evals/tenant-agent/generated/{tenant-id}-v1.yaml. Run both once the tenant container is running; eval execution does not depend on Telegram availability because `eval-runner.sh` uses `docker exec ... hermes -z`.
+Every tenant uses two eval layers: the fixed safety profile at /opt/aaas/platform/tenant-hermes/evals/_fixed-safety-v1.yaml and the generated profile at /opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml. Run both once the tenant container is running; eval execution does not depend on Telegram availability because `eval-runner.sh` uses `docker exec ... hermes -z`.
