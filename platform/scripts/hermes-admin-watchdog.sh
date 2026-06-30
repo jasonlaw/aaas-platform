@@ -154,6 +154,9 @@ timeout "${OPENCODE_TIMEOUT}" opencode \
   --message "Hermes admin is down and automatic restart failed. \
 Read /opt/aaas/platform/incidents/hermes-admin-failure.md, diagnose and fix the issue. \
 Use /opt/aaas/platform/sop/write-report.md to write a troubleshoot-platform report. \
+Set the report's trigger field to watchdog (this session was started \
+automatically by hermes-admin-watchdog.sh, not by a human operator) and \
+set operator_request to this exact message, verbatim, not a paraphrase. \
 In the report, state clearly what was found, what was fixed, and if unresolved, \
 exactly what the operator needs to do next." \
   >> "$WATCHDOG_LOG" 2>&1 || log "OpenCode exited with error or timed out."

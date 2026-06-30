@@ -18,6 +18,9 @@ echo "limit=$LIMIT"
 echo ""
 
 if command -v jq >/dev/null 2>&1; then
+  echo "Reports by trigger"
+  tail -n "$LIMIT" "$INDEX" | jq -r '.trigger? // "(unset)"' 2>/dev/null | sort | uniq -c | sort -rn || true
+  echo ""
   echo "Top issues"
   tail -n "$LIMIT" "$INDEX" | jq -r '.issues[]? // empty' 2>/dev/null | sort | uniq -c | sort -rn | head -10 || true
   echo ""

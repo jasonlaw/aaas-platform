@@ -758,6 +758,19 @@ validate_install() {
     || error "Onboarding SOP must document Telegram chat-not-found handling"
   grep -q "Always write a task report" "$PLATFORM_ROOT/AGENTS.md" \
     || error "AGENTS.md must require task reports after SOP execution"
+  # The deployed admin/SOUL.md (not the template) is only created by the
+  # separate setup-admin-hermes skill, not by this script — so it may
+  # legitimately not exist yet on a fresh platform install. But once it
+  # does exist, nothing else in this codebase ever re-syncs or content-checks
+  # it (see upgrade-platform.md step 9.3), so re-running --validate-only
+  # against an already-configured admin instance is the only automated
+  # backstop against it silently drifting behind the shipped template.
+  if [ -f "$PLATFORM_ROOT/admin/SOUL.md" ]; then
+    grep -q "Always write a task report" "$PLATFORM_ROOT/admin/SOUL.md" \
+      || error "Deployed admin/SOUL.md is missing the task report rule — it has drifted from admin-hermes/SOUL.md.template. Run upgrade-platform.md step 9.3 to diff and refresh it."
+    grep -q "Agent Vault is for LLM API keys only" "$PLATFORM_ROOT/admin/SOUL.md" \
+      || error "Deployed admin/SOUL.md is missing the credential/secret rules — it has drifted from admin-hermes/SOUL.md.template. Run upgrade-platform.md step 9.3 to diff and refresh it."
+  fi
   grep -q "check-tenant.sh" "$PLATFORM_ROOT/AGENTS.md" \
     || error "AGENTS.md must advertise tenant harness checks"
   grep -q "vault/" "$PLATFORM_ROOT/AGENTS.md" \

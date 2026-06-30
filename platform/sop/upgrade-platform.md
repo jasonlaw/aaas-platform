@@ -17,6 +17,7 @@ Upgrade the installed platform assets to the latest repository version while pre
 - `/opt/aaas/platform/incidents/`
 - `/opt/aaas/platform/docker/Dockerfile`
 - Setup validation behavior from the latest script
+- `/opt/aaas/platform/admin/SOUL.md` — checked for drift against the current template and refreshed only with operator confirmation (step 9.3); not overwritten automatically like the other items above
 
 ## What This Must Preserve
 - `/opt/aaas/tenants/`
@@ -51,6 +52,15 @@ Upgrade the installed platform assets to the latest repository version while pre
    `/opt/aaas/platform/scripts/validate-platform-rules.sh`
    If validation fails, do not proceed to tenant backfill — report the failure and stop; a platform-policy.yaml rule shipped without matching eval coverage.
 9.2. Run the upgrade-tenants SOP to backfill all active tenants onto this version, including re-rendering each tenant's `SOUL.md` policy blocks and isolated network if missing — see `upgrade-tenants.md` step 3.
+9.3. **Check the admin agent's own `SOUL.md` for drift against the current template.** Unlike tenant `SOUL.md` (re-rendered every upgrade via step 9.2) or `AGENTS.md` (overwritten wholesale every upgrade via step 6), the admin agent's `/opt/aaas/platform/admin/SOUL.md` is copied once during `setup-admin-hermes.md` Step 2 and never touched again by any other SOP or script — so it can silently fall behind the shipped template, including missing rules added in later versions (operating rules, credential rules, responsibilities) that the running admin agent has no way to know about. Skip this step if `/opt/aaas/platform/admin/SOUL.md` does not exist (admin Hermes not yet set up on this host).
+    ```bash
+    diff -u /opt/aaas/platform/admin/SOUL.md /opt/aaas/platform/admin-hermes/SOUL.md.template
+    ```
+    - If there is no diff, nothing to do.
+    - If there is a diff, show it to the operator. Some of it may be the operator's own intentional customization (tone, extra rules, business-specific notes) — never overwrite blindly. Ask: "admin/SOUL.md differs from the current template. Apply the new template, keeping a backup of the current file? (y/n)"
+    - If yes: back up the current file (`cp /opt/aaas/platform/admin/SOUL.md /opt/aaas/platform/admin/SOUL.md.bak-{timestamp}`), then either replace it with the template or merge in just the new/changed rule text, whichever the operator prefers. Re-run the content checks in `setup-admin-hermes.md` Step 6 against the result.
+    - If no: record in the task report that admin `SOUL.md` was left as-is and may be missing rules from the current template, so this is visible on review rather than silently skipped.
+    - Restart Hermes admin after any change so the running agent picks up the new file: `/opt/aaas/platform/scripts/hermes-admin-watchdog.sh` will not do this on its own since it only acts when the process is unresponsive, not when its config changed — restart it directly per `setup-admin-hermes.md` Step 7.
 10. **Post-upgrade iptables verification:**
     - `iptables --version` must still show `legacy`. If it reverted to `nf_tables`, switch again and restart Docker
     - `sudo iptables -L DOCKER-FORWARD -n | head -5` should show bridge forwarding rules

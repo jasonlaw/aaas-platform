@@ -275,6 +275,28 @@ If either check fails, stop. Remove the real key manually and re-run Step 5.5.
     agent-vault vault service list --vault admin-vault
     agent-vault agent list --vault admin-vault
 
+**Validate `SOUL.md` content, not just its existence.** A bare `test -f` above
+only proves the file exists — it says nothing about whether it still contains
+the operating rules the admin agent actually has to follow. This matters
+because Step 2 copies the template once and never touches it again; nothing
+elsewhere in this repo re-syncs or content-checks the deployed copy, so a
+template that ships a new or reworded rule after this admin instance was
+first set up will silently never reach it unless this check catches the drift:
+
+    grep -q "Always write a task report" /opt/aaas/platform/admin/SOUL.md \
+      && echo "OK: report-writing rule present" \
+      || echo "FAIL: admin SOUL.md is missing the task report rule — re-copy or merge admin-hermes/SOUL.md.template"
+    grep -q "Agent Vault is for LLM API keys only" /opt/aaas/platform/admin/SOUL.md \
+      && echo "OK: credential rules present" \
+      || echo "FAIL: admin SOUL.md is missing the credential/secret rules — re-copy or merge admin-hermes/SOUL.md.template"
+
+If either FAILs on a fresh install, Step 2 copied a corrupted or hand-edited
+template — stop and investigate before continuing. If either FAILs during a
+re-run against an already-configured admin instance, see
+`/opt/aaas/platform/sop/upgrade-platform.md` step 9.3, which diffs and offers
+to refresh `admin/SOUL.md` against the current template; do not silently
+overwrite an operator-customized file here.
+
 If Telegram was enabled in Step 3.1, also verify:
 
     grep -q "^TELEGRAM_BOT_TOKEN=." /opt/aaas/platform/admin/.env     && echo "OK: telegram token set"
