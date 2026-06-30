@@ -266,8 +266,9 @@ If either check fails, stop. Remove the real key manually and re-run Step 5.5.
     test -f /opt/aaas/platform/admin/MEMORY.md   && echo "OK: MEMORY.md"
     test -f /opt/aaas/platform/admin/config.yaml && echo "OK: config.yaml"
     test -f /opt/aaas/platform/admin/.env        && echo "OK: .env"
-    grep -q "provider: mnemosyne"    /opt/aaas/platform/admin/config.yaml && echo "OK: mnemosyne"
-    grep -q "memory_enabled: false"  /opt/aaas/platform/admin/config.yaml && echo "OK: memory disabled"
+    grep -q "provider: mnemosyne"       /opt/aaas/platform/admin/config.yaml && echo "OK: mnemosyne"
+    grep -q "memory_enabled: false"     /opt/aaas/platform/admin/config.yaml && echo "OK: memory disabled"
+    grep -q "user_profile_enabled: false" /opt/aaas/platform/admin/config.yaml && echo "OK: user profile disabled"
     grep -q "routed-via-agent-vault" /opt/aaas/platform/admin/.env        && echo "OK: placeholder"
     grep -q "HTTP_PROXY"             /opt/aaas/platform/admin/.env        && echo "OK: proxy config"
     grep -q "SSL_CERT_FILE"          /opt/aaas/platform/admin/.env        && echo "OK: SSL_CERT_FILE"
@@ -275,13 +276,18 @@ If either check fails, stop. Remove the real key manually and re-run Step 5.5.
     agent-vault vault service list --vault admin-vault
     agent-vault agent list --vault admin-vault
 
-**Validate `SOUL.md` content, not just its existence.** A bare `test -f` above
-only proves the file exists — it says nothing about whether it still contains
-the operating rules the admin agent actually has to follow. This matters
-because Step 2 copies the template once and never touches it again; nothing
-elsewhere in this repo re-syncs or content-checks the deployed copy, so a
-template that ships a new or reworded rule after this admin instance was
-first set up will silently never reach it unless this check catches the drift:
+**Validate `SOUL.md` and `config.yaml` content, not just their existence.**
+A bare `test -f` above only proves a file exists — it says nothing about
+whether it still contains the rules and invariants the admin agent actually
+has to follow. This matters because Step 2 copies both files from their
+templates once and never touches them again; nothing elsewhere in this repo
+re-syncs or content-checks the deployed copies, so a template that ships a
+new or reworded rule after this admin instance was first set up will
+silently never reach it unless these checks catch the drift. This already
+happened once for real: `admin-hermes/config.yaml.template` gained a
+Telegram `gateway` block in 0.13.1 and had a wrong comment corrected in
+0.13.2 — any admin instance set up before either release kept the stale
+file with nothing ever flagging it.
 
     grep -q "Always write a task report" /opt/aaas/platform/admin/SOUL.md \
       && echo "OK: report-writing rule present" \
@@ -289,13 +295,43 @@ first set up will silently never reach it unless this check catches the drift:
     grep -q "Agent Vault is for LLM API keys only" /opt/aaas/platform/admin/SOUL.md \
       && echo "OK: credential rules present" \
       || echo "FAIL: admin SOUL.md is missing the credential/secret rules — re-copy or merge admin-hermes/SOUL.md.template"
+    grep -q "provider: mnemosyne" /opt/aaas/platform/admin/config.yaml \
+      && echo "OK: config.yaml still uses mnemosyne" \
+      || echo "FAIL: admin config.yaml no longer specifies the mnemosyne memory provider"
+    grep -q "memory_enabled: false" /opt/aaas/platform/admin/config.yaml \
+      && echo "OK: config.yaml still disables native memory" \
+      || echo "FAIL: admin config.yaml no longer disables native Hermes memory — re-copy or merge admin-hermes/config.yaml.template"
+    grep -q "user_profile_enabled: false" /opt/aaas/platform/admin/config.yaml \
+      && echo "OK: config.yaml still disables native user profile" \
+      || echo "FAIL: admin config.yaml no longer disables native Hermes user profile — re-copy or merge admin-hermes/config.yaml.template"
 
-If either FAILs on a fresh install, Step 2 copied a corrupted or hand-edited
-template — stop and investigate before continuing. If either FAILs during a
-re-run against an already-configured admin instance, see
+If any of these FAIL on a fresh install, Step 2/3 copied or edited a
+corrupted template — stop and investigate before continuing. If any FAIL
+during a re-run against an already-configured admin instance, see
 `/opt/aaas/platform/sop/upgrade-platform.md` step 9.3, which diffs and offers
-to refresh `admin/SOUL.md` against the current template; do not silently
-overwrite an operator-customized file here.
+to refresh both `admin/SOUL.md` and `admin/config.yaml` against their current
+templates; do not silently overwrite an operator-customized file here.
+
+**Check `.env` for structurally new required keys, not just secret values.**
+A future `env.template` may add a new non-secret key (the same way
+`TELEGRAM_HOME_CHANNEL` was added in 0.13.1) that an already-configured
+`.env` will never pick up on its own. This check only verifies key *names*
+are present somewhere in the file (commented or not) — it never compares or
+touches secret values, since real values legitimately differ from the
+template by design:
+
+    for key in $(grep -oE '^#?\s*[A-Za-z_]+=' /opt/aaas/platform/admin-hermes/env.template | sed -E 's/^#\s*//; s/=$//' | sort -u); do
+      grep -q "^${key}=\|^# ${key}=" /opt/aaas/platform/admin/.env \
+        && echo "OK: ${key} present" \
+        || echo "FAIL: ${key} is in the current env.template but missing from admin/.env — add it (commented if not in use)"
+    done
+
+If this reports a FAIL on an already-configured instance, add the missing
+key to `.env` (commented out if the corresponding feature isn't in use, set
+if it is) rather than re-copying the whole file — `.env` holds real operator
+secrets and must never be wholesale-overwritten from the template. See
+`/opt/aaas/platform/sop/upgrade-platform.md` step 9.4, which runs this same
+check automatically on every platform upgrade.
 
 If Telegram was enabled in Step 3.1, also verify:
 

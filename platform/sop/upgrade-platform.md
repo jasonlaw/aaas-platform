@@ -17,7 +17,8 @@ Upgrade the installed platform assets to the latest repository version while pre
 - `/opt/aaas/platform/incidents/`
 - `/opt/aaas/platform/docker/Dockerfile`
 - Setup validation behavior from the latest script
-- `/opt/aaas/platform/admin/SOUL.md` — checked for drift against the current template and refreshed only with operator confirmation (step 9.3); not overwritten automatically like the other items above
+- `/opt/aaas/platform/admin/SOUL.md` and `/opt/aaas/platform/admin/config.yaml` — checked for drift against their current templates and refreshed only with operator confirmation (step 9.3); not overwritten automatically like the other items above
+- `/opt/aaas/platform/admin/.env` — checked only for missing required key *names* added since last setup (step 9.4); secret values are never touched or compared
 
 ## What This Must Preserve
 - `/opt/aaas/tenants/`
@@ -52,15 +53,25 @@ Upgrade the installed platform assets to the latest repository version while pre
    `/opt/aaas/platform/scripts/validate-platform-rules.sh`
    If validation fails, do not proceed to tenant backfill — report the failure and stop; a platform-policy.yaml rule shipped without matching eval coverage.
 9.2. Run the upgrade-tenants SOP to backfill all active tenants onto this version, including re-rendering each tenant's `SOUL.md` policy blocks and isolated network if missing — see `upgrade-tenants.md` step 3.
-9.3. **Check the admin agent's own `SOUL.md` for drift against the current template.** Unlike tenant `SOUL.md` (re-rendered every upgrade via step 9.2) or `AGENTS.md` (overwritten wholesale every upgrade via step 6), the admin agent's `/opt/aaas/platform/admin/SOUL.md` is copied once during `setup-admin-hermes.md` Step 2 and never touched again by any other SOP or script — so it can silently fall behind the shipped template, including missing rules added in later versions (operating rules, credential rules, responsibilities) that the running admin agent has no way to know about. Skip this step if `/opt/aaas/platform/admin/SOUL.md` does not exist (admin Hermes not yet set up on this host).
+9.3. **Check the admin agent's own `SOUL.md` and `config.yaml` for drift against their current templates.** Unlike tenant `SOUL.md`/`config.yaml` (re-rendered every upgrade via step 9.2) or `AGENTS.md` (overwritten wholesale every upgrade via step 6), `setup-admin-hermes.md` Step 2 copies these into `/opt/aaas/platform/admin/` exactly once and nothing else in this repo ever touches them again — so they can silently fall behind the shipped templates. This already happened for real with `config.yaml`: it gained a Telegram `gateway` block in 0.13.1 and had a wrong comment fixed in 0.13.2, and any admin instance set up before either release kept the stale file with nothing flagging it. Skip this step entirely if `/opt/aaas/platform/admin/SOUL.md` does not exist (admin Hermes not yet set up on this host).
     ```bash
     diff -u /opt/aaas/platform/admin/SOUL.md /opt/aaas/platform/admin-hermes/SOUL.md.template
+    diff -u /opt/aaas/platform/admin/config.yaml /opt/aaas/platform/admin-hermes/config.yaml.template
     ```
-    - If there is no diff, nothing to do.
-    - If there is a diff, show it to the operator. Some of it may be the operator's own intentional customization (tone, extra rules, business-specific notes) — never overwrite blindly. Ask: "admin/SOUL.md differs from the current template. Apply the new template, keeping a backup of the current file? (y/n)"
-    - If yes: back up the current file (`cp /opt/aaas/platform/admin/SOUL.md /opt/aaas/platform/admin/SOUL.md.bak-{timestamp}`), then either replace it with the template or merge in just the new/changed rule text, whichever the operator prefers. Re-run the content checks in `setup-admin-hermes.md` Step 6 against the result.
-    - If no: record in the task report that admin `SOUL.md` was left as-is and may be missing rules from the current template, so this is visible on review rather than silently skipped.
-    - Restart Hermes admin after any change so the running agent picks up the new file: `/opt/aaas/platform/scripts/hermes-admin-watchdog.sh` will not do this on its own since it only acts when the process is unresponsive, not when its config changed — restart it directly per `setup-admin-hermes.md` Step 7.
+    - If a file shows no diff, nothing to do for it.
+    - If a file shows a diff, show it to the operator separately. Some of it may be the operator's own intentional customization (tone or extra rules in `SOUL.md`; provider, model, dashboard host/port, or Telegram settings in `config.yaml`) — never overwrite blindly. Ask per file: "{file} differs from the current template. Apply the new template, keeping a backup of the current file? (y/n)"
+    - If yes for a file: back it up (`cp /opt/aaas/platform/admin/{file} /opt/aaas/platform/admin/{file}.bak-{timestamp}`), then either replace it with the template or merge in just the new/changed lines, whichever the operator prefers. For `config.yaml`, preserve the operator's existing `provider`, `default` model, `dashboard.host`/`dashboard.port`, and any `gateway.platforms.telegram` block when merging — only the surrounding structure and invariant lines (`memory_enabled: false`, `user_profile_enabled: false`, `provider: mnemosyne`) should come from the template. Re-run the content checks in `setup-admin-hermes.md` Step 6 against the result.
+    - If no for a file: record in the task report that it was left as-is and may be missing changes from the current template, so this is visible on review rather than silently skipped.
+    - Restart Hermes admin after any change so the running agent picks up the new file(s): `/opt/aaas/platform/scripts/hermes-admin-watchdog.sh` will not do this on its own since it only acts when the process is unresponsive, not when its config changed — restart it directly per `setup-admin-hermes.md` Step 7.
+9.4. **Check the admin agent's `.env` for required keys added since it was last set up.** `.env` holds real operator secrets and must never be diffed wholesale or auto-overwritten the way 9.3 handles `SOUL.md`/`config.yaml` — every real value legitimately differs from the placeholder template by design. Instead, only check that every key *name* the current `env.template` expects (commented or not) is present in the live file; this catches additions like `TELEGRAM_HOME_CHANNEL` in 0.13.1 without ever touching a secret value. Skip if `/opt/aaas/platform/admin/.env` does not exist.
+    ```bash
+    for key in $(grep -oE '^#?\s*[A-Za-z_]+=' /opt/aaas/platform/admin-hermes/env.template | sed -E 's/^#\s*//; s/=$//' | sort -u); do
+      grep -q "^${key}=\|^# ${key}=" /opt/aaas/platform/admin/.env \
+        || echo "MISSING: ${key}"
+    done
+    ```
+    - If any keys are reported missing, tell the operator which ones and add each as a commented-out line (matching the template's default state) unless the operator wants to enable that feature now, in which case follow the relevant section of `setup-admin-hermes.md` (e.g. Step 3.1 for Telegram keys) to set it properly instead of just stubbing it in.
+    - Never write a real secret value into `.env` as part of this check — only add the key name, commented out, if its purpose isn't being enabled right now.
 10. **Post-upgrade iptables verification:**
     - `iptables --version` must still show `legacy`. If it reverted to `nf_tables`, switch again and restart Docker
     - `sudo iptables -L DOCKER-FORWARD -n | head -5` should show bridge forwarding rules
