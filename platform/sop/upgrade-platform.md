@@ -57,7 +57,7 @@ Upgrade the installed platform assets to the latest repository version while pre
     - If rules are missing, run the health monitor SOP to detect and repair
 11. If the new platform version changes the Dockerfile or template behavior and tenant image rebuild is needed, ask the operator before running the build image SOP. Do not rebuild automatically.
 12. **If Docker daemon was restarted during this upgrade:** Restart all active tenants to ensure they re-establish outbound connectivity:
-    `for tenant in $(grep 'status: active' /opt/aaas/platform/tenants.yaml | awk '{print $2}'); do docker compose restart hermes_$tenant; done`
+    `for tenant in $(grep 'status: active' /opt/aaas/platform/tenants.yaml | awk '{print $2}'); do docker compose up --force-recreate --no-deps -d hermes_$tenant; done`
     Then run the health monitor SOP to verify outbound connectivity for all tenants.
 13. Write a task report using `/opt/aaas/platform/sop/write-report.md` with `sop` set to `upgrade-platform`.
 

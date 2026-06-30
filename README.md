@@ -4,6 +4,25 @@ AaaS Platform is an Agent as a Service operations platform for running Hermes te
 
 Credentials (LLM API keys and other secrets) are never stored in tenant containers or `.env` files. They are managed exclusively by a local [Agent Vault](https://github.com/Infisical/agent-vault) instance that acts as a transparent MITM proxy, injecting credentials at the network layer so agents never hold live keys.
 
+## Before You Begin
+
+Have the following ready before starting setup. You will be prompted for them
+during the setup steps below.
+
+| Item | Where used | Notes |
+|---|---|---|
+| **LLM API key** | Agent Vault (Step 1) and Hermes admin vault (Step 2) | Never stored in `.env` directly — goes into Agent Vault only. Supported providers: OpenRouter, OpenAI, Anthropic, Nous, OpenCode Zen. |
+| **Telegram bot token** | Each tenant's `.env` during onboarding | Create a bot via [@BotFather](https://t.me/BotFather) and note the token. |
+| **Telegram bot username** | Tenant onboarding | The `@username` of the bot (without `@`). |
+| **Telegram user IDs** | Tenant access control | Numeric IDs of users allowed to message each tenant bot. Get them from [@userinfobot](https://t.me/userinfobot). |
+| **Email details** *(optional)* | Tenant config if email integration is needed | SMTP host, port, username, password. |
+
+> **Security note:** LLM API keys are managed exclusively by Agent Vault.
+> They are never written to `.env` files, skill files, vault notes, or reports.
+> The setup steps below enforce this automatically.
+
+---
+
 ## Install
 
 Run the installer inside Ubuntu/Linux:
@@ -80,10 +99,35 @@ From there, OpenCode can use the platform SOPs to help you:
 
 Ask the admin agent what skills are available, then tell it the tenant operation you want to perform.
 
-Hermes admin support is optional. To set up Hermes as an admin dashboard later,
-start OpenCode and ask it to use the `setup-admin-hermes` skill. The base setup
-ships managed Hermes admin templates under `/opt/aaas/platform/admin-hermes`,
-but it does not activate or configure Hermes automatically.
+## Step 2: Set Up Hermes Admin Agent
+
+After completing the Agent Vault setup, set up the Hermes admin agent.
+This is a **required step** if you plan to use the bidirectional channel
+between the admin agent and tenant agents, and recommended for always-on
+operational monitoring.
+
+```bash
+cd /opt/aaas/platform
+opencode
+# Tell the admin agent: "Set up Hermes admin agent"
+```
+
+OpenCode will run the `setup-admin-hermes` skill, which:
+- Installs Hermes into an isolated venv
+- Provisions an `admin-vault` in Agent Vault for the admin LLM API key
+  (same policy as tenants — the real key never touches `.env`)
+- Installs the Agent Vault MITM CA into the host system trust store
+- Verifies the proxy intercepts LLM calls correctly
+- Installs a watchdog that monitors Hermes admin every 5 minutes, attempts
+  automatic recovery, and invokes OpenCode to diagnose failures before
+  escalating to you
+
+**What to have ready:** your LLM API key for the admin agent's provider
+(see [Before You Begin](#before-you-begin) above).
+
+The base setup ships managed Hermes admin templates under
+`/opt/aaas/platform/admin-hermes`. The `setup-admin-hermes` skill uses these
+templates and handles all configuration automatically.
 
 ## Credential Security Model
 
@@ -375,3 +419,7 @@ Bump `platform/VERSION` in the same change whenever platform behavior changes:
 Do not bump `platform/VERSION` for tenant Docker image rebuilds only, tenant config
 data changes only, typo-only edits, or tool version checks such as `docker --version`.
 Those have separate meanings from the platform setup version.
+
+## Future Enhancement ##
+- **No scheduled health loop.** The watchdog covers admin agent liveness, but health monitoring is still operator-triggered — someone has to invoke monitor-health.md. If a tenant container silently fails at 3am and nobody runs health until morning, you won't know. A simple cron or systemd timer that runs monitor-health.md nightly (L1 report-only, escalate on FAIL) would close this. That's the one loop the platform is genuinely missing.
+- **No run log for the watchdog.** The watchdog appends to hermes-admin-watchdog.log but it's free text, not structured. If it runs 200 times and restarts Hermes 7 times over a week, you have no easy way to surface that pattern without grep. Appending one JSON line to INDEX.jsonl per watchdog escalation event would give you visibility without any new tooling.
