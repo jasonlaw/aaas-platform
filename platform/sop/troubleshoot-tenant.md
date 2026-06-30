@@ -43,8 +43,8 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
 ### Permission Denied In Logs
 - Repair tenant ownership:
   `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
-- Restart only this tenant:
-  `cd /opt/aaas/platform/docker && docker compose restart hermes_{tenant-id}`
+- Force-recreate only this tenant (ownership changes require a clean container reload):
+  `cd /opt/aaas/platform/docker && docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`
 
 ### Invalid Config
 - Use `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}` output to identify missing keys.

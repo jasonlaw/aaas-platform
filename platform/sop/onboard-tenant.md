@@ -133,7 +133,7 @@ do not attempt to author it inline; report this and stop.
    `docker exec -e HERMES_HOME=/opt/data hermes_{tenant-id} mnemosyne-hermes install`
    `docker exec hermes_{tenant-id} hermes config set memory.provider mnemosyne`
    `docker exec hermes_{tenant-id} hermes memory setup`
-   `docker compose restart hermes_{tenant-id}`
+   `docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`
 13. Seed Mnemosyne with `memories/MEMORY.md` and `memories/USER.md`. The Mnemosyne CLI command is `store`, not `remember`; if unsure, run `docker exec hermes_{tenant-id} mnemosyne --help`. Because tenant files are owned by UID `10000`, read seed files with `sudo cat` from the host:
    `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8`
    `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8`

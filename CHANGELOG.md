@@ -4,6 +4,18 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.11.0 - 2026-06-30
+
+### Added
+- **New skill: `platform/skills/manage-agent-vault.md` — runtime Agent Vault management for the Hermes admin agent.** Covers LLM key operations only: listing vaults, credentials, services, and agent tokens; adding or rotating an LLM provider key for any vault (admin or tenant); minting and revoking agent tokens; verifying proxy health after changes; and a future-facing section (section 5) describing how the admin agent will handle tenant LLM key change requests once the bidirectional channel is implemented. The skill opens with an explicit scope note: Agent Vault is for LLM API keys only — non-LLM credentials go in `.env` directly.
+
+### Changed
+- **Clarified the credential storage model across all platform documents.** Agent Vault's role is now stated consistently and precisely everywhere: it manages LLM API keys only, using its MITM proxy to inject keys at the network layer so agents never see raw values. Non-LLM credentials (SMTP, webhooks, Telegram tokens, etc.) belong in `.env` and are not stored in Agent Vault. Changes made:
+  - **`platform/AGENTS.md`**: split the single "never store real LLM API keys in `.env`" rule into two explicit rules — one establishing Agent Vault as LLM-only, one preserving the placeholder requirement. Updated the LLM key update rule to acknowledge the future bidirectional path and explicitly state that non-LLM credential changes continue through the update-tenant SOP. Replaced the "credential data has exactly one persistent home" rule (which incorrectly stated the tenant agent never writes to `.env`) with an accurate split: LLM keys in Agent Vault via placeholder, all other credentials in `.env` with tenant agent allowed to append after owner confirmation.
+  - **`platform/policy/platform-policy.yaml`**: added an explicit LLM key exception paragraph to `no_credential_persistence` so the tenant agent knows the LLM placeholder must never be replaced and that LLM key changes go via the platform operator. Updated `no_credential_in_skills` to no longer misdirect owners to the platform operator for non-LLM credentials — the correct path is `.env` append (handled by the tenant agent itself).
+  - **`platform/admin-hermes/SOUL.md.template`**: rewrote the Secret and Credential Rules section to lead with the Agent Vault scope statement, then separately cover LLM keys (Agent Vault only, placeholder in `.env`) and non-LLM credentials (`.env` directly, admin agent may write after operator confirmation).
+  - **`platform/skills/manage-agent-vault.md`**: removed the non-LLM self-credential section (section 5 in the previous draft) that incorrectly instructed storing non-LLM credentials in `admin-vault`. Updated the bidirectional channel section to clarify it applies specifically to LLM key changes, not general tenant credentials.
+
 ## 0.10.2 - 2026-06-29
 
 ### Changed
