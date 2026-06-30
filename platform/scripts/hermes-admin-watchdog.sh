@@ -34,16 +34,22 @@ LOG_RETENTION_DAYS=30   # entries older than this are dropped on each prune pass
 
 # --- Install mode ---
 if [[ "${1:-}" == "--install" ]]; then
-  UNIT_DIR="$HOME/.config/systemd/user"
-  mkdir -p "$UNIT_DIR"
+  if [[ "$(id -u)" -ne 0 ]]; then
+    echo "Must run as root (sudo) to install the system watchdog unit." >&2
+    exit 1
+  fi
+
+  UNIT_DIR="/etc/systemd/system"
 
   cat > "$UNIT_DIR/hermes-admin-watchdog.service" <<UNIT
 [Unit]
 Description=Hermes Admin Agent Watchdog
-After=default.target
+After=network-online.target
 
 [Service]
 Type=oneshot
+User=aaas
+Environment=PATH=/opt/aaas/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=${PLATFORM_DIR}/scripts/hermes-admin-watchdog.sh
 UNIT
 
@@ -61,9 +67,9 @@ Unit=hermes-admin-watchdog.service
 WantedBy=timers.target
 TIMER
 
-  systemctl --user daemon-reload
-  systemctl --user enable --now hermes-admin-watchdog.timer
-  echo "Watchdog installed. Check: systemctl --user status hermes-admin-watchdog.timer"
+  systemctl daemon-reload
+  systemctl enable --now hermes-admin-watchdog.timer
+  echo "Watchdog installed. Check: systemctl status hermes-admin-watchdog.timer"
   exit 0
 fi
 
