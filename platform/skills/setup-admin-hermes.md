@@ -3,8 +3,9 @@ name: setup-admin-hermes
 description: >
   Step 2 of platform setup. Install and configure Hermes as the admin agent,
   with its LLM API key secured through Agent Vault (same policy as tenants).
-  Run this after OpenCode setup and Agent Vault are both operational.
-  Required before enabling the bidirectional channel.
+  Optionally configures a Telegram channel for the admin agent if the
+  operator requests it. Run this after OpenCode setup and Agent Vault are
+  both operational. Required before enabling the bidirectional channel.
 ---
 
 # Skill: Setup Admin Hermes
@@ -37,6 +38,19 @@ except Agent Vault (Step 5).
 3. Dashboard host. Recommended: 127.0.0.1
 4. Dashboard port. Recommended: 9119
 5. Dashboard basic auth? Recommended: yes if binding outside localhost
+6. Enable Telegram for admin Hermes? If yes, also collect:
+   - Telegram bot token (from @BotFather)
+   - Allow list: numeric Telegram user IDs permitted to message this agent.
+     Mandatory if Telegram is enabled — do not proceed to Step 3.1 with an
+     empty allow list. If the operator gives none, stop and ask again; an
+     enabled Telegram channel with no allowed users is not a valid state.
+   - home_chat_id: which allowed user is the primary contact for proactive
+     messages (alerts, restart notifications)?
+     - If the allow list has more than one ID, present them as options and
+       ask the operator to choose.
+     - If the allow list has exactly one ID, use it as home_chat_id
+       automatically — no separate confirmation needed, since it's the
+       only valid choice.
 
 ## Step 1 — Install Runtime
 
@@ -69,6 +83,55 @@ Copy only missing files (never overwrite without operator confirmation):
 Update /opt/aaas/platform/admin/config.yaml with provider, model, dashboard
 values. Leave .env untouched until Step 5 — real API key must never be
 written into .env.
+
+## Step 3.1 — Configure Telegram (optional)
+
+Skip this step entirely if the operator declined Telegram in Ask The
+Operator above. Leave the commented-out TELEGRAM_BOT_TOKEN /
+TELEGRAM_ALLOWED_USERS lines in .env and the commented-out
+gateway.platforms.telegram block in config.yaml as-is.
+
+If the operator enabled Telegram, the allow list is mandatory — do not
+continue with this step if it's empty. Go back to Ask The Operator and
+collect at least one ID before writing anything.
+
+1. Uncomment and fill in .env:
+
+       TELEGRAM_BOT_TOKEN={token}
+       TELEGRAM_ALLOWED_USERS={comma-separated numeric IDs}
+
+   TELEGRAM_ALLOWED_USERS is still the access control mechanism — anyone
+   not on this list cannot reach the agent even if they somehow learn
+   home_chat_id. home_chat_id only designates the primary contact for
+   Hermes-initiated messages (alerts, restart notifications); it does not
+   grant access by itself.
+
+2. Uncomment the gateway block in config.yaml, setting home_chat_id to the
+   ID selected (multi-ID case) or forced-default (single-ID case) in Ask
+   The Operator above — never left empty/auto-populated, unlike a tenant
+   bot with unknown first contact:
+
+       gateway:
+         platforms:
+           telegram:
+             home_chat_id: "{selected-id}"
+             gateway_restart_notification: true
+
+3. Verify the token format looks plausible (numeric bot ID, colon, token
+   body) before writing it — do not write an empty or obviously malformed
+   token. Never print the token value in any report or log.
+
+4. After Step 7 starts Hermes, send a test message to the selected
+   home_chat_id to verify delivery:
+
+       curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+         -d chat_id="{selected-home-chat-id}" \
+         --data-urlencode text="Admin Hermes Telegram channel is live."
+
+   A `400 Bad Request: chat not found` or `403 Forbidden` means that user
+   has not yet opened the bot and sent /start — this is expected for users
+   who haven't initiated contact yet, not a setup failure. Note it in the
+   task report rather than treating it as blocking.
 
 ## Step 4 — Install Agent Vault CA on Host
 
@@ -178,6 +241,22 @@ If either check fails, stop. Remove the real key manually and re-run Step 5.5.
     agent-vault vault service list --vault admin-vault
     agent-vault agent list --vault admin-vault
 
+If Telegram was enabled in Step 3.1, also verify:
+
+    grep -q "^TELEGRAM_BOT_TOKEN=." /opt/aaas/platform/admin/.env     && echo "OK: telegram token set"
+    grep -q "^TELEGRAM_ALLOWED_USERS=." /opt/aaas/platform/admin/.env && echo "OK: telegram allow list set"
+    grep -q "telegram:" /opt/aaas/platform/admin/config.yaml          && echo "OK: telegram gateway block"
+    grep -q 'home_chat_id: ""' /opt/aaas/platform/admin/config.yaml \
+      && echo "FAIL: home_chat_id was not set — Ask The Operator step was skipped or incomplete" \
+      || echo "OK: home_chat_id set"
+    grep -q "^TELEGRAM_ALLOWED_USERS=$" /opt/aaas/platform/admin/.env \
+      && echo "FAIL: TELEGRAM_ALLOWED_USERS is empty — allow list is mandatory when Telegram is enabled" \
+      || echo "OK: allow list non-empty"
+
+If Telegram was declined, confirm the lines remain commented out instead:
+
+    grep -q "^# TELEGRAM_BOT_TOKEN=" /opt/aaas/platform/admin/.env && echo "OK: telegram left disabled"
+
 ## Step 7 — Start Hermes and Verify Proxy
 
     cd /opt/aaas/platform/admin
@@ -210,7 +289,8 @@ Write a task report using /opt/aaas/platform/sop/write-report.md.
 
 Include: provider name, model name, dashboard host/port, files created, vault
 name, agent token name (hermes_admin), CA trust status, proxy verification
-result, watchdog install status.
+result, watchdog install status, Telegram enabled/declined status, and (if
+enabled) allow-list size and test message delivery result per user ID.
 
-Never include: API keys, vault tokens, passwords, auth secrets, or any
-credential-shaped value.
+Never include: API keys, vault tokens, passwords, auth secrets, Telegram bot
+tokens, or any credential-shaped value.

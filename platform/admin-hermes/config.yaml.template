@@ -24,3 +24,13 @@ display:
 dashboard:
   host: 127.0.0.1
   port: 9119
+
+# Telegram gateway is optional for admin Hermes. If the operator declined
+# Telegram during setup-admin-hermes, leave this block absent/commented.
+# If enabled, setup-admin-hermes uncomments this and sets home_chat_id to
+# the operator-confirmed contact (not auto-populated, unlike tenant bots).
+# gateway:
+#   platforms:
+#     telegram:
+#       home_chat_id: ""
+#       gateway_restart_notification: true
