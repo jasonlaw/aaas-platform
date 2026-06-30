@@ -4,6 +4,11 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.13.6 - 2026-06-30
+
+### Fixed
+- **The Hermes admin agent could execute `upgrade-platform.md` itself, with no agent ever restarted afterward to pick up the change it had just made.** `upgrade-platform.md` rewrites `AGENTS.md`, every SOP and skill, `policy/platform-policy.yaml`, and the admin agent's own templates — i.e. the files defining the running agent's behavior — but nothing in this repo distinguished an interactive OpenCode session from the always-on, Telegram-reachable Hermes admin agent when it came to who may run this specific SOP. Both load the same `AGENTS.md` and the same SOP index, and the SOP's only gate was a same-channel `y/n` confirmation. Fixed in three places: `upgrade-platform.md` now has an explicit step 0 precondition that the Hermes admin agent must stop and hand off rather than proceed; `admin-hermes/SOUL.md.template` gains an Operating Rule forbidding self-execution while still allowing the agent to check `VERSION` and proactively notify the operator; `AGENTS.md`'s top-level Rules section states the same restriction so it's visible regardless of which template path an instance was set up from. Platform upgrades must now be initiated by the operator directly from an interactive OpenCode session at the host.
+
 ## 0.13.5 - 2026-06-30
 
 ### Fixed
