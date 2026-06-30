@@ -161,7 +161,9 @@ Also update the proxy URLs to use the new token:
     sed -i "s|^HTTPS_PROXY=.*|HTTPS_PROXY=http://${NEW_TOKEN}@{proxy-host}:14322|" {env-file-path}
 
 Proxy host is `localhost:14322` for the admin agent (runs on host) and
-`agent-vault:14322` for tenant containers.
+`agent-vault-proxy-{tenant-id}:14322` for tenant containers (the per-tenant
+forwarding sidecar — never `agent-vault:14322` directly, see
+provision-tenant-vault.md step 1b).
 
 Force-recreate the container after `.env` changes (see step 2.5).
 

@@ -122,9 +122,19 @@ do not attempt to author it inline; report this and stop.
    `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    The tenant container runs as UID `10000`; without this, mounted `/opt/data` paths such as logs and Mnemosyne data can fail with `Permission denied`. Use `sudo cat` from the host when inspecting seeded files after this point.
    `chown -R` only changes ownership, not mode — immediately repair host-side access so the `docker compose` CLI (run as the operator/automation user, not root) can still read the files it needs:
-   `sudo chmod 755 /opt/aaas/tenants/{tenant-id}/`
-   `sudo chmod 644 /opt/aaas/tenants/{tenant-id}/.env`
+   `sudo chmod -R go+rX /opt/aaas/tenants/{tenant-id}/`
    Without this, `docker compose up` for the tenant can fail to read `.env` even though the daemon itself runs as root, because the CLI parses `env_file` client-side before submitting the request.
+   Use `-R` (recursive), not a single chmod on the top-level directory only —
+   a non-recursive chmod leaves any subdirectory the tenant container creates
+   later at runtime (Mnemosyne data, logs, etc., owned by UID 10000 with its
+   own restrictive default umask) unreadable to the host operator again, even
+   though the top-level directory looks fine. `go+rX` adds read (and execute,
+   only where already set — i.e. only on directories and already-executable
+   files) for group and other without touching owner bits or stripping `+x`
+   off scripts. This step is gated by the `tenant_volume_host_readable`
+   checklist item — re-run it (and re-run `troubleshoot-tenant.md`'s
+   permission-repair step below) any time `harness/check-tenant.sh` reports
+   that check as FAIL, including after the tenant has been running a while.
 8. Update `/opt/aaas/platform/docker/docker-compose.yaml` structurally under the top-level `services:` mapping. If the file only contains an empty placeholder, replace it with a normal `services:` block plus the tenant service:
    - service/container name: `hermes_{tenant-id}`
    - image: `hermes-tenant:latest`
@@ -136,7 +146,7 @@ do not attempt to author it inline; report this and stop.
    - no published ports — the tenant agent only makes outbound calls (to
      Agent Vault's proxy and to admin Hermes's API server, both host-side);
      it does not run a listener of its own that needs to be reachable
-   - network: `hermes-{tenant-id}-net` (this tenant's isolated network, created and joined by Agent Vault in provision-tenant-vault.md steps 1a/1b, before this step runs — so the container can reach the Agent Vault proxy on `http://agent-vault:14322` without sharing a network with any other tenant). Declare this network as `external: true` with `name: hermes-{tenant-id}-net` at the bottom of docker-compose.yaml if not already present — the explicit `name:` is required, see provision-tenant-vault.md step 8 for why.
+   - network: `hermes-{tenant-id}-net` (this tenant's isolated network, created in provision-tenant-vault.md step 1a and joined by the forwarding sidecar `agent-vault-proxy-{tenant-id}` in step 1b — not Agent Vault itself — so the container can reach the Agent Vault proxy on `http://agent-vault-proxy-{tenant-id}:14322` without sharing a network with any other tenant, and without the management API at `:14321` ever being reachable). Declare this network as `external: true` with `name: hermes-{tenant-id}-net` at the bottom of docker-compose.yaml if not already present — the explicit `name:` is required, see provision-tenant-vault.md step 8 for why.
 9. Start only this tenant: `docker compose up -d hermes_{tenant-id}`.
 10. **Verify container outbound connectivity** (critical for Telegram and external APIs):
     - Wait 5 seconds for container to stabilize
