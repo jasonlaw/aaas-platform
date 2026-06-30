@@ -169,7 +169,8 @@ display:
 gateway:
   platforms:
     telegram:
-      home_chat_id: ""      # auto-populated on first message
+      home_chat_id: ""      # not read by the gateway (dead config); access
+                             # is gated entirely by TELEGRAM_ALLOWED_USERS
       gateway_restart_notification: true
 
 ```

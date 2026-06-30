@@ -44,11 +44,12 @@ except Agent Vault (Step 5).
      Mandatory if Telegram is enabled — do not proceed to Step 3.1 with an
      empty allow list. If the operator gives none, stop and ask again; an
      enabled Telegram channel with no allowed users is not a valid state.
-   - home_chat_id: which allowed user is the primary contact for proactive
-     messages (alerts, restart notifications)?
+   - TELEGRAM_HOME_CHANNEL: which allowed user is the primary contact for
+     proactive messages (alerts, restart notifications)? Set via .env, not
+     config.yaml — see Step 3.1.
      - If the allow list has more than one ID, present them as options and
        ask the operator to choose.
-     - If the allow list has exactly one ID, use it as home_chat_id
+     - If the allow list has exactly one ID, use it as the home channel
        automatically — no separate confirmation needed, since it's the
        only valid choice.
 
@@ -62,6 +63,19 @@ except Agent Vault (Step 5).
 
 Ensure $HOME/.local/bin is on PATH. Add to ~/.bashrc if missing:
     export PATH="$HOME/.local/bin:$PATH"
+
+**Known gap (unverified, not yet fixed here):** a field report from a live
+setup additionally needed `dashboard_auth` (described as a `hermes-agent`
+wheel packaging bug) and the `plugins/platforms/telegram/` adapter plus
+`python-telegram-bot` v22.8 installed separately before Telegram would load
+at all — on top of the `home_chat_id`/`HERMES_HOME` fixes in Step 3.1 above.
+This skill's Step 1 install command was not changed to add these, because
+the exact missing extra/dependency and whether it's universal or specific
+to that environment could not be confirmed against `hermes-agent` source
+from here. If Telegram fails to load with an import error for
+`dashboard_auth` or a missing platform adapter after Step 1, check whether
+`'hermes-agent[web,pty,telegram]'` (or similar) is the intended extras
+syntax, and update this step once confirmed.
 
 ## Step 2 — Create Admin Profile
 
@@ -99,39 +113,59 @@ collect at least one ID before writing anything.
 
        TELEGRAM_BOT_TOKEN={token}
        TELEGRAM_ALLOWED_USERS={comma-separated numeric IDs}
+       TELEGRAM_HOME_CHANNEL={selected-id}
 
-   TELEGRAM_ALLOWED_USERS is still the access control mechanism — anyone
-   not on this list cannot reach the agent even if they somehow learn
-   home_chat_id. home_chat_id only designates the primary contact for
-   Hermes-initiated messages (alerts, restart notifications); it does not
-   grant access by itself.
+   TELEGRAM_ALLOWED_USERS is the access control mechanism — anyone not on
+   this list cannot reach the agent even if they somehow learn the home
+   channel ID. TELEGRAM_HOME_CHANNEL only designates the primary contact
+   for Hermes-initiated messages (alerts, restart notifications); it does
+   not grant access by itself. This is the only place the home channel is
+   actually configured — the gateway reads it via `_apply_env_overrides()`
+   in `gateway/config.py`. It does **not** read any `home_chat_id` key from
+   `config.yaml`; that key only exists in the template as inert
+   documentation of the field tenant bots leave empty (see config.yaml.template
+   comment). Do not rely on setting `home_chat_id` in `config.yaml` — it has
+   no effect on routing.
 
-2. Uncomment the gateway block in config.yaml, setting home_chat_id to the
-   ID selected (multi-ID case) or forced-default (single-ID case) in Ask
-   The Operator above — never left empty/auto-populated, unlike a tenant
-   bot with unknown first contact:
-
-       gateway:
-         platforms:
-           telegram:
-             home_chat_id: "{selected-id}"
-             gateway_restart_notification: true
+2. Leave the gateway block in config.yaml as shipped (commented out, or
+   uncommented with `home_chat_id` left empty) — there is nothing to fill
+   in here for the home channel; `TELEGRAM_HOME_CHANNEL` in `.env` from
+   step 1 is what actually configures it.
 
 3. Verify the token format looks plausible (numeric bot ID, colon, token
    body) before writing it — do not write an empty or obviously malformed
    token. Never print the token value in any report or log.
 
-4. After Step 7 starts Hermes, send a test message to the selected
-   home_chat_id to verify delivery:
+4. The gateway must be started with `HERMES_HOME` exported to the process
+   environment (`/opt/aaas/platform/admin`) or it falls back to `~/.hermes`,
+   finds no config there, and silently starts with no messaging platforms
+   enabled — no error, just "No messaging platforms enabled" in the gateway
+   log. Step 7 below already does this; if Hermes is ever started by hand
+   outside this skill, `HERMES_HOME` must be set first.
+
+5. After Step 7 starts Hermes, send a test message to the configured
+   TELEGRAM_HOME_CHANNEL value to verify delivery:
 
        curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-         -d chat_id="{selected-home-chat-id}" \
+         -d chat_id="${TELEGRAM_HOME_CHANNEL}" \
          --data-urlencode text="Admin Hermes Telegram channel is live."
 
    A `400 Bad Request: chat not found` or `403 Forbidden` means that user
    has not yet opened the bot and sent /start — this is expected for users
    who haven't initiated contact yet, not a setup failure. Note it in the
    task report rather than treating it as blocking.
+
+6. Confirm in the gateway log that Telegram actually connected, not just
+   that the process started — `HERMES_HOME` and `TELEGRAM_HOME_CHANNEL`
+   misconfiguration both fail silently (no crash, no error), so absence
+   of an error is not sufficient evidence:
+
+       grep -i "Connected to Telegram\|No messaging platforms enabled" \
+         /opt/aaas/platform/logs/hermes-admin.log | tail -5
+
+   Expect "Connected to Telegram". If you instead see "No messaging
+   platforms enabled", `HERMES_HOME` was not set when the process started
+   — restart per Step 7 with `HERMES_HOME` exported first.
 
 ## Step 4 — Install Agent Vault CA on Host
 
@@ -245,17 +279,25 @@ If Telegram was enabled in Step 3.1, also verify:
 
     grep -q "^TELEGRAM_BOT_TOKEN=." /opt/aaas/platform/admin/.env     && echo "OK: telegram token set"
     grep -q "^TELEGRAM_ALLOWED_USERS=." /opt/aaas/platform/admin/.env && echo "OK: telegram allow list set"
-    grep -q "telegram:" /opt/aaas/platform/admin/config.yaml          && echo "OK: telegram gateway block"
-    grep -q 'home_chat_id: ""' /opt/aaas/platform/admin/config.yaml \
-      && echo "FAIL: home_chat_id was not set — Ask The Operator step was skipped or incomplete" \
-      || echo "OK: home_chat_id set"
+    grep -q "^TELEGRAM_HOME_CHANNEL=." /opt/aaas/platform/admin/.env \
+      && echo "OK: home channel set" \
+      || echo "FAIL: TELEGRAM_HOME_CHANNEL was not set in .env — Ask The Operator step was skipped or incomplete"
     grep -q "^TELEGRAM_ALLOWED_USERS=$" /opt/aaas/platform/admin/.env \
       && echo "FAIL: TELEGRAM_ALLOWED_USERS is empty — allow list is mandatory when Telegram is enabled" \
       || echo "OK: allow list non-empty"
 
+Do not check `home_chat_id` in config.yaml as evidence of anything — it is
+dead config the gateway never reads (see Step 3.1, item 1). Checking it
+would validate the wrong file and could pass even when Telegram is
+completely unconfigured.
+
 If Telegram was declined, confirm the lines remain commented out instead:
 
     grep -q "^# TELEGRAM_BOT_TOKEN=" /opt/aaas/platform/admin/.env && echo "OK: telegram left disabled"
+
+After Step 7 starts Hermes, this validation step only confirms config was
+*written* correctly — it does not confirm the gateway actually connected.
+Run Step 3.1 item 6's log check after Step 7 for that.
 
 ## Step 7 — Start Hermes and Verify Proxy
 

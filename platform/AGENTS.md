@@ -21,6 +21,8 @@ You manage Hermes tenant agents running as Docker containers.
 - Utility scripts: /opt/aaas/platform/scripts/
 - Incident playbooks: /opt/aaas/platform/incidents/
 - Task reports: /opt/aaas/platform/reports/
+- Operational logs (watchdog, Hermes admin process stdout — rotated, not for
+  AI-index lookups; use INDEX.jsonl under reports/ for that): /opt/aaas/platform/logs/
 - Knowledge vault (Obsidian-compatible second brain): /opt/aaas/platform/vault/
 - Platform backups: /opt/aaas/platform/backups/
 

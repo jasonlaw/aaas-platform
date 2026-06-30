@@ -24,5 +24,8 @@ display:
 gateway:
   platforms:
     telegram:
-      home_chat_id: ""      # auto-populated on first message
+      home_chat_id: ""      # NOT read by the gateway (dead config, kept for
+                             # documentation only). Tenant bots have no
+                             # home channel mechanism — TELEGRAM_ALLOWED_USERS
+                             # in .env is the only thing that gates access.
       gateway_restart_notification: true

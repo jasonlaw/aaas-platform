@@ -20,7 +20,9 @@ set -euo pipefail
 
 PLATFORM_DIR="/opt/aaas/platform"
 ADMIN_DIR="${PLATFORM_DIR}/admin"
-WATCHDOG_LOG="${PLATFORM_DIR}/reports/hermes-admin-watchdog.log"
+LOG_DIR="${PLATFORM_DIR}/logs"
+WATCHDOG_LOG="${LOG_DIR}/hermes-admin-watchdog.log"
+HERMES_PROC_LOG="${LOG_DIR}/hermes-admin.log"
 LOCK_FILE="/tmp/hermes-admin-watchdog.lock"
 DASHBOARD_HOST="127.0.0.1"
 DASHBOARD_PORT="9119"
@@ -28,6 +30,7 @@ API_SERVER_PORT="8642"
 MAX_RESTART_ATTEMPTS=2
 PROBE_TIMEOUT=15    # seconds to wait for dashboard after restart
 OPENCODE_TIMEOUT=300
+LOG_RETENTION_DAYS=30   # entries older than this are dropped on each prune pass
 
 # --- Install mode ---
 if [[ "${1:-}" == "--install" ]]; then
@@ -66,8 +69,29 @@ fi
 
 # --- Helpers ---
 
+# Drop log lines older than LOG_RETENTION_DAYS. Cheap single-pass awk, only
+# invoked when we're about to write (state-change events), never on the
+# silent healthy-check path — so this never runs on the vast majority of
+# 5-minute ticks.
+prune_log() {
+  local file="$1"
+  [[ -f "$file" ]] || return 0
+  local cutoff
+  cutoff="$(date -d "-${LOG_RETENTION_DAYS} days" '+%Y-%m-%d' 2>/dev/null \
+    || date -v-"${LOG_RETENTION_DAYS}"d '+%Y-%m-%d' 2>/dev/null)" || return 0
+  awk -v cutoff="$cutoff" '
+    /^\[[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/ {
+      ts = substr($0, 2, 10)
+      if (ts < cutoff) next
+    }
+    { print }  # keep dated-and-current lines, plus malformed/continuation
+               # lines rather than risk dropping data
+  ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+}
+
 log() {
-  mkdir -p "$(dirname "$WATCHDOG_LOG")"
+  mkdir -p "$LOG_DIR"
+  prune_log "$WATCHDOG_LOG"
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$WATCHDOG_LOG"
 }
 
@@ -85,9 +109,10 @@ start_hermes() {
   [[ -f "${ADMIN_DIR}/.env" ]] || { log "ERROR: ${ADMIN_DIR}/.env missing."; return 1; }
   pkill -f "hermes.*dashboard" 2>/dev/null || true
   sleep 2
+  mkdir -p "$LOG_DIR"
   (cd "${ADMIN_DIR}" && set -a && . ./.env && set +a &&
     nohup hermes dashboard --no-open \
-      >> "${PLATFORM_DIR}/reports/hermes-admin.log" 2>&1 &)
+      >> "${HERMES_PROC_LOG}" 2>&1 &)
 }
 
 wait_for_responsive() {
@@ -133,4 +158,4 @@ In the report, state clearly what was found, what was fixed, and if unresolved, 
 exactly what the operator needs to do next." \
   >> "$WATCHDOG_LOG" 2>&1 || log "OpenCode exited with error or timed out."
 
-log "OpenCode invocation complete. See reports/ for the task report."
+log "OpenCode invocation complete. Watchdog log in logs/; see reports/ for the task report."

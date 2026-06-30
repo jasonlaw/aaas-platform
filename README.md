@@ -33,7 +33,8 @@ aaas-platform/
     ├── scripts/                    — host-side operational scripts (eval-runner.sh, watchdog, vault-init.sh, …)
     ├── docker/                     — Dockerfile for the tenant image
     ├── incidents/                  — incident playbooks
-    └── reports/                    — task reports written by the admin agent during operations
+    ├── reports/                    — task reports written by the admin agent during operations
+    └── logs/                       — operational logs: watchdog activity, Hermes admin process stdout (rotated, kept separate from reports/ so report indexing/analysis tooling never scans them)
 ```
 
 A few path distinctions worth knowing up front, since they're easy to mix up:
@@ -156,9 +157,17 @@ OpenCode will run the `setup-admin-hermes` skill, which:
   (same policy as tenants — the real key never touches `.env`)
 - Installs the Agent Vault MITM CA into the host system trust store
 - Verifies the proxy intercepts LLM calls correctly
+- Optionally configures a Telegram channel for the admin agent, if you want
+  one — asks for a bot token, an allow list of numeric user IDs (mandatory
+  once Telegram is enabled), and which allowed user is the primary contact
+  for proactive messages (`TELEGRAM_HOME_CHANNEL` in `.env`; auto-selected
+  if only one ID is given, chosen by you if there's more than one)
 - Installs a watchdog that monitors Hermes admin every 5 minutes, attempts
   automatic recovery, and invokes OpenCode to diagnose failures before
-  escalating to you
+  escalating to you. Watchdog activity and the Hermes admin process's own
+  stdout are written to `/opt/aaas/platform/logs/` (not `reports/`, so they
+  don't pollute report-indexing tooling), and the watchdog log self-prunes
+  entries older than 30 days on every write so it never grows unbounded.
 
 **What to have ready:** your LLM API key for the admin agent's provider
 (see [Before You Begin](#before-you-begin) above).
