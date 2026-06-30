@@ -12,13 +12,13 @@ Upgrade all active tenants to the latest Docker image after build-image.md compl
    - ensure `/opt/aaas/tenants/{tenant-id}/vault/` exists (tenants onboarded before this feature existed will not have it); if missing, back-fill it without touching any other tenant state:
      ```bash
      mkdir -p /opt/aaas/tenants/{tenant-id}/scripts
-     cp /opt/aaas/platform/scripts/tenant/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
+     cp /opt/aaas/platform/tenant-hermes/scripts/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
      chmod +x /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
      TENANT_DIR=/opt/aaas/tenants/{tenant-id} BUSINESS_NAME="{business-name}" \
        /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh {tenant-id}
      ```
      This is safe to re-run even if the vault already exists — it never overwrites existing notes. After backfilling, also add the `vault -> /home/hermes/vault` mount to this tenant's compose service block if it is missing, since older services predate this mount.
-   - ensure `/opt/aaas/tenants/{tenant-id}/tenant-policy.yaml` exists (tenants onboarded before the policy framework existed will not have it); if missing, create it from `/opt/aaas/platform/templates/_base/tenant-policy.yaml.template` with `{{TENANT_ID}}` and `{{BUSINESS_NAME}}` filled in
+   - ensure `/opt/aaas/tenants/{tenant-id}/tenant-policy.yaml` exists (tenants onboarded before the policy framework existed will not have it); if missing, create it from `/opt/aaas/platform/tenant-hermes/policy/tenant-policy.yaml.template` with `{{TENANT_ID}}` and `{{BUSINESS_NAME}}` filled in
    - re-render the `## Platform rules` and `## Tenant rules` BEGIN/END blocks in `SOUL.md` from `/opt/aaas/platform/policy/platform-policy.yaml` and this tenant's `tenant-policy.yaml`, following the same rendering instruction as onboard-tenant.md step 5/update-tenant.md step 5, so pre-existing tenants pick up policy changes shipped with this platform version
    - backfill: create this tenant's isolated network if it does not exist, and ensure Agent Vault has joined it:
      ```bash

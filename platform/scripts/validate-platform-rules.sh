@@ -13,7 +13,7 @@ set -euo pipefail
 
 PLATFORM_ROOT="${PLATFORM_ROOT:-/opt/aaas/platform}"
 POLICY_FILE="${1:-$PLATFORM_ROOT/policy/platform-policy.yaml}"
-EVAL_FILE="${2:-$PLATFORM_ROOT/evals/tenant-agent/_fixed-safety-v1.yaml}"
+EVAL_FILE="${2:-$PLATFORM_ROOT/tenant-hermes/evals/_fixed-safety-v1.yaml}"
 
 ERRORS=0
 

@@ -191,9 +191,9 @@ validate_asset_source() {
     "$ASSET_ROOT/checklists/onboard-tenant.required.json"
     "$ASSET_ROOT/checklists/monitor-health.required.json"
     "$ASSET_ROOT/policy/platform-policy.yaml"
-    "$ASSET_ROOT/evals/tenant-agent/_fixed-safety-v1.yaml"
-    "$ASSET_ROOT/evals/tenant-agent/generated/.gitkeep"
-    "$ASSET_ROOT/evals/admin-agent/meta-eval-generation-v1.yaml"
+    "$ASSET_ROOT/tenant-hermes/evals/_fixed-safety-v1.yaml"
+    "$ASSET_ROOT/tenant-hermes/evals/generated/.gitkeep"
+    "$ASSET_ROOT/evals/meta-eval-generation-v1.yaml"
     "$ASSET_ROOT/scripts/preflight-check.sh"
     "$ASSET_ROOT/scripts/validate-tenant-config.sh"
     "$ASSET_ROOT/scripts/generate-platform-eval.sh"
@@ -202,8 +202,8 @@ validate_asset_source() {
     "$ASSET_ROOT/scripts/eval-runner.sh"
     "$ASSET_ROOT/scripts/eval-judge.sh"
     "$ASSET_ROOT/scripts/_eval-check-single.sh"
-    "$ASSET_ROOT/scripts/tenant/skill-verify.sh"
-    "$ASSET_ROOT/scripts/tenant/vault-init-tenant.sh"
+    "$ASSET_ROOT/tenant-hermes/scripts/skill-verify.sh"
+    "$ASSET_ROOT/tenant-hermes/scripts/vault-init-tenant.sh"
     "$ASSET_ROOT/incidents/all-tenants-no-connectivity.md"
     "$ASSET_ROOT/incidents/docker-version-rollback.md"
     "$ASSET_ROOT/incidents/telegram-api-change.md"
@@ -231,12 +231,12 @@ validate_asset_source() {
     "$ASSET_ROOT/scripts/vault-init.sh"
     "$ASSET_ROOT/scripts/agent-vault-health.sh"
     "$ASSET_ROOT/incidents/agent-vault-failure.md"
-    "$ASSET_ROOT/templates/_base/config.yaml.template"
-    "$ASSET_ROOT/templates/_base/env.template"
-    "$ASSET_ROOT/templates/_base/SOUL.md.template"
-    "$ASSET_ROOT/templates/_base/USER.md.template"
-    "$ASSET_ROOT/templates/_base/MEMORY.md.template"
-    "$ASSET_ROOT/templates/_base/tenant-policy.yaml.template"
+    "$ASSET_ROOT/tenant-hermes/config.yaml.template"
+    "$ASSET_ROOT/tenant-hermes/env.template"
+    "$ASSET_ROOT/tenant-hermes/SOUL.md.template"
+    "$ASSET_ROOT/tenant-hermes/USER.md.template"
+    "$ASSET_ROOT/tenant-hermes/MEMORY.md.template"
+    "$ASSET_ROOT/tenant-hermes/policy/tenant-policy.yaml.template"
   )
 
   for path in "${required[@]}"; do
@@ -261,17 +261,17 @@ validate_installed_matches_source() {
     "harness/ACCEPTANCE.md.template"
     "checklists/onboard-tenant.required.json"
     "checklists/monitor-health.required.json"
-    "evals/tenant-agent/_fixed-safety-v1.yaml"
-    "evals/tenant-agent/generated/.gitkeep"
-    "evals/admin-agent/meta-eval-generation-v1.yaml"
+    "tenant-hermes/evals/_fixed-safety-v1.yaml"
+    "tenant-hermes/evals/generated/.gitkeep"
+    "evals/meta-eval-generation-v1.yaml"
     "scripts/preflight-check.sh"
     "scripts/validate-tenant-config.sh"
     "scripts/analyze-reports.sh"
     "scripts/eval-runner.sh"
     "scripts/eval-judge.sh"
     "scripts/_eval-check-single.sh"
-    "scripts/tenant/skill-verify.sh"
-    "scripts/tenant/vault-init-tenant.sh"
+    "tenant-hermes/scripts/skill-verify.sh"
+    "tenant-hermes/scripts/vault-init-tenant.sh"
     "incidents/all-tenants-no-connectivity.md"
     "incidents/docker-version-rollback.md"
     "incidents/telegram-api-change.md"
@@ -299,11 +299,11 @@ validate_installed_matches_source() {
     "scripts/vault-init.sh"
     "scripts/agent-vault-health.sh"
     "incidents/agent-vault-failure.md"
-    "templates/_base/config.yaml.template"
-    "templates/_base/env.template"
-    "templates/_base/SOUL.md.template"
-    "templates/_base/USER.md.template"
-    "templates/_base/MEMORY.md.template"
+    "tenant-hermes/config.yaml.template"
+    "tenant-hermes/env.template"
+    "tenant-hermes/SOUL.md.template"
+    "tenant-hermes/USER.md.template"
+    "tenant-hermes/MEMORY.md.template"
   )
 
   for relative_path in "${relative_paths[@]}"; do
@@ -333,7 +333,7 @@ backup_managed_assets() {
     "incidents"
     "sop"
     "skills"
-    "templates"
+    "tenant-hermes"
     "scripts"
   )
 
@@ -414,7 +414,7 @@ install_assets() {
   mkdir -p "$PLATFORM_ROOT/skills"
   mkdir -p "$PLATFORM_ROOT/reports"
   mkdir -p "$PLATFORM_ROOT/backups"
-  mkdir -p "$PLATFORM_ROOT/templates"
+  mkdir -p "$PLATFORM_ROOT/tenant-hermes"
   mkdir -p "$PLATFORM_ROOT/docker"
   mkdir -p "$PLATFORM_ROOT/admin-hermes"
   mkdir -p "$PLATFORM_ROOT/harness"
@@ -434,7 +434,7 @@ install_assets() {
 
   copy_tree "$ASSET_ROOT/sop" "$PLATFORM_ROOT/sop"
   copy_tree "$ASSET_ROOT/skills" "$PLATFORM_ROOT/skills"
-  copy_tree "$ASSET_ROOT/templates" "$PLATFORM_ROOT/templates"
+  copy_tree "$ASSET_ROOT/tenant-hermes" "$PLATFORM_ROOT/tenant-hermes"
   copy_tree "$ASSET_ROOT/admin-hermes" "$PLATFORM_ROOT/admin-hermes"
   copy_tree "$ASSET_ROOT/harness" "$PLATFORM_ROOT/harness"
   copy_tree "$ASSET_ROOT/checklists" "$PLATFORM_ROOT/checklists"
@@ -442,7 +442,6 @@ install_assets() {
   copy_tree "$ASSET_ROOT/evals" "$PLATFORM_ROOT/evals"
   copy_tree "$ASSET_ROOT/incidents" "$PLATFORM_ROOT/incidents"
   copy_tree "$ASSET_ROOT/scripts" "$PLATFORM_ROOT/scripts"
-  mkdir -p "$PLATFORM_ROOT/scripts/tenant"
   chmod +x "$PLATFORM_ROOT/harness/check-tenant.sh"
   chmod +x "$PLATFORM_ROOT/scripts/preflight-check.sh"
   chmod +x "$PLATFORM_ROOT/scripts/validate-tenant-config.sh"
@@ -450,8 +449,8 @@ install_assets() {
   chmod +x "$PLATFORM_ROOT/scripts/eval-runner.sh"
   chmod +x "$PLATFORM_ROOT/scripts/eval-judge.sh"
   chmod +x "$PLATFORM_ROOT/scripts/_eval-check-single.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/tenant/skill-verify.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/tenant/vault-init-tenant.sh"
+  chmod +x "$PLATFORM_ROOT/tenant-hermes/scripts/skill-verify.sh"
+  chmod +x "$PLATFORM_ROOT/tenant-hermes/scripts/vault-init-tenant.sh"
   chmod +x "$PLATFORM_ROOT/scripts/agent-vault-health.sh"
   chmod +x "$PLATFORM_ROOT/scripts/vault-init.sh"
   chmod +x "$PLATFORM_ROOT/scripts/generate-platform-eval.sh"
@@ -645,17 +644,17 @@ validate_install() {
     "$PLATFORM_ROOT/harness/ACCEPTANCE.md.template"
     "$PLATFORM_ROOT/checklists/onboard-tenant.required.json"
     "$PLATFORM_ROOT/checklists/monitor-health.required.json"
-    "$PLATFORM_ROOT/evals/tenant-agent/_fixed-safety-v1.yaml"
-    "$PLATFORM_ROOT/evals/tenant-agent/generated/.gitkeep"
-    "$PLATFORM_ROOT/evals/admin-agent/meta-eval-generation-v1.yaml"
+    "$PLATFORM_ROOT/tenant-hermes/evals/_fixed-safety-v1.yaml"
+    "$PLATFORM_ROOT/tenant-hermes/evals/generated/.gitkeep"
+    "$PLATFORM_ROOT/evals/meta-eval-generation-v1.yaml"
     "$PLATFORM_ROOT/scripts/preflight-check.sh"
     "$PLATFORM_ROOT/scripts/validate-tenant-config.sh"
     "$PLATFORM_ROOT/scripts/analyze-reports.sh"
     "$PLATFORM_ROOT/scripts/eval-runner.sh"
     "$PLATFORM_ROOT/scripts/eval-judge.sh"
     "$PLATFORM_ROOT/scripts/_eval-check-single.sh"
-    "$PLATFORM_ROOT/scripts/tenant/skill-verify.sh"
-    "$PLATFORM_ROOT/scripts/tenant/vault-init-tenant.sh"
+    "$PLATFORM_ROOT/tenant-hermes/scripts/skill-verify.sh"
+    "$PLATFORM_ROOT/tenant-hermes/scripts/vault-init-tenant.sh"
     "$PLATFORM_ROOT/incidents/all-tenants-no-connectivity.md"
     "$PLATFORM_ROOT/incidents/docker-version-rollback.md"
     "$PLATFORM_ROOT/incidents/telegram-api-change.md"
@@ -683,11 +682,11 @@ validate_install() {
     "$PLATFORM_ROOT/scripts/vault-init.sh"
     "$PLATFORM_ROOT/scripts/agent-vault-health.sh"
     "$PLATFORM_ROOT/incidents/agent-vault-failure.md"
-    "$PLATFORM_ROOT/templates/_base/config.yaml.template"
-    "$PLATFORM_ROOT/templates/_base/env.template"
-    "$PLATFORM_ROOT/templates/_base/SOUL.md.template"
-    "$PLATFORM_ROOT/templates/_base/USER.md.template"
-    "$PLATFORM_ROOT/templates/_base/MEMORY.md.template"
+    "$PLATFORM_ROOT/tenant-hermes/config.yaml.template"
+    "$PLATFORM_ROOT/tenant-hermes/env.template"
+    "$PLATFORM_ROOT/tenant-hermes/SOUL.md.template"
+    "$PLATFORM_ROOT/tenant-hermes/USER.md.template"
+    "$PLATFORM_ROOT/tenant-hermes/MEMORY.md.template"
     "$PLATFORM_ROOT/tenants.yaml"
     "$PLATFORM_ROOT/docker/docker-compose.yaml"
     "$PLATFORM_ROOT/reports/INDEX.jsonl"
@@ -697,11 +696,11 @@ validate_install() {
     [ -f "$path" ] || error "Missing required file: $path"
   done
 
-  grep -q "memory_enabled: false" "$PLATFORM_ROOT/templates/_base/config.yaml.template" \
+  grep -q "memory_enabled: false" "$PLATFORM_ROOT/tenant-hermes/config.yaml.template" \
     || error "Base config template must disable native Hermes memory"
-  grep -q "provider: mnemosyne" "$PLATFORM_ROOT/templates/_base/config.yaml.template" \
+  grep -q "provider: mnemosyne" "$PLATFORM_ROOT/tenant-hermes/config.yaml.template" \
     || error "Base config template must set memory.provider to mnemosyne"
-  grep -q "home_chat_id: \"\"" "$PLATFORM_ROOT/templates/_base/config.yaml.template" \
+  grep -q "home_chat_id: \"\"" "$PLATFORM_ROOT/tenant-hermes/config.yaml.template" \
     || error "Base config template must leave Telegram home_chat_id empty"
   grep -q "memory_enabled: false" "$PLATFORM_ROOT/admin-hermes/config.yaml.template" \
     || error "Hermes admin config template must disable native Hermes memory"
@@ -709,9 +708,9 @@ validate_install() {
     || error "Hermes admin config template must set memory.provider to mnemosyne"
   grep -q "MNEMOSYNE_DATA_DIR=/opt/aaas/platform/admin/mnemosyne/data" "$PLATFORM_ROOT/admin-hermes/env.template" \
     || error "Hermes admin env template must keep Mnemosyne data inside the admin profile"
-  grep -q "TELEGRAM_ALLOWED_USERS=" "$PLATFORM_ROOT/templates/_base/env.template" \
+  grep -q "TELEGRAM_ALLOWED_USERS=" "$PLATFORM_ROOT/tenant-hermes/env.template" \
     || error "Base env template must document TELEGRAM_ALLOWED_USERS"
-  grep -q "MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data" "$PLATFORM_ROOT/templates/_base/env.template" \
+  grep -q "MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data" "$PLATFORM_ROOT/tenant-hermes/env.template" \
     || error "Base env template must keep Mnemosyne data inside /opt/data"
   grep -q "FROM nousresearch/hermes-agent:latest" "$PLATFORM_ROOT/docker/Dockerfile" \
     || error "Dockerfile must extend nousresearch/hermes-agent:latest"
@@ -767,9 +766,9 @@ validate_install() {
     || error "write-report SOP must point to the knowledge vault sync step"
   grep -q "vault-init-tenant.sh" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must scaffold the tenant knowledge vault"
-  grep -q "/home/hermes/vault" "$PLATFORM_ROOT/templates/_base/SOUL.md.template" \
+  grep -q "/home/hermes/vault" "$PLATFORM_ROOT/tenant-hermes/SOUL.md.template" \
     || error "Tenant SOUL template must document the tenant knowledge vault path"
-  grep -q "business-data.md" "$PLATFORM_ROOT/templates/_base/SOUL.md.template" \
+  grep -q "business-data.md" "$PLATFORM_ROOT/tenant-hermes/SOUL.md.template" \
     || error "Tenant SOUL template must distinguish the knowledge vault from business-data.md"
   grep -q "tenant-harness.yaml.template" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must create tenant harness manifests"
@@ -779,7 +778,7 @@ validate_install() {
     || error "Tenant harness manifest template must declare version 1"
   grep -q "verified_at_utc" "$PLATFORM_ROOT/harness/ACCEPTANCE.md.template" \
     || error "Tenant acceptance template must include verification timestamp"
-  grep -q "confirms_before_posting" "$PLATFORM_ROOT/evals/tenant-agent/_fixed-safety-v1.yaml" \
+  grep -q "confirms_before_posting" "$PLATFORM_ROOT/tenant-hermes/evals/_fixed-safety-v1.yaml" \
     || error "Fixed tenant eval profile must verify confirmation-before-posting"
   grep -q "preflight-check.sh" "$PLATFORM_ROOT/AGENTS.md" \
     || error "AGENTS.md must advertise platform pre-flight checks"

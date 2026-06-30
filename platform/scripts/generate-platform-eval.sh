@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generate platform/evals/tenant-agent/_fixed-safety-v1.yaml from
+# Generate platform/tenant-hermes/evals/_fixed-safety-v1.yaml from
 # platform/policy/platform-policy.yaml.
 #
 # _fixed-safety-v1.yaml is no longer hand-authored. Run this after editing
@@ -18,7 +18,7 @@ set -euo pipefail
 
 PLATFORM_ROOT="${PLATFORM_ROOT:-/opt/aaas/platform}"
 POLICY_FILE="${1:-$PLATFORM_ROOT/policy/platform-policy.yaml}"
-OUTPUT_FILE="${2:-$PLATFORM_ROOT/evals/tenant-agent/_fixed-safety-v1.yaml}"
+OUTPUT_FILE="${2:-$PLATFORM_ROOT/tenant-hermes/evals/_fixed-safety-v1.yaml}"
 
 command -v yq >/dev/null 2>&1 || { echo "FAIL setup: yq is required" >&2; exit 2; }
 [ -f "$POLICY_FILE" ] || { echo "FAIL setup: missing policy file: $POLICY_FILE" >&2; exit 2; }

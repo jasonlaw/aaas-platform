@@ -299,10 +299,7 @@ sudo mkdir -p /opt/aaas/platform/sop
 sudo mkdir -p /opt/aaas/platform/skills
 sudo mkdir -p /opt/aaas/platform/reports
 sudo mkdir -p /opt/aaas/platform/backups
-sudo mkdir -p /opt/aaas/platform/templates/_base
-sudo mkdir -p /opt/aaas/platform/templates/verticals/fnb
-sudo mkdir -p /opt/aaas/platform/templates/verticals/retail
-sudo mkdir -p /opt/aaas/platform/templates/verticals/services
+sudo mkdir -p /opt/aaas/platform/tenant-hermes
 sudo mkdir -p /opt/aaas/platform/docker
 sudo mkdir -p /opt/aaas/tenants
 sudo mkdir -p /opt/aaas/agent-vault/data

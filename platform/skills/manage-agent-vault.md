@@ -183,12 +183,14 @@ is no longer started with a dead token.
 
 ---
 
-## 5 — Configure Tenant LLM Key via Bidirectional Channel (Future)
+## 5 — Configure Tenant LLM Key via Bidirectional Channel
 
-This section describes the intended behaviour once the bidirectional channel
-between the Hermes admin agent and tenant agents is implemented. It is not
-operational yet — do not act on tenant requests for LLM key changes until the
-channel is in place.
+This section describes the admin agent's behaviour when handling an
+`llm_key_change` request arriving via the bidirectional channel between the
+Hermes admin agent and tenant agents (tenant-side: `tenant-contact-admin.md`;
+admin-side: `handle-tenant-request.md`). The channel is operational — this is
+the same flow `handle-tenant-request.md`'s `llm_key_change` section delegates
+to in step 3.
 
 Agent Vault is involved here specifically because LLM API keys are the one
 credential type that must never enter the agent's context. All other tenant
@@ -196,8 +198,15 @@ credential changes (SMTP passwords, webhook secrets, Telegram tokens, etc.)
 are handled by the tenant agent directly via `.env` append after owner
 confirmation — those never come to the admin agent.
 
-When the bidirectional channel is live and a tenant agent signals that its
-LLM provider key needs to change:
+The tenant's request blocks on an immediate reply, so the operator's
+confirmation virtually never arrives in time to act within that same turn —
+`handle-tenant-request.md` replies to the tenant with a pending status and
+notifies the operator without waiting, then completes the steps below on a
+later turn once the operator has actually responded (either when checking
+back proactively, or when the tenant sends a follow-up asking for status).
+Never run these steps gated on an in-progress wait for the operator's reply.
+
+When the operator has confirmed an LLM provider key change for a tenant:
 
 1. Verify the request originates from the expected tenant agent identity.
 2. Obtain the new key value from the operator — the key must never come from

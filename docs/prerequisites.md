@@ -283,10 +283,7 @@ which opencode
 
 ```bash
 sudo mkdir -p /opt/aaas/platform/sop
-sudo mkdir -p /opt/aaas/platform/templates/_base
-sudo mkdir -p /opt/aaas/platform/templates/verticals/fnb
-sudo mkdir -p /opt/aaas/platform/templates/verticals/retail
-sudo mkdir -p /opt/aaas/platform/templates/verticals/services
+sudo mkdir -p /opt/aaas/platform/tenant-hermes
 sudo mkdir -p /opt/aaas/platform/docker
 sudo mkdir -p /opt/aaas/tenants
 ```

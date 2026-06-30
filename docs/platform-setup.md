@@ -90,19 +90,19 @@ change. Do not use the script header comments as version markers.
 │   ├── skills/
 │   │   ├── grill-me.md
 │   │   └── setup-admin-hermes.md
-│   ├── templates/
-│   │   ├── _base/                       # Universal defaults
-│   │   │   ├── config.yaml.template
-│   │   │   ├── env.template
-│   │   │   ├── SOUL.md.template
-│   │   │   └── USER.md.template
-│   │   └── verticals/
-│   │       ├── fnb/                     # F&B overrides
-│   │       │   ├── SOUL.md.template
-│   │       │   ├── MEMORY.md.template
-│   │       │   └── USER.md.template
-│   │       ├── retail/                  # Placeholder
-│   │       └── services/                # Placeholder
+│   ├── tenant-hermes/                   # Universal tenant agent defaults
+│   │   ├── config.yaml.template
+│   │   ├── env.template
+│   │   ├── SOUL.md.template
+│   │   ├── USER.md.template
+│   │   ├── MEMORY.md.template
+│   │   ├── policy/
+│   │   │   └── tenant-policy.yaml.template
+│   │   ├── skills/
+│   │   │   └── tenant-contact-admin.md  # Tenant-side skill, copied into tenant volume
+│   │   └── scripts/
+│   │       ├── skill-verify.sh          # Run inside tenant container
+│   │       └── vault-init-tenant.sh     # Run inside tenant container
 │   └── docker/
 │       ├── Dockerfile                   # Custom image definition
 │       └── docker-compose.yaml          # All tenant containers
@@ -181,142 +181,29 @@ Expected: `hermes-tenant` listed with `latest` and `v1.0` tags.
 
 ## Phase 2: Templates
 
-The automation script copies the repository templates from `platform/templates/`
-to `/opt/aaas/platform/templates/`.
+The automation script copies the repository tenant Hermes agent templates from
+`platform/tenant-hermes/` to `/opt/aaas/platform/tenant-hermes/`.
 
-### 2.1 Base templates
+### 2.1 Tenant Hermes agent templates
 
-**`/opt/aaas/platform/templates/_base/config.yaml.template`**
-```yaml
-_config_version: 1
+These are rendered once per tenant during onboarding (`onboard-tenant.md` step 5)
+using placeholders like `{{BUSINESS_NAME}}`, `{{BRAND_TONE}}`, and
+`{{VERTICAL_CAPABILITIES_BLOCK}}`. Read the files directly rather than relying on
+a copy here — `SOUL.md.template` in particular is long and changes often as
+platform conduct rules evolve, and an inline copy in this doc would only drift
+out of sync again.
 
-model:
-  provider: {{MODEL_PROVIDER}}
-  default: {{MODEL_NAME}}
-
-# Native Hermes memory DISABLED — replaced by Mnemosyne plugin
-memory:
-  provider: mnemosyne
-  memory_enabled: false
-  user_profile_enabled: false
-  mnemosyne:
-    auto_sleep: true
-    sleep_threshold: 20
-
-terminal:
-  backend: local
-
-display:
-  tool_progress: off
-  busy_ack_detail: off
-  cleanup_progress: true
-
-gateway:
-  platforms:
-    telegram:
-      home_chat_id: ""      # auto-populated on first message
-      gateway_restart_notification: true
-
-```
-
-**`/opt/aaas/platform/templates/_base/env.template`**
-```bash
-# Tenant secrets — DO NOT COMMIT THIS FILE
-# This file documents required secret keys (values are empty)
-# Real values go in .env (gitignored)
-
-# Set the API key required by the selected Hermes model provider.
-# Examples:
-OPENROUTER_API_KEY=
-# OPENAI_API_KEY=
-# ANTHROPIC_API_KEY=
-# NOUS_API_KEY=
-
-TELEGRAM_BOT_TOKEN=
-# Comma-separated numeric Telegram user IDs allowed to use this tenant bot
-TELEGRAM_ALLOWED_USERS=
-
-# Keep Mnemosyne runtime data inside the tenant volume
-MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data
-# DISCORD_BOT_TOKEN=          # uncomment when Discord added
-# WHATSAPP_BRIDGE_TOKEN=      # uncomment when WhatsApp added
-```
-
-**`/opt/aaas/platform/templates/_base/SOUL.md.template`**
-```markdown
-You are a dedicated AI assistant for {{BUSINESS_NAME}}, a {{BUSINESS_TYPE}} business.
-You are friendly, helpful, and proactive.
-You always reflect the brand tone: {{BRAND_TONE}}.
-You never perform irreversible actions without owner confirmation.
-You communicate in {{LANGUAGE}}.
-Memory system: You use Mnemosyne for persistent memory.
-```
-
-**`/opt/aaas/platform/templates/_base/USER.md.template`**
-```markdown
-Owner name: {{OWNER_NAME}}
-Preferred language: {{LANGUAGE}}
-Communication style: {{COMMUNICATION_STYLE}}
-Timezone: {{TIMEZONE}}
-Technical skill level: non-technical — avoid jargon
-```
-
-### 2.2 F&B vertical templates
-
-**`/opt/aaas/platform/templates/verticals/fnb/SOUL.md.template`**
-```markdown
-You are the dedicated AI marketing assistant for {{BUSINESS_NAME}},
-a {{CUISINE_TYPE}} restaurant.
-
-You are friendly, creative, and passionate about food marketing.
-Brand tone: {{BRAND_TONE}}.
-
-You help the owner with:
-- Social media captions and posts
-- Promotional campaigns
-- Seasonal marketing (CNY, Christmas, Hari Raya, etc.)
-- Poster and image generation
-
-You always save generated content to /home/hermes/files/generated/.
-You always store owner-uploaded files to /home/hermes/files/uploads/.
-You never post to social media without explicit owner confirmation.
-You communicate in {{LANGUAGE}}.
-Memory system: You use Mnemosyne for persistent memory.
-```
-
-**`/opt/aaas/platform/templates/verticals/fnb/MEMORY.md.template`**
-```markdown
-# Brand Seed Context
-# One-time Mnemosyne seed file — written during onboarding, used once.
-# After seeding, Mnemosyne manages all memory automatically.
-# Native Hermes memory is disabled — this file is NOT read by Hermes at runtime.
-
-Restaurant: {{BUSINESS_NAME}}, cuisine: {{CUISINE_TYPE}}, located in {{LOCATION}}
-Brand tone: {{BRAND_TONE}}. Match this in all generated content.
-Logo at /home/hermes/files/assets/logo.png. Use for all generated posters.
-Brand colors: primary {{PRIMARY_COLOR}}, secondary {{SECONDARY_COLOR}}
-Menu highlights: {{MENU_HIGHLIGHTS}}
-Primary social platform: Facebook. Post format: caption + image.
-Owner uploads files to /home/hermes/files/uploads/.
-Generated output saved to /home/hermes/files/generated/.
-Always confirm with owner before posting. Never auto-post unless explicitly told to.
-```
-
-**`/opt/aaas/platform/templates/verticals/fnb/USER.md.template`**
-```markdown
-# Owner Seed Context
-# One-time Mnemosyne seed file — written during onboarding, used once.
-
-Owner name: {{OWNER_NAME}}
-Restaurant: {{BUSINESS_NAME}}
-Preferred language: {{LANGUAGE}}
-Communication style: {{COMMUNICATION_STYLE}}
-Timezone: {{TIMEZONE}}
-Posting frequency preference: {{POSTING_FREQUENCY}}
-Technical skill level: non-technical — use simple language, no jargon
-```
-
----
+| File | Renders to | Purpose |
+|---|---|---|
+| `config.yaml.template` | `config.yaml` | Hermes runtime config — model provider, Mnemosyne settings, Telegram gateway |
+| `env.template` | `.env.template` (reference; real values go in `.env`) | Documents required secret keys |
+| `SOUL.md.template` | `SOUL.md` | Agent personality, conduct rules, and the rendered platform/tenant policy rule blocks |
+| `USER.md.template` | `memories/USER.md` | One-time Mnemosyne owner-seed context |
+| `MEMORY.md.template` | `memories/MEMORY.md` | One-time Mnemosyne brand-seed context |
+| `policy/tenant-policy.yaml.template` | `tenant-policy.yaml` | Operator-set, additive-only tenant access restrictions |
+| `skills/tenant-contact-admin.md` | `skills/tenant-contact-admin.md` | Tenant-side skill for reaching the admin agent |
+| `scripts/skill-verify.sh` | `scripts/skill-verify.sh` | Verifies self-written tenant skills (run inside container) |
+| `scripts/vault-init-tenant.sh` | `scripts/vault-init-tenant.sh` | Scaffolds the tenant's knowledge vault (run inside container) |
 
 ## Phase 3: AGENTS.md — Admin agent skill index
 
@@ -339,7 +226,7 @@ You manage Hermes tenant agents running as Docker containers.
 - Docker Compose:     /opt/aaas/platform/docker/docker-compose.yaml
 - SOP skills:         /opt/aaas/platform/sop/
 - General skills:     /opt/aaas/platform/skills/
-- Templates:          /opt/aaas/platform/templates/
+- Tenant Hermes agent templates: /opt/aaas/platform/tenant-hermes/
 - Hermes admin templates: /opt/aaas/platform/admin-hermes/
 - Task reports:       /opt/aaas/platform/reports/
 - Platform backups:   /opt/aaas/platform/backups/
@@ -1021,7 +908,7 @@ Before proceeding to Tenant reference:
 - [ ] Docker image `hermes-tenant:latest` built successfully
 - [ ] The admin agent reads AGENTS.md and describes all skills
 - [ ] All SOP files created in `/opt/aaas/platform/sop/`
-- [ ] All templates created in `/opt/aaas/platform/templates/`
+- [ ] All tenant Hermes templates created in `/opt/aaas/platform/tenant-hermes/`
 - [ ] Dockerfile installed at `/opt/aaas/platform/docker/Dockerfile`
 - [ ] docker-compose.yaml placeholder exists and is valid YAML
 - [ ] Health check SOP handles the empty tenant registry cleanly
