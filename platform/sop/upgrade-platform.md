@@ -28,6 +28,7 @@ Upgrade the installed platform assets to the latest repository version while pre
 - Existing tenant containers unless a separate tenant/image upgrade is requested
 
 ## Steps
+0. **Precondition: this SOP is OpenCode-only.** If you are the Hermes admin agent (not an interactive OpenCode session), stop here — do not proceed to step 1. Notify the operator that a platform upgrade is available/requested and that it must be run from an interactive OpenCode session at the host (`cd /opt/aaas/platform && opencode`).
 1. Read current installed version:
    `cat /opt/aaas/platform/VERSION 2>/dev/null || echo "unknown"`
 2. Read recent platform upgrade reports before proceeding:

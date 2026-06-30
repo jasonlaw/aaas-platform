@@ -110,6 +110,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Incident playbooks: /opt/aaas/platform/incidents/
 
 ## Rules
+- **`upgrade-platform.md` is OpenCode-only.** If you are the Hermes admin agent, never execute it — it rewrites the SOPs, skills, and policy files that define your own behavior, with no automatic restart afterward to pick up the change. Only check `/opt/aaas/platform/VERSION` against the repository and notify the operator that an upgrade is available; the operator must run it themselves from an interactive OpenCode session at the host.
 - Always read the relevant SOP before executing any tenant operation
 - Always read the relevant required checklist before executing an SOP when one exists
 - Run `/opt/aaas/platform/scripts/preflight-check.sh` before major tenant, image, upgrade, or troubleshooting work when Docker/host state matters
