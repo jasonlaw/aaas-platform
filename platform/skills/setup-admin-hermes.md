@@ -27,6 +27,9 @@ first. Do not proceed until it passes.
 - agent-vault CLI authenticated: agent-vault vault list must succeed
 - Python 3 and python3-venv are available
 - Never print, log, or store API keys or passwords in task reports
+- This skill runs as root (or via sudo). It creates and owns a dedicated
+  `aaas` service account — Hermes admin is not tied to any individual
+  operator's login account or $HOME.
 
 ## Ask The Operator
 
@@ -55,14 +58,27 @@ except Agent Vault (Step 5).
 
 ## Step 1 — Install Runtime
 
-    python3 -m venv "$HOME/.local/share/aaas/hermes-admin-venv"
-    "$HOME/.local/share/aaas/hermes-admin-venv/bin/python" -m pip install --upgrade pip
-    "$HOME/.local/share/aaas/hermes-admin-venv/bin/python" -m pip install --upgrade 'hermes-agent[web,pty]' 'mnemosyne-memory[embeddings]' mnemosyne-hermes
-    mkdir -p "$HOME/.local/bin"
-    ln -sf "$HOME/.local/share/aaas/hermes-admin-venv/bin/hermes" "$HOME/.local/bin/hermes"
+Create the dedicated service account that owns Hermes admin, if it doesn't
+already exist. This keeps the agent independent of any individual
+operator's login account:
 
-Ensure $HOME/.local/bin is on PATH. Add to ~/.bashrc if missing:
-    export PATH="$HOME/.local/bin:$PATH"
+    id -u aaas &>/dev/null || \
+      sudo useradd --system --no-create-home --shell /usr/sbin/nologin aaas
+
+Install the venv and binary under /opt/aaas, owned by aaas:
+
+    sudo python3 -m venv /opt/aaas/hermes-admin-venv
+    sudo /opt/aaas/hermes-admin-venv/bin/python -m pip install --upgrade pip
+    sudo /opt/aaas/hermes-admin-venv/bin/python -m pip install --upgrade \
+      'hermes-agent[web,pty]' 'mnemosyne-memory[embeddings]' mnemosyne-hermes
+    sudo mkdir -p /opt/aaas/bin
+    sudo ln -sf /opt/aaas/hermes-admin-venv/bin/hermes /opt/aaas/bin/hermes
+    sudo chown -R aaas:aaas /opt/aaas/hermes-admin-venv /opt/aaas/bin
+
+Add /opt/aaas/bin to the system PATH (not any one user's ~/.bashrc), e.g.
+via /etc/profile.d/aaas.sh:
+
+    echo 'export PATH="/opt/aaas/bin:$PATH"' | sudo tee /etc/profile.d/aaas.sh
 
 **Known gap (unverified, not yet fixed here):** a field report from a live
 setup additionally needed `dashboard_auth` (described as a `hermes-agent`
@@ -89,6 +105,7 @@ Copy only missing files (never overwrite without operator confirmation):
 - admin-hermes/env.template -> admin/.env
 
     mkdir -p /opt/aaas/platform/admin/mnemosyne/data
+    chown -R aaas:aaas /opt/aaas/platform/admin
     chmod 700 /opt/aaas/platform/admin
     chmod 600 /opt/aaas/platform/admin/.env
 
@@ -359,22 +376,18 @@ Run Step 3.1 item 6's log check after Step 7 for that.
 
 ## Step 7 — Start Hermes and Verify Proxy
 
-    cd /opt/aaas/platform/admin
-    set -a; . ./.env; set +a
-    hermes dashboard --no-open
+    sudo -u aaas -H bash -c 'cd /opt/aaas/platform/admin && set -a && . ./.env && set +a && hermes dashboard --no-open'
 
 In a second terminal, confirm the proxy intercepts LLM calls:
 
-    cd /opt/aaas/platform/admin
-    set -a; . ./.env; set +a
-    hermes -z "Reply with the single word: PROXY_OK"
+    sudo -u aaas -H bash -c 'cd /opt/aaas/platform/admin && set -a && . ./.env && set +a && hermes -z "Reply with the single word: PROXY_OK"'
 
 Expected: a response containing PROXY_OK. If the call fails with a proxy or
 SSL error, re-check Step 4 (CA trust) and Step 5 (proxy vars in .env).
 
 ## Step 8 — Install Watchdog
 
-    /opt/aaas/platform/scripts/hermes-admin-watchdog.sh --install
+    sudo /opt/aaas/platform/scripts/hermes-admin-watchdog.sh --install
 
 Verify:
     systemctl --user status hermes-admin-watchdog.timer
