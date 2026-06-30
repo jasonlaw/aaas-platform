@@ -31,6 +31,13 @@ Upgrade all active tenants to the latest Docker image after build-image.md compl
          TCP-LISTEN:14322,fork,reuseaddr TCP:agent-vault:14322
      fi
      docker network connect hermes-{tenant-id}-net agent-vault-proxy-{tenant-id} 2>/dev/null || true
+     # Only after the sidecar is confirmed connected: drop Agent Vault's own
+     # direct connection left over from before this fix (pre-existing
+     # tenants only — `|| true` makes this safe to run even if it was never
+     # connected). This is the step that actually closes the management-port
+     # hole; the sidecar alone is not sufficient while this connection still
+     # exists, since Agent Vault would still be reachable on :14321 the old way.
+     docker network disconnect hermes-{tenant-id}-net agent-vault 2>/dev/null || true
      ```
      Then update this tenant's compose service block to use `hermes-{tenant-id}-net` instead of the old shared `agent-vault-net`, if it still references the shared network, and update `HTTP_PROXY`/`HTTPS_PROXY` in `.env` to point at `agent-vault-proxy-{tenant-id}:14322` if either still references `agent-vault:14322` directly. Declare the network block (`external: true`, `name: hermes-{tenant-id}-net`) at the bottom of docker-compose.yaml if not already present.
    - repair ownership after any edits or file creation: `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`

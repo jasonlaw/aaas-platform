@@ -58,6 +58,16 @@ docker run -d \
 docker network connect hermes-{tenant-id}-net agent-vault-proxy-{tenant-id}
 ```
 
+If re-onboarding or recovering a tenant provisioned before this fix, Agent
+Vault may still be directly connected to this network from the old
+connect-Agent-Vault-itself design. Drop that connection now that the
+sidecar covers it — leaving it in place defeats the isolation fix even
+though the sidecar is also present:
+
+```bash
+docker network disconnect hermes-{tenant-id}-net agent-vault 2>/dev/null || true
+```
+
 If the sidecar container already exists (re-onboarding or recovery), skip
 creation and only run the `docker network connect` line; it fails harmlessly
 with "endpoint already exists" if already connected — safe to ignore.
