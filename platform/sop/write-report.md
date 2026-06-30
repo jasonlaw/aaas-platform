@@ -12,7 +12,7 @@ Use this SOP even when the operator's request did not start from a named SOP, su
 Every report's `trigger` field records what caused OpenCode to run this task, not which agent wrote the report — reports are always written by OpenCode itself; Hermes (admin or tenant) is never the author, only ever the subject of troubleshooting.
 
 - `operator` — a human operator started this session interactively (the normal case for onboarding, upgrades, and operator-initiated troubleshooting).
-- `watchdog` — `hermes-admin-watchdog.sh` invoked OpenCode unattended after automatic Hermes admin restart attempts failed. Set `operator_request` to the watchdog's actual invocation message in this case (do not paraphrase it as if a human typed it) — see `hermes-admin-watchdog.sh`'s `--message` argument for the exact text.
+- `watchdog` — `aaas-watchdog.sh` invoked OpenCode unattended after automatic restart attempts failed for Agent Vault, a tenant container, or admin Hermes. Set `operator_request` to the watchdog's actual invocation message in this case (do not paraphrase it as if a human typed it) — see `aaas-watchdog.sh`'s `escalate()` function for the exact text, which names the specific entity that failed.
 
 If a task is unsure which value applies (rare — this should only happen for new automation, not regular operator sessions), default to `operator` rather than leaving the field blank; an unset `trigger` is harder to distinguish from a missed report than a possibly-wrong-but-present value.
 

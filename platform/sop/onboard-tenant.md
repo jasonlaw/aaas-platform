@@ -147,6 +147,15 @@ do not attempt to author it inline; report this and stop.
      Agent Vault's proxy and to admin Hermes's API server, both host-side);
      it does not run a listener of its own that needs to be reachable
    - network: `hermes-{tenant-id}-net` (this tenant's isolated network, created in provision-tenant-vault.md step 1a and joined by the forwarding sidecar `agent-vault-proxy-{tenant-id}` in step 1b — not Agent Vault itself — so the container can reach the Agent Vault proxy on `http://agent-vault-proxy-{tenant-id}:14322` without sharing a network with any other tenant, and without the management API at `:14321` ever being reachable). Declare this network as `external: true` with `name: hermes-{tenant-id}-net` at the bottom of docker-compose.yaml if not already present — the explicit `name:` is required, see provision-tenant-vault.md step 8 for why.
+   - healthcheck: the tenant container publishes no port (see above), so liveness can't be an HTTP probe — use a process check instead: `test: ["CMD-SHELL", "pgrep -f 'gateway run' || exit 1"]` with `interval: 60s`, `timeout: 5s`, `retries: 3`. This is what makes `docker inspect`'s `.State.Health.Status` meaningful for this container; without it the watchdog (next bullet) can only see "running", not "running but stuck".
+   - watchdog labels, so `aaas-watchdog.sh` (`/opt/aaas/platform/scripts/aaas-watchdog.sh`) picks this tenant up automatically — no separate registration step:
+     ```yaml
+     labels:
+       aaas.watchdog: "true"
+       aaas.watchdog.priority: "5"
+       aaas.watchdog.playbook: "troubleshoot-tenant.md"
+     ```
+     Priority 5 is the standard tenant tier (below Agent Vault at 0 and admin Hermes at 1) — use the same value for every tenant unless the operator has a specific reason to prioritize one tenant's recovery over another's.
 9. Start only this tenant: `docker compose up -d hermes_{tenant-id}`.
 10. **Verify container outbound connectivity** (critical for Telegram and external APIs):
     - Wait 5 seconds for container to stabilize

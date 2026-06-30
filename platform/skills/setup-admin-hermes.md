@@ -387,10 +387,15 @@ SSL error, re-check Step 4 (CA trust) and Step 5 (proxy vars in .env).
 
 ## Step 8 — Install Watchdog
 
-    sudo /opt/aaas/platform/scripts/hermes-admin-watchdog.sh --install
+Admin Hermes is covered by the platform-wide watchdog, not a dedicated
+script — it also covers Agent Vault and every tenant container, with Agent
+Vault checked first as the priority-0 dependency. If it's already installed
+(e.g. from setting up Agent Vault or onboarding a tenant), skip this step.
+
+    sudo /opt/aaas/platform/scripts/aaas-watchdog.sh --install
 
 Verify:
-    systemctl --user status hermes-admin-watchdog.timer
+    systemctl status aaas-watchdog.timer
     # Expected: active (waiting)
 
 See /opt/aaas/platform/incidents/hermes-admin-failure.md for the recovery

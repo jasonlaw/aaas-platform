@@ -128,10 +128,13 @@ is picked up:
     docker compose -f /opt/aaas/tenants/{tenant-id}/docker-compose.yaml \
       up -d --force-recreate hermes_{tenant-id}
 
-For the admin agent's own credential, restart hermes after sourcing `.env`:
+For the admin agent's own credential, restart hermes directly so the new
+credential is picked up — the watchdog only restarts admin Hermes when it's
+*unhealthy*, so a credential change alone won't trigger it:
 
-    # Restart is handled by the watchdog or manually:
-    systemctl --user restart hermes-admin-watchdog.timer
+    sudo -u aaas -H bash -c 'pkill -f "hermes.*dashboard"; sleep 2; \
+      cd /opt/aaas/platform/admin && set -a && . ./.env && set +a && \
+      nohup hermes dashboard --no-open >> /opt/aaas/platform/logs/hermes-admin.log 2>&1 &'
 
 ---
 

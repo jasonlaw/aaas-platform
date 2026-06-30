@@ -1,10 +1,11 @@
 # Incident: Hermes Admin Agent Failure
 
 ## Symptoms
-- Watchdog alert file present at `/opt/aaas/platform/reports/HERMES-ADMIN-ALERT.txt`
+- Watchdog alert file present at `/opt/aaas/platform/reports/admin-hermes-ALERT.txt`
 - Dashboard at `http://127.0.0.1:9119` is unreachable
 - `pgrep -f "hermes.*dashboard"` returns no results
-- Watchdog log at `/opt/aaas/platform/logs/hermes-admin-watchdog.log` shows restart failures
+- Watchdog log at `/opt/aaas/platform/logs/aaas-watchdog.log` shows restart
+  failures for `admin-hermes`
 
 ## Impact
 Hermes admin being down does not affect running tenant agents — they operate
@@ -17,8 +18,9 @@ independently in their Docker containers. Impact is limited to:
 
 ## This Playbook Is Used By
 
-- **The watchdog** (`hermes-admin-watchdog.sh`) invokes OpenCode with a prompt
-  referencing this file when automatic restart fails.
+- **The watchdog** (`aaas-watchdog.sh`, the same generic watchdog that also
+  covers Agent Vault and tenant containers) invokes OpenCode with a prompt
+  referencing this file when admin Hermes's automatic restart fails.
 - **OpenCode** reads this file to diagnose and recover without human involvement
   wherever possible.
 - **The human operator** reads the Reports section and follows escalation steps
@@ -190,6 +192,6 @@ In all these cases, write a full diagnostic report explaining:
 - [ ] `pgrep -f "hermes.*dashboard"` shows a running process
 - [ ] Dashboard at `http://127.0.0.1:9119` is responsive
 - [ ] Proxy probe (`hermes -z "Reply with the single word: PROXY_OK"`) succeeds
-- [ ] Watchdog alert file removed: `rm -f /opt/aaas/platform/reports/HERMES-ADMIN-ALERT.txt`
+- [ ] Watchdog alert file removed: `rm -f /opt/aaas/platform/reports/admin-hermes-ALERT.txt`
 - [ ] Task report written per `/opt/aaas/platform/sop/write-report.md`
-- [ ] Watchdog timer still active: `systemctl --user status hermes-admin-watchdog.timer`
+- [ ] Watchdog timer still active: `systemctl status aaas-watchdog.timer`

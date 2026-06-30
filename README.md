@@ -162,12 +162,8 @@ OpenCode will run the `setup-admin-hermes` skill, which:
   once Telegram is enabled), and which allowed user is the primary contact
   for proactive messages (`TELEGRAM_HOME_CHANNEL` in `.env`; auto-selected
   if only one ID is given, chosen by you if there's more than one)
-- Installs a watchdog that monitors Hermes admin every 5 minutes, attempts
-  automatic recovery, and invokes OpenCode to diagnose failures before
-  escalating to you. Watchdog activity and the Hermes admin process's own
-  stdout are written to `/opt/aaas/platform/logs/` (not `reports/`, so they
-  don't pollute report-indexing tooling), and the watchdog log self-prunes
-  entries older than 30 days on every write so it never grows unbounded.
+- Hermes admin is covered by `aaas-watchdog.sh`, the platform-wide watchdog
+  (see below) — there's no separate admin-only watchdog to install here.
 
 **What to have ready:** your LLM API key for the admin agent's provider
 (see [Before You Begin](#before-you-begin) above).
@@ -408,9 +404,46 @@ during setup-agent-vault SOP step 3 — re-fetch it and rebuild if Agent Vault
 was also redeployed with a fresh database. The Agent Vault container and its
 database are unaffected by platform upgrades.
 
+## Platform Watchdog
+
+`aaas-watchdog.sh` is a single, generic watchdog covering Agent Vault, every
+tenant container, and the Hermes admin agent — there's no separate watchdog
+per service. Install it once:
+
+```bash
+sudo /opt/aaas/platform/scripts/aaas-watchdog.sh --install
+systemctl status aaas-watchdog.timer   # expect: active (waiting)
+```
+
+How it works:
+- Runs every 5 minutes via a single systemd timer.
+- Docker-based entities (Agent Vault, tenants) are discovered automatically
+  via compose labels (`aaas.watchdog`, `aaas.watchdog.priority`,
+  `aaas.watchdog.playbook`) — no separate registry to keep in sync. Docker's
+  own `restart: unless-stopped` and container `HEALTHCHECK` already handle
+  plain liveness; the watchdog only steps in when something is still
+  unhealthy after Docker's own restart.
+- Agent Vault is priority 0 and is checked first. If it's down and doesn't
+  recover, the watchdog escalates Agent Vault only and skips the rest of
+  that cycle — a vault outage breaks every tenant's LLM calls at once, so
+  checking tenants too would just produce redundant, downstream-symptom
+  reports. Hermes admin (priority 1, the one non-Docker entity, checked via
+  HTTP probe) and tenants (priority 5 by default) are checked independently
+  once Agent Vault is confirmed healthy.
+- On a failure that survives two restart attempts, the watchdog writes an
+  alert file (`/opt/aaas/platform/reports/{name}-ALERT.txt`) and invokes
+  OpenCode against that entity's own incident playbook
+  (`hermes-admin-failure.md`, `agent-vault-failure.md`, or
+  `troubleshoot-tenant.md`) to diagnose, fix, and write a task report with
+  `trigger: watchdog`.
+- Watchdog activity and the Hermes admin process's own stdout are written to
+  `/opt/aaas/platform/logs/` (not `reports/`, so they don't pollute
+  report-indexing tooling), and the watchdog log self-prunes entries older
+  than 30 days on every write so it never grows unbounded.
+
 ## Monitoring Platform Health
 
-Monitor tenant and platform health by asking the admin agent to use the `monitor-health` SOP:
+`monitor-health` is the manual, deeper-dive counterpart to the watchdog above — run it for an operator-requested check, a post-incident review, or anything broader than restart-and-escalate (connectivity, network isolation, harness checks):
 
 ```bash
 cd /opt/aaas/platform

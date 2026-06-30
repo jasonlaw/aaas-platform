@@ -91,7 +91,29 @@ docker run --rm hermes-tenant:latest \
   && echo "CA trusted" || echo "CA NOT trusted"
 ```
 
-### 6. Run the health check
+### 6. Add watchdog labels and run the health check
+Agent Vault is priority 0 for `aaas-watchdog.sh` (`/opt/aaas/platform/scripts/aaas-watchdog.sh`)
+— it's checked first, and if it's down the watchdog escalates only Agent
+Vault and skips tenant/admin-Hermes checks for that cycle, since they'd just
+be downstream symptoms. Confirm `/opt/aaas/agent-vault/docker-compose.yaml`
+sets these labels on the `agent-vault` service (add them if missing, then
+`docker compose -f /opt/aaas/agent-vault/docker-compose.yaml up -d --force-recreate agent-vault`):
+```yaml
+labels:
+  aaas.watchdog: "true"
+  aaas.watchdog.priority: "0"
+  aaas.watchdog.playbook: "agent-vault-failure.md"
+```
+The container already ships its own `HEALTHCHECK` (that's what step 1's
+`Health.Status` reads), so no separate healthcheck needs adding here.
+
+If `aaas-watchdog.sh` isn't installed yet, install it now — it's the same
+script `setup-admin-hermes.md` Step 8 installs, so skip that step there if
+this runs first:
+```bash
+sudo /opt/aaas/platform/scripts/aaas-watchdog.sh --install
+```
+
 ```bash
 /opt/aaas/platform/scripts/agent-vault-health.sh
 # Expected: all PASS, no FAIL
@@ -103,6 +125,7 @@ Follow `/opt/aaas/platform/sop/write-report.md`. Include:
 - CLI registration outcome
 - CA fetch confirmed and Dockerfile CA block verified
 - Image rebuild status and CA trust verification result
+- Watchdog labels present and watchdog install status
 - Any warnings or issues
 
 ## Notes

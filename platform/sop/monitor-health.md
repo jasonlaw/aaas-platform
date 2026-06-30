@@ -1,5 +1,12 @@
 # SOP: Monitor Platform Health
 
+`aaas-watchdog.sh` runs this same liveness/restart/escalate logic
+automatically every 5 minutes for Agent Vault, every tenant, and admin
+Hermes. Run this SOP manually for a deeper, broader pass than the watchdog
+does on its own — e.g. operator-requested check, post-incident review, or
+investigating something the watchdog's restart-and-escalate loop wouldn't
+catch (connectivity, network isolation, harness checks below).
+
 0. Read `/opt/aaas/platform/checklists/monitor-health.required.json`. Treat every item as a completion gate; unresolved items must appear in the final task report.
 0.1. **Check Agent Vault health** before checking tenants — if the vault is down, all tenant LLM calls will fail:
    `/opt/aaas/platform/scripts/agent-vault-health.sh`
