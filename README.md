@@ -434,7 +434,3 @@ Bump `platform/VERSION` in the same change whenever platform behavior changes:
 Do not bump `platform/VERSION` for tenant Docker image rebuilds only, tenant config
 data changes only, typo-only edits, or tool version checks such as `docker --version`.
 Those have separate meanings from the platform setup version.
-
-## Future Enhancement ##
-- **No scheduled health loop.** The watchdog covers admin agent liveness, but health monitoring is still operator-triggered — someone has to invoke monitor-health.md. If a tenant container silently fails at 3am and nobody runs health until morning, you won't know. A simple cron or systemd timer that runs monitor-health.md nightly (L1 report-only, escalate on FAIL) would close this. That's the one loop the platform is genuinely missing.
-- **No run log for the watchdog.** The watchdog appends to hermes-admin-watchdog.log but it's free text, not structured. If it runs 200 times and restarts Hermes 7 times over a week, you have no easy way to surface that pattern without grep. Appending one JSON line to INDEX.jsonl per watchdog escalation event would give you visibility without any new tooling.
