@@ -209,10 +209,17 @@ escalate() {
     return 1
   fi
 
-  timeout "${OPENCODE_TIMEOUT}" opencode \
-    --non-interactive \
-    --workdir "${PLATFORM_DIR}" \
-    --message "${name} is down and automatic restart failed. \
+  # `opencode run` (not the old `opencode --non-interactive --workdir
+  # --message`, which doesn't exist in this CLI version — see `opencode run
+  # --help`) with `--auto`, which auto-approves permissions not explicitly
+  # denied. This is deliberate: escalation only fires when it's already an
+  # unattended, autonomous-recovery session with no operator present to
+  # approve prompts, so requiring interactive approval here would just make
+  # every escalation hang until OPENCODE_TIMEOUT and fail closed anyway.
+  timeout "${OPENCODE_TIMEOUT}" opencode run \
+    --dir "${PLATFORM_DIR}" \
+    --auto \
+    "${name} is down and automatic restart failed. \
 Read /opt/aaas/platform/incidents/${playbook}, diagnose and fix the issue. \
 Use /opt/aaas/platform/sop/write-report.md to write a troubleshoot report. \
 Set the report's trigger field to watchdog (this session was started \
