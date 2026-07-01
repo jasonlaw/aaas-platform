@@ -76,7 +76,7 @@ PROBE_TIMEOUT=15        # seconds to wait for a restarted entity to come back
 # healthcheck already absorbs their own startup time) but was too short for
 # this one process, causing the watchdog to declare a restart "failed" and
 # escalate to OpenCode while the dashboard was still mid-build.
-ADMIN_HERMES_PROBE_TIMEOUT=90
+ADMIN_HERMES_PROBE_TIMEOUT=120
 OPENCODE_TIMEOUT=300
 LOG_RETENTION_DAYS=30   # entries older than this are dropped on each prune pass
 
