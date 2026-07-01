@@ -18,7 +18,8 @@ aaas-platform/
 ├── scripts/                        — top-level install scripts (setup-prerequisites.sh, setup-platform.sh, setup.sh)
 ├── archived-dont-read/             — historical design notes, not current; paths inside are intentionally stale
 └── platform/                       — installs to /opt/aaas/platform on the host
-    ├── AGENTS.md                   — admin agent's instructions: path quick-reference, rules, workflows
+    ├── AGENTS.md                   — OpenCode admin agent's own identity + pointer to PLATFORM-REFERENCE.md
+    ├── PLATFORM-REFERENCE.md       — shared path quick-reference, rules, workflows (read by both OpenCode and Hermes admin agents; carries no agent identity)
     ├── VERSION                     — platform setup version (see Versioning below)
     ├── admin-hermes/               — HOST: Hermes admin agent's own templates (config/SOUL/USER/MEMORY/env)
     ├── admin/                      — HOST: the admin agent's deployed profile + secrets (rendered from admin-hermes/), locked to the aaas user only
@@ -50,8 +51,9 @@ runs it, while `.env` and mnemosyne data stay protected).
 
 A few path distinctions worth knowing up front, since they're easy to mix up:
 
+- **`platform/AGENTS.md`** vs **`platform/PLATFORM-REFERENCE.md`**: `AGENTS.md` is read only by the OpenCode admin agent (OpenCode auto-loads this filename by convention) and asserts that agent's identity. `PLATFORM-REFERENCE.md` is read by both the OpenCode admin agent and the Hermes admin agent (via its own `SOUL.md`) and carries no identity claim of its own — this split exists specifically so the Hermes admin agent, an always-on Telegram/API-reachable daemon, is never told "you are the OpenCode admin agent" when loading shared platform knowledge, which previously made the OpenCode-only `upgrade-platform.md` precondition ambiguous for it to evaluate.
 - **`platform/tenant-hermes/evals/`** holds the tenant agent's own eval profiles — `_fixed-safety-v1.yaml` (vertical-agnostic safety checks run against every tenant) and `_skill-verification-primitives-v1.yaml` (credential-scanning rules used by `tenant-hermes/scripts/skill-verify.sh` inside the tenant container), plus `generated/{tenant-id}-v1.yaml` per-tenant checks created during onboarding. These are run against a live tenant container.
-- **`platform/evals/`** holds only `meta-eval-generation-v1.yaml`, a static synthetic test of the *admin* agent's onboarding generation step. It has nothing to do with any individual tenant and is run manually whenever `AGENTS.md` or the admin agent's model changes.
+- **`platform/evals/`** holds only `meta-eval-generation-v1.yaml`, a static synthetic test of the *admin* agent's onboarding generation step. It has nothing to do with any individual tenant and is run manually whenever `PLATFORM-REFERENCE.md` or the admin agent's model changes.
 - **`platform/admin-hermes/`** vs **`platform/tenant-hermes/`** mirrors this same host/tenant split for agent templates generally: `admin-hermes/` is the one Hermes admin agent that runs on the host, `tenant-hermes/` is the template every tenant's own Hermes agent is built from.
 - **`platform/admin-hermes/`** (templates) vs **`platform/admin/`** (deployed instance) vs **`/opt/aaas/admin/`** (venv + binary): the templates are upgrade-managed and refreshed by platform upgrades; the deployed profile under `platform/admin/` is rendered from them once and then holds live, operator-specific state (including `.env` secrets) that upgrades only diff-and-ask about, never overwrite; the venv/binary under `/opt/aaas/admin/` is pure install output with no secrets, reinstallable at any time.
 
@@ -299,7 +301,7 @@ For detailed incident diagnosis and recovery, see `/opt/aaas/platform/incidents/
 ## What Gets Preserved on Upgrade
 
 Running the installer against an existing `/opt/aaas/platform` installation
-refreshes managed platform assets: `AGENTS.md`, `VERSION`, `CHANGELOG.md`, SOPs, skills,
+refreshes managed platform assets: `AGENTS.md`, `PLATFORM-REFERENCE.md`, `VERSION`, `CHANGELOG.md`, SOPs, skills,
 templates, harness assets, eval assets, scripts, Hermes admin templates,
 `platform/docker/Dockerfile`, and the knowledge vault scaffold (existing notes are never overwritten).
 
@@ -342,7 +344,7 @@ database are unaffected by platform upgrades.
 ## Versioning
 
 The platform setup version is manually tracked in `platform/VERSION`; release notes are tracked in [CHANGELOG.md](../CHANGELOG.md) and installed to `/opt/aaas/platform/CHANGELOG.md`.
-This version covers the installed operating assets: `AGENTS.md`, SOPs,
+This version covers the installed operating assets: `AGENTS.md`, `PLATFORM-REFERENCE.md`, SOPs,
 skills, templates, Hermes admin templates, setup validation, and platform docs.
 
 Bump `platform/VERSION` in the same change whenever platform behavior changes:

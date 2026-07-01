@@ -58,7 +58,7 @@ validates the required SOPs/templates and leaves existing `tenants.yaml`,
 `docker-compose.yaml`, tenant data, and reports untouched if they already exist.
 
 Manually bump `platform/VERSION` when the platform behavior changes,
-especially when SOPs, templates, skills, setup validation, or AGENTS.md rules
+especially when SOPs, templates, skills, setup validation, or AGENTS.md/PLATFORM-REFERENCE.md rules
 change. Do not use the script header comments as version markers.
 
 ---
@@ -68,7 +68,8 @@ change. Do not use the script header comments as version markers.
 ```
 /opt/aaas/
 ├── platform/
-│   ├── AGENTS.md                        # Admin agent skill index
+│   ├── AGENTS.md                        # OpenCode admin agent's own identity + pointer
+│   ├── PLATFORM-REFERENCE.md            # Shared skill index/rules (both OpenCode and Hermes admin)
 │   ├── tenants.yaml                     # Business metadata (no secrets)
 │   ├── VERSION                          # Installed platform version
 │   ├── backups/                         # Managed asset backups before upgrades
@@ -205,10 +206,22 @@ out of sync again.
 | `scripts/skill-verify.sh` | `scripts/skill-verify.sh` | Verifies self-written tenant skills (run inside container) |
 | `scripts/vault-init-tenant.sh` | `scripts/vault-init-tenant.sh` | Scaffolds the tenant's knowledge vault (run inside container) |
 
-## Phase 3: AGENTS.md — Admin agent skill index
+## Phase 3: AGENTS.md + PLATFORM-REFERENCE.md — Admin agent identity and shared skill index
 
 The automation script copies the repository `platform/AGENTS.md` to
-`/opt/aaas/platform/AGENTS.md`.
+`/opt/aaas/platform/AGENTS.md`, and `platform/PLATFORM-REFERENCE.md` to
+`/opt/aaas/platform/PLATFORM-REFERENCE.md`.
+
+`AGENTS.md` is read only by the OpenCode admin agent and asserts that
+agent's identity. `PLATFORM-REFERENCE.md` is read by both the OpenCode
+admin agent and the Hermes admin agent (via its own `SOUL.md`) and carries
+no identity claim — this keeps Hermes, an always-on Telegram/API-reachable
+daemon, from ever being told "you are the OpenCode admin agent" when it
+loads shared platform knowledge. See `docs/architecture.md` for the full
+rationale.
+
+The example below is illustrative and abbreviated; the full, current
+content of both files lives in the repository under `platform/`.
 
 Create `/opt/aaas/platform/AGENTS.md`:
 
@@ -217,6 +230,7 @@ Create `/opt/aaas/platform/AGENTS.md`:
 
 You are the OpenCode admin agent for the AaaS (Agent as a Service) platform.
 You manage Hermes tenant agents running as Docker containers.
+
 
 ## Platform Structure
 - Tenant registry:    /opt/aaas/platform/tenants.yaml

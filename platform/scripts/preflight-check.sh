@@ -24,6 +24,7 @@ command -v opencode >/dev/null 2>&1 && pass "opencode_available" || warn "openco
 [ -d "$PLATFORM_ROOT" ] && pass "platform_root_exists" || fail "missing_platform_root:$PLATFORM_ROOT"
 [ -f "$PLATFORM_ROOT/VERSION" ] && pass "platform_version_exists" || fail "missing_platform_version"
 [ -f "$PLATFORM_ROOT/AGENTS.md" ] && pass "agents_instructions_exist" || fail "missing_agents_md"
+[ -f "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" ] && pass "platform_reference_exists" || fail "missing_platform_reference_md"
 [ -f "$PLATFORM_ROOT/tenants.yaml" ] && pass "tenant_registry_exists" || fail "missing_tenants_yaml"
 [ -f "$PLATFORM_ROOT/docker/docker-compose.yaml" ] && pass "docker_compose_exists" || fail "missing_docker_compose"
 [ -f "$PLATFORM_ROOT/reports/INDEX.jsonl" ] && pass "report_index_exists" || warn "missing_report_index"
