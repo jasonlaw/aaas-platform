@@ -147,6 +147,21 @@ primary key in Step 5.7. If no fallback provider was collected, leave the
 `fallback_providers` block commented out exactly as shipped. Leave .env
 untouched until Step 5 — real API key must never be written into .env.
 
+**`model.provider` must be set to exactly one of the five literal values in
+the Step 5.2 table below** (`openrouter`, `openai`, `anthropic`, `nous`, or
+the OpenCode Zen provider value from that table) **and nothing else.** There
+is no supported custom-provider mechanism anywhere in this platform — no
+top-level `providers:` list, no `api_key_env_var` or `key_env` field, no
+per-provider override block. If a 401/model-routing error occurs against one
+of the five listed providers, the fix is a config or model-name correction
+within the existing single `model:` block, never the introduction of a new
+provider block or a new env var name not already present (commented or not)
+in `admin-hermes/env.template`. If a `providers:` block or any non-template
+env var is already present from a prior session, that is prior drift to be
+removed, not a pattern to extend — flag it under Issues and revert to the
+single supported `model:` field and the exact env var name from the Step
+5.2 table.
+
 ## Step 3.1 — Configure Telegram (optional)
 
 Skip this step entirely if the operator declined Telegram in Ask The
@@ -188,9 +203,11 @@ collect at least one ID before writing anything.
 4. The gateway must be started with `HERMES_HOME` exported to the process
    environment (`/opt/aaas/platform/admin`) or it falls back to `~/.hermes`,
    finds no config there, and silently starts with no messaging platforms
-   enabled — no error, just "No messaging platforms enabled" in the gateway
-   log. Step 7 below already does this; if Hermes is ever started by hand
-   outside this skill, `HERMES_HOME` must be set first.
+   enabled — no error, and (admin Hermes does not keep a process log, see
+   Step 7) nothing written anywhere to reveal it either. Step 7 below always
+   sets `HERMES_HOME` via the systemd unit's `EnvironmentFile`, so this only
+   bites a manual/nohup start done outside this skill; if Hermes is ever
+   started by hand, `HERMES_HOME` must be exported first.
 
 5. After Step 7 starts Hermes, send a test message to the configured
    TELEGRAM_HOME_CHANNEL value to verify delivery:
@@ -204,17 +221,16 @@ collect at least one ID before writing anything.
    who haven't initiated contact yet, not a setup failure. Note it in the
    task report rather than treating it as blocking.
 
-6. Confirm in the gateway log that Telegram actually connected, not just
-   that the process started — `HERMES_HOME` and `TELEGRAM_HOME_CHANNEL`
-   misconfiguration both fail silently (no crash, no error), so absence
-   of an error is not sufficient evidence:
-
-       grep -i "Connected to Telegram\|No messaging platforms enabled" \
-         /opt/aaas/platform/logs/hermes-admin.log | tail -5
-
-   Expect "Connected to Telegram". If you instead see "No messaging
-   platforms enabled", `HERMES_HOME` was not set when the process started
-   — restart per Step 7 with `HERMES_HOME` exported first.
+6. Treat the test message in item 5 as the definitive signal that Telegram
+   connected, not just that the process started. Admin Hermes does not keep
+   a process log (see Step 7), so there is no gateway log to grep for a
+   "Connected to Telegram" line. Delivery, or the expected `400`/`403` for a
+   user who hasn't opened the bot yet, both confirm the gateway is up and
+   read its Telegram config. If that request instead times out, or the
+   dashboard itself is unreachable (`curl -sf http://127.0.0.1:9119/`),
+   `HERMES_HOME` likely was not exported when the process started — restart
+   per Step 7, which always sets it via the systemd unit's
+   `EnvironmentFile`, and re-send the item 5 test message.
 
 ## Step 4 — Install Agent Vault CA on Host
 
@@ -252,6 +268,15 @@ placeholder. Same policy as every tenant — no exceptions for the admin agent.
 | Anthropic    | api.anthropic.com     | ANTHROPIC_API_KEY     |
 | Nous         | api.nous.ai           | NOUS_API_KEY          |
 | OpenCode Zen | opencode.ai           | OPENCODE_API_KEY      |
+
+The **Env var** column is exact and non-negotiable — it is the only name
+`{PROVIDER_VAR}` may take throughout Step 5, and it is the only name that
+may appear (commented or not) in `admin/.env`. Do not rename, suffix, or
+invent a variant (e.g. `OPENCODE_ZEN_API_KEY`) even if it seems more
+descriptive of the specific model or sub-provider in use — Agent Vault's
+service registration in 5.3 and the proxy injection in 5.5 are keyed to
+this exact string, and `admin-hermes/env.template` only ships the five
+names above.
 
 ### 5.3 Store the credential and register the service
 
@@ -354,6 +379,19 @@ time:
     agent-vault vault service list --vault admin-vault
     agent-vault agent list --vault admin-vault
 
+**Reject any invented provider config.** These two checks must both pass —
+if either fails, this is drift from an earlier session (possibly one that
+predates this checklist), not a valid configuration; remove the offending
+block/line and re-derive from the Step 5.2 table before continuing:
+
+    grep -q "^providers:" /opt/aaas/platform/admin/config.yaml \
+      && echo "FAIL: unsupported top-level providers: block present — remove, use model.provider only" \
+      || echo "OK: no custom providers block"
+    grep -E "^[A-Z_]+_API_KEY=" /opt/aaas/platform/admin/.env \
+      | grep -vE "^(OPENROUTER|OPENAI|ANTHROPIC|NOUS|OPENCODE)_API_KEY=" \
+      && echo "FAIL: unrecognized *_API_KEY variable — must be one of the five Step 5.2 names, exactly" \
+      || echo "OK: only documented provider env var names present"
+
 **Validate `SOUL.md` and `config.yaml` content, not just their existence.**
 A bare `test -f` above only proves a file exists — it says nothing about
 whether it still contains the rules and invariants the admin agent actually
@@ -433,11 +471,45 @@ If Telegram was declined, confirm the lines remain commented out instead:
 
 After Step 7 starts Hermes, this validation step only confirms config was
 *written* correctly — it does not confirm the gateway actually connected.
-Run Step 3.1 item 6's log check after Step 7 for that.
+Run Step 3.1 item 6's test-message check after Step 7 for that.
 
-## Step 7 — Start Hermes and Verify Proxy
+## Step 7 — Install Gateway Service and Verify Proxy
 
-    cd /opt/aaas/platform/admin && set -a && . ./.env && set +a && hermes dashboard --no-open
+Admin Hermes (the gateway/dashboard process) runs as a systemd `--user`
+service, not a bare backgrounded process — this gives it the same
+crash/reboot auto-restart guarantee Docker's `restart: unless-stopped`
+already gives every other component. A previous version of this skill
+started it with a plain `nohup ... &`, which had no recovery mechanism at
+all beyond the watchdog's 5-minute poll (Step 8) and did not survive a
+reboot.
+
+    mkdir -p ~/.config/systemd/user
+    cp /opt/aaas/platform/admin-hermes/aaas-admin-hermes.service \
+       ~/.config/systemd/user/aaas-admin-hermes.service
+    systemctl --user daemon-reload
+    systemctl --user enable --now aaas-admin-hermes.service
+
+`loginctl enable-linger` is required once so this unit keeps running after
+the operator logs out and starts again on boot with no active login
+session — the normal case on a headless server. Needs sudo the one time:
+
+    sudo loginctl enable-linger "$USER"
+
+Verify the service is up:
+
+    systemctl --user status aaas-admin-hermes.service
+    # Expected: active (running)
+
+The dashboard's first start after a fresh install (or after an upgrade
+that touches its bundled web UI) does a TypeScript/Vite build before it
+starts serving — this can take up to ~60 seconds and is expected, not a
+failure. Wait for it rather than restarting the service if the health
+check below doesn't respond immediately:
+
+    for i in $(seq 1 40); do
+      curl -sf http://127.0.0.1:9119/ >/dev/null 2>&1 && echo "OK: dashboard up" && break
+      sleep 2
+    done
 
 In a second terminal, confirm the proxy intercepts LLM calls:
 
@@ -455,6 +527,16 @@ Admin Hermes is covered by the platform-wide watchdog, not a dedicated
 script — it also covers Agent Vault and every tenant container, with Agent
 Vault checked first as the priority-0 dependency. If it's already installed
 (e.g. from setting up Agent Vault or onboarding a tenant), skip this step.
+
+This is a second, independent layer on top of the systemd `--user` service
+installed in Step 7. systemd already restarts admin Hermes if the process
+itself dies (`Restart=on-failure`) or on reboot — the watchdog instead
+polls whether the dashboard is actually *responding* every 5 minutes and
+escalates to OpenCode with the recovery playbook when it isn't (e.g. the
+process is alive but the Agent Vault proxy is failing, which systemd alone
+would never detect). When the watchdog does need to restart admin Hermes,
+it now does so via `systemctl --user restart aaas-admin-hermes.service`
+rather than a raw `nohup`, so both layers manage the same single process.
 
     sudo /opt/aaas/platform/scripts/aaas-watchdog.sh --install
 

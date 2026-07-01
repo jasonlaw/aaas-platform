@@ -33,11 +33,17 @@ set -euo pipefail
 
 PLATFORM_DIR="/opt/aaas/platform"
 ADMIN_DIR="${PLATFORM_DIR}/admin"
-LOG_DIR="${PLATFORM_DIR}/logs"
 REPORT_DIR="${PLATFORM_DIR}/reports"
-WATCHDOG_LOG="${LOG_DIR}/aaas-watchdog.log"
-HERMES_PROC_LOG="${LOG_DIR}/hermes-admin.log"
-LOCK_FILE="/var/run/aaas-watchdog.lock"
+# Everything this script itself owns (its own log, its own lock) lives under
+# a dedicated watchdog/ folder, split into logs/ and state/ so the two kinds
+# of file are never mixed: logs/ is human-readable, append-only history;
+# state/ is machine-owned, mutated-in-place runtime state (currently just
+# the lock). Nothing outside this script should need to know these paths.
+WATCHDOG_DIR="${PLATFORM_DIR}/watchdog"
+WATCHDOG_LOG_DIR="${WATCHDOG_DIR}/logs"
+WATCHDOG_STATE_DIR="${WATCHDOG_DIR}/state"
+WATCHDOG_LOG="${WATCHDOG_LOG_DIR}/aaas-watchdog.log"
+LOCK_FILE="${WATCHDOG_STATE_DIR}/aaas-watchdog.lock"
 ADMIN_DASHBOARD_HOST="127.0.0.1"
 ADMIN_DASHBOARD_PORT="9119"
 ADMIN_API_SERVER_PORT="8642"
@@ -45,6 +51,13 @@ ADMIN_HERMES_PRIORITY=1
 ADMIN_HERMES_PLAYBOOK="hermes-admin-failure.md"
 MAX_RESTART_ATTEMPTS=2
 PROBE_TIMEOUT=15        # seconds to wait for a restarted entity to come back
+# Admin Hermes's dashboard does a TypeScript/Vite build on its first start
+# after install/upgrade, which can take up to ~60s before it responds — the
+# shared 15s PROBE_TIMEOUT above is fine for Docker entities (whose
+# healthcheck already absorbs their own startup time) but was too short for
+# this one process, causing the watchdog to declare a restart "failed" and
+# escalate to OpenCode while the dashboard was still mid-build.
+ADMIN_HERMES_PROBE_TIMEOUT=90
 OPENCODE_TIMEOUT=300
 LOG_RETENTION_DAYS=30   # entries older than this are dropped on each prune pass
 
@@ -136,7 +149,7 @@ prune_log() {
 }
 
 log() {
-  mkdir -p "$LOG_DIR"
+  mkdir -p "$WATCHDOG_LOG_DIR"
   prune_log "$WATCHDOG_LOG"
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$WATCHDOG_LOG"
 }
@@ -204,8 +217,8 @@ docker_restart() {
 }
 
 wait_until_healthy() {
-  local check_fn="$1" name="$2"
-  local deadline=$(( $(date +%s) + PROBE_TIMEOUT ))
+  local check_fn="$1" name="$2" timeout="${3:-$PROBE_TIMEOUT}"
+  local deadline=$(( $(date +%s) + timeout ))
   while (( $(date +%s) < deadline )); do
     "$check_fn" "$name" && return 0
     sleep 2
@@ -227,22 +240,32 @@ admin_hermes_is_healthy() {
 
 admin_hermes_restart() {
   [[ -f "${ADMIN_DIR}/.env" ]] || { log "admin-hermes: ${ADMIN_DIR}/.env missing."; return 1; }
-  mkdir -p "$LOG_DIR"
-  # No sudo -u wrapper needed: admin Hermes is a per-user install owned by
-  # whichever account this watchdog itself runs as (User= in the systemd
-  # unit — see --install above), same as every other command in this
-  # script. hermes just needs to be on PATH, which the unit's
-  # Environment=PATH=%h/.local/bin:... already guarantees.
+  # Prefer the systemd --user unit installed by setup-admin-hermes.md Step 7
+  # — this keeps systemd as the single source of truth for the process
+  # rather than racing a manually-backgrounded one against it. No sudo -u
+  # wrapper needed: admin Hermes is a per-user install owned by whichever
+  # account this watchdog itself runs as (User= in the systemd unit — see
+  # --install above), same as every other command in this script.
+  if systemctl --user list-unit-files aaas-admin-hermes.service &>/dev/null; then
+    systemctl --user restart aaas-admin-hermes.service
+    return
+  fi
+  log "admin-hermes: systemd --user unit not installed (re-run setup-admin-hermes.md Step 7). Falling back to nohup."
+  # No log redirect here by design — admin Hermes does not get a process
+  # log (see aaas-admin-hermes.service); discard stdout/stderr the same way
+  # the systemd unit does instead of quietly reintroducing one here.
   bash -c "
     pkill -f 'hermes.*dashboard' 2>/dev/null || true
     sleep 2
     cd '${ADMIN_DIR}' && set -a && . ./.env && set +a
-    nohup hermes dashboard --no-open >> '${HERMES_PROC_LOG}' 2>&1 &
+    nohup hermes dashboard --no-open >/dev/null 2>&1 &
   "
 }
 
 # --- Lock: flock self-releases on crash/kill, can't go stale like a touch'd
-# file can. ---
+# file can. Lives under PLATFORM_DIR (operator-owned), not /var/run (root-owned
+# and unwritable by the non-root operator this unit runs as). ---
+mkdir -p "$(dirname "$LOCK_FILE")"
 exec 9>"$LOCK_FILE"
 flock -n 9 || exit 0
 
@@ -300,9 +323,11 @@ printf '%s\n' "$all_entities" | awk -F'\t' '$1 != 0' | while IFS=$'\t' read -r p
   if [[ "$name" == "admin-hermes" ]]; then
     check_fn=admin_hermes_is_healthy
     restart_fn=admin_hermes_restart
+    probe_timeout=$ADMIN_HERMES_PROBE_TIMEOUT
   else
     check_fn=docker_is_healthy
     restart_fn=docker_restart
+    probe_timeout=$PROBE_TIMEOUT
   fi
 
   if "$check_fn" "$name"; then
@@ -315,7 +340,7 @@ printf '%s\n' "$all_entities" | awk -F'\t' '$1 != 0' | while IFS=$'\t' read -r p
   for attempt in $(seq 1 $MAX_RESTART_ATTEMPTS); do
     log "${name}: restart attempt ${attempt}/${MAX_RESTART_ATTEMPTS}."
     "$restart_fn" "$name" || true
-    if wait_until_healthy "$check_fn" "$name"; then
+    if wait_until_healthy "$check_fn" "$name" "$probe_timeout"; then
       log "${name}: recovered on attempt ${attempt}."
       clear_alert "$name"
       recovered=0

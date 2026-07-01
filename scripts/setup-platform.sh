@@ -427,6 +427,8 @@ install_assets() {
   mkdir -p "$PLATFORM_ROOT/incidents"
   mkdir -p "$PLATFORM_ROOT/scripts"
   mkdir -p "$PLATFORM_ROOT/vault"
+  mkdir -p "$PLATFORM_ROOT/watchdog/logs"
+  mkdir -p "$PLATFORM_ROOT/watchdog/state"
   mkdir -p "$INSTALL_ROOT/tenants"
 
   if [ "$BACKUP_BEFORE_INSTALL" = true ]; then
@@ -458,6 +460,7 @@ install_assets() {
   chmod +x "$PLATFORM_ROOT/scripts/vault-init.sh"
   chmod +x "$PLATFORM_ROOT/scripts/generate-platform-eval.sh"
   chmod +x "$PLATFORM_ROOT/scripts/validate-platform-rules.sh"
+  chmod +x "$PLATFORM_ROOT/scripts/aaas-watchdog.sh"
   cp "$ASSET_ROOT/AGENTS.md" "$PLATFORM_ROOT/AGENTS.md"
   cp "$ASSET_ROOT/PLATFORM-REFERENCE.md" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md"
   cp "$ASSET_ROOT/VERSION" "$PLATFORM_ROOT/VERSION"

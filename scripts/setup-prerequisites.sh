@@ -301,6 +301,8 @@ sudo mkdir -p /opt/aaas/platform/reports
 sudo mkdir -p /opt/aaas/platform/backups
 sudo mkdir -p /opt/aaas/platform/tenant-hermes
 sudo mkdir -p /opt/aaas/platform/docker
+sudo mkdir -p /opt/aaas/platform/watchdog/logs
+sudo mkdir -p /opt/aaas/platform/watchdog/state
 sudo mkdir -p /opt/aaas/tenants
 sudo mkdir -p /opt/aaas/agent-vault/data
 # The agent-vault image runs as a non-root, unprivileged user whose host

@@ -1,0 +1,52 @@
+# AaaS admin Hermes gateway — systemd --user unit
+#
+# Installed by setup-admin-hermes.md Step 7 to:
+#   ~/.config/systemd/user/aaas-admin-hermes.service
+#
+# This is a per-user unit (no root, no dedicated service account) — it runs
+# as whichever operator account owns /opt/aaas/platform/admin, same as every
+# other admin Hermes command in this platform. `hermes` must already be on
+# that user's PATH via ~/.local/bin (the official installer puts it there).
+#
+# Paths below are not templated: /opt/aaas/platform/admin is a fixed
+# location for every install (see PLATFORM_ROOT in scripts/setup-platform.sh
+# and HERMES_HOME in admin-hermes/env.template), so nothing here needs
+# per-operator substitution.
+#
+# Restart=on-failure + RestartSec=10 gives systemd's own crash/reboot
+# recovery, independent of aaas-watchdog.sh's 5-minute poll. The watchdog
+# remains as a second layer: it checks whether the dashboard is actually
+# *responding* (not just running) and escalates to OpenCode via
+# incidents/hermes-admin-failure.md when systemd's own restarts don't fix
+# an unhealthy-but-running process (e.g. Agent Vault proxy failures).
+#
+# By platform policy, admin Hermes does not keep a process log: stdout/
+# stderr are discarded (StandardOutput=null / StandardError=null below),
+# not sent to a file or to the journal. Diagnosis relies on the dashboard's
+# own HTTP health probe (used by the watchdog above) and the proxy
+# verification probe in incidents/hermes-admin-failure.md, not on grepping
+# process output.
+#
+# Requires `loginctl enable-linger <user>` (run once, as root, during
+# setup-admin-hermes.md Step 7) so this unit keeps running after the
+# operator logs out and starts again on boot without an active login
+# session — the normal case for a headless server.
+
+[Unit]
+Description=AaaS Admin Hermes Gateway
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/aaas/platform/admin
+EnvironmentFile=/opt/aaas/platform/admin/.env
+ExecStart=%h/.local/bin/hermes dashboard --no-open
+Restart=on-failure
+RestartSec=10
+# No process log for admin Hermes (platform policy) — discard rather than
+# append to a file or fall through to the default journal capture.
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=default.target

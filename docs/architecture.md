@@ -276,10 +276,14 @@ How it works:
   (`hermes-admin-failure.md`, `agent-vault-failure.md`, or
   `troubleshoot-tenant.md`) to diagnose, fix, and write a task report with
   `trigger: watchdog`.
-- Watchdog activity and the Hermes admin process's own stdout are written to
-  `/opt/aaas/platform/logs/` (not `reports/`, so they don't pollute
-  report-indexing tooling), and the watchdog log self-prunes entries older
-  than 30 days on every write so it never grows unbounded.
+- The watchdog's own files live under `/opt/aaas/platform/watchdog/` (not
+  `reports/`, so they don't pollute report-indexing tooling), split by
+  kind: `watchdog/logs/aaas-watchdog.log` (self-prunes entries older than
+  30 days on every write, so it never grows unbounded) and
+  `watchdog/state/aaas-watchdog.lock` (the run lock). Admin Hermes itself
+  keeps no process log by platform policy — its stdout/stderr are
+  discarded, not written to a file or the journal (see
+  `admin-hermes/aaas-admin-hermes.service`).
 
 ## Monitoring Platform Health
 

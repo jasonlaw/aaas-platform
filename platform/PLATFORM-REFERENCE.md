@@ -33,8 +33,11 @@ rather than assuming a reader's identity.
 - Utility scripts: /opt/aaas/platform/scripts/
 - Incident playbooks: /opt/aaas/platform/incidents/
 - Task reports: /opt/aaas/platform/reports/
-- Operational logs (watchdog, Hermes admin process stdout — rotated, not for
-  AI-index lookups; use INDEX.jsonl under reports/ for that): /opt/aaas/platform/logs/
+- Watchdog's own files (not for AI-index lookups; use INDEX.jsonl under
+  reports/ for that), split by kind:
+  - Watchdog log (self-pruning, not the admin agent's — Hermes admin keeps
+    no process log by platform policy): /opt/aaas/platform/watchdog/logs/
+  - Watchdog runtime state (currently just its lock file): /opt/aaas/platform/watchdog/state/
 - Knowledge vault (Obsidian-compatible second brain): /opt/aaas/platform/vault/
 - Platform backups: /opt/aaas/platform/backups/
 

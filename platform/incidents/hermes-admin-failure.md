@@ -4,8 +4,8 @@
 - Watchdog alert file present at `/opt/aaas/platform/reports/admin-hermes-ALERT.txt`
 - Dashboard at `http://127.0.0.1:9119` is unreachable
 - `pgrep -f "hermes.*dashboard"` returns no results
-- Watchdog log at `/opt/aaas/platform/logs/aaas-watchdog.log` shows restart
-  failures for `admin-hermes`
+- Watchdog log at `/opt/aaas/platform/watchdog/logs/aaas-watchdog.log` shows
+  restart failures for `admin-hermes`
 
 ## Impact
 Hermes admin being down does not affect running tenant agents — they operate
@@ -32,18 +32,18 @@ independently in their Docker containers. Impact is limited to:
 
 ### 1. Check process and dashboard
 
+Admin Hermes keeps no process log by platform policy (stdout/stderr are
+discarded, not written to a file or the journal — see
+`aaas-admin-hermes.service`), so diagnosis relies on process/service state
+and HTTP probes rather than log output:
+
 ```bash
+systemctl --user status aaas-admin-hermes.service 2>&1 | head -10
 pgrep -f "hermes.*dashboard" && echo "process running" || echo "process not found"
 curl -sf http://127.0.0.1:9119/health && echo "dashboard responsive" || echo "dashboard not responding"
 ```
 
-### 2. Check Hermes admin log
-
-```bash
-tail -50 /opt/aaas/platform/logs/hermes-admin.log
-```
-
-### 3. Check Agent Vault (proxy dependency)
+### 2. Check Agent Vault (proxy dependency)
 
 ```bash
 /opt/aaas/platform/scripts/agent-vault-health.sh
@@ -53,7 +53,7 @@ If Agent Vault is down, Hermes admin will fail all LLM calls after startup.
 Fix Agent Vault first using `/opt/aaas/platform/incidents/agent-vault-failure.md`,
 then return here.
 
-### 4. Check .env integrity
+### 3. Check .env integrity
 
 ```bash
 # Placeholder must be set — never a real key
@@ -64,7 +64,7 @@ grep "HTTP_PROXY" /opt/aaas/platform/admin/.env && echo "OK: proxy" || echo "FAI
 grep "SSL_CERT_FILE" /opt/aaas/platform/admin/.env && echo "OK: SSL_CERT_FILE" || echo "FAIL: SSL_CERT_FILE missing"
 ```
 
-### 5. Check host CA trust
+### 4. Check host CA trust
 
 ```bash
 openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt \
@@ -77,18 +77,27 @@ openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt \
 ## Recovery A — Process crashed, config intact
 
 ```bash
-pkill -f "hermes.*dashboard" 2>/dev/null || true
-sleep 2
-cd /opt/aaas/platform/admin
-set -a; . ./.env; set +a
-nohup hermes dashboard --no-open \
-  >> /opt/aaas/platform/logs/hermes-admin.log 2>&1 &
+if systemctl --user list-unit-files aaas-admin-hermes.service &>/dev/null; then
+  systemctl --user restart aaas-admin-hermes.service
+else
+  # Fallback only if the systemd --user unit isn't installed yet — re-run
+  # setup-admin-hermes.md Step 7 afterward so future restarts go through
+  # systemd instead of this manual path.
+  pkill -f "hermes.*dashboard" 2>/dev/null || true
+  sleep 2
+  cd /opt/aaas/platform/admin
+  set -a; . ./.env; set +a
+  nohup hermes dashboard --no-open >/dev/null 2>&1 &
+fi
 ```
 
-Wait up to 15 seconds for the dashboard to become responsive:
+Wait up to ~90 seconds for the dashboard to become responsive. Its first
+start after a fresh install or an upgrade that touches the bundled web UI
+does a TypeScript/Vite build before it serves anything — this can take up
+to ~60 seconds and is expected, not a sign the restart failed:
 
 ```bash
-for i in $(seq 1 8); do
+for i in $(seq 1 45); do
   curl -sf http://127.0.0.1:9119/ >/dev/null 2>&1 && echo "OK: dashboard up" && break
   sleep 2
 done

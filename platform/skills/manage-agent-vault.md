@@ -134,7 +134,12 @@ credential is picked up — the watchdog only restarts admin Hermes when it's
 
     pkill -f "hermes.*dashboard"; sleep 2; \
       cd /opt/aaas/platform/admin && set -a && . ./.env && set +a && \
-      nohup hermes dashboard --no-open >> /opt/aaas/platform/logs/hermes-admin.log 2>&1 &
+      nohup hermes dashboard --no-open >/dev/null 2>&1 &
+
+Prefer restarting via systemd instead, if the unit is installed (it discards
+output the same way, by design — admin Hermes does not keep a process log):
+
+    systemctl --user restart aaas-admin-hermes.service
 
 ---
 
