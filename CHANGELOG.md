@@ -4,6 +4,11 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.14.6 - 2026-07-01
+
+### Fixed
+- **Watchdog's admin-Hermes restart silently never used systemd, even when the `--user` unit was installed correctly.** `aaas-watchdog.sh` runs as a system unit (`aaas-watchdog.service`, `User=<operator>`) — a system unit with `User=` does not get an interactive login session, so `XDG_RUNTIME_DIR`/`DBUS_SESSION_BUS_ADDRESS` were never set and every `systemctl --user ...` call in `admin_hermes_restart()` failed to reach the session bus. That failure was masked by `&>/dev/null` on the guard check, so the function always fell through to the `nohup` fallback path — meaning the restarted process was never tracked by systemd and `Restart=on-failure` on `aaas-admin-hermes.service` protected nothing between watchdog ticks, regardless of install state. `aaas-watchdog.sh` now derives and exports `XDG_RUNTIME_DIR`/`DBUS_SESSION_BUS_ADDRESS` from its own UID at startup (also inherited by the `opencode` escalation subprocess, which hits the same `systemctl --user` calls via `hermes-admin-failure.md`), and the generated `aaas-watchdog.service` unit now sets matching `Environment=` lines directly (via `%U`) for anyone inspecting or copying the unit file on its own. The fallback log line no longer conflates "unit not installed" with "couldn't reach the session bus" — it now reports which one actually happened, including the underlying `systemctl` error, so this class of issue is diagnosable from the watchdog log alone next time.
+
 ## 0.14.5 - 2026-07-01
 
 ### Changed
