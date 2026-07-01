@@ -4,6 +4,16 @@ model:
   provider: {{MODEL_PROVIDER}}
   default: {{MODEL_NAME}}
 
+# Optional cross-provider failover. Only present if the operator gave a
+# fallback provider during onboard-tenant step 1; otherwise left commented
+# out exactly as shipped here — do not uncomment without operator input.
+# Hermes switches to this provider:model, turn-scoped, if the primary
+# provider fails (rate limits, server errors, auth failures). See
+# https://hermes-agent.nousresearch.com/docs/user-guide/features/fallback-providers
+# fallback_providers:
+#   - provider: {{FALLBACK_MODEL_PROVIDER}}
+#     model: {{FALLBACK_MODEL_NAME}}
+
 # Native Hermes memory DISABLED — replaced by Mnemosyne plugin
 memory:
   provider: mnemosyne

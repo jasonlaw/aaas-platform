@@ -413,6 +413,12 @@ Ask operator one question at a time:
 18. Provider API key environment variable? (e.g. OPENROUTER_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY / NOUS_API_KEY)
 19. Tenant LLM API key? (BYOK)
 20. LLM model name? (e.g. openai/gpt-4o / anthropic/claude-sonnet-4-6)
+21. Fallback LLM provider? (optional — press enter to skip. See
+    https://hermes-agent.nousresearch.com/docs/user-guide/features/fallback-providers)
+22. Fallback LLM model name? (only if a fallback provider was given)
+23. Fallback provider API key environment variable? (only if a fallback
+    provider was given)
+24. Fallback LLM API key? (BYOK, only if a fallback provider was given)
 
 Show full confirmation summary. Ask: "Proceed with onboarding? (y/n)"
 

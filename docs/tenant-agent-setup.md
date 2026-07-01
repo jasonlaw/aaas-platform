@@ -69,6 +69,7 @@ The expected first test tenant can use:
 - Allowed Telegram user IDs: comma-separated numeric IDs from @userinfobot
 - Before welcome delivery: each allowed user should open the bot and send `/start`
 - LLM provider/model/API key: your test BYOK values
+- Fallback LLM provider/model/API key (optional): press enter/say no to skip
 
 The admin agent should follow `/opt/aaas/platform/sop/onboard-tenant.md`, generate the
 tenant files from templates, update `docker-compose.yaml` and `tenants.yaml`,

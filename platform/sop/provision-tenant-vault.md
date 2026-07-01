@@ -110,6 +110,33 @@ or any other file after this point. Only hosts with a registered service are
 reachable through the proxy — see step 7 (no separate policy command needed
 in this CLI version; this is what scopes egress).
 
+### 2.1. (Optional) Store the fallback provider credential and register its service
+Skip this section entirely if onboard-tenant step 1 did not collect a
+fallback provider. If it did, `fallback_providers:` in `config.yaml` (step 5
+of onboard-tenant) already names the fallback provider:model — the proxy
+still needs its own registered service before Hermes can actually reach that
+host, exactly like the primary provider above. Use the same hostname table
+and the fallback provider's own env var and key (replace `{fallback-provider-env-var}`
+and `{fallback-real-api-key}`; both are distinct from the primary's):
+
+```bash
+agent-vault vault credential set {fallback-provider-env-var}={fallback-real-api-key} --vault {tenant-id}-vault
+
+agent-vault vault service add \
+  --vault {tenant-id}-vault \
+  --name {fallback-provider-env-var} \
+  --host {fallback-hostname} \
+  --auth-type Bearer \
+  --token-key {fallback-provider-env-var}
+```
+
+Both credentials live in the same `{tenant-id}-vault` — one vault per tenant,
+not one per provider. If the fallback provider is the same provider as
+primary (different model, same host), this step still runs; it is harmless
+to register the same host twice under different env var names, and most
+fallback configurations use a different provider/host than the primary by
+design (the whole point is resilience if the primary host is unreachable).
+
 ### 3. Create an agent token for this tenant
 ```bash
 VAULT_TOKEN=$(agent-vault agent create --vault {tenant-id}-vault:proxy --name hermes_{tenant-id} --token-only)
@@ -138,6 +165,17 @@ The tenant container still needs this env var to exist (so the LLM client librar
 initialises without error) — it just no longer holds a real value. The proxy
 intercepts calls to the provider hostname and injects the real key from the vault
 before the request leaves the host.
+
+### 4.1. (Optional) Set a placeholder for the fallback provider's LLM API key env var
+Skip if no fallback provider was collected. Otherwise, same pattern as step 4,
+under the fallback's own env var name — `.env` must hold the placeholder for
+both the primary and fallback provider vars, never a real key for either:
+
+```bash
+FALLBACK_PROVIDER_VAR={fallback-provider-env-var}
+sed -i "s|^${FALLBACK_PROVIDER_VAR}=.*|${FALLBACK_PROVIDER_VAR}=routed-via-agent-vault|" \
+  /opt/aaas/tenants/{tenant-id}/.env
+```
 
 ### 5. Inject the proxy configuration into the tenant `.env`
 Append these lines to `/opt/aaas/tenants/{tenant-id}/.env`:
@@ -193,7 +231,13 @@ grep -qx "${PROVIDER_VAR}=routed-via-agent-vault" /opt/aaas/tenants/{tenant-id}/
 #    that sets *_API_KEY contains that substring whether or not it's scrubbed,
 #    so that pattern alone can never report "no output" and is not a real check.
 grep -E "(sk-[A-Za-z0-9_-]{10,}|sk-ant-|sk-or-v1-)" /opt/aaas/tenants/{tenant-id}/.env
-# Expected: no output. Any match here is a real key that step 4 failed to scrub.
+# Expected: no output. Any match here is a real key that step 4 (or 4.1) failed to scrub.
+
+# 3. (Optional) If a fallback provider was collected, the fallback var must also
+#    hold the placeholder — check separately, it is a different var name than step 1's.
+grep -qx "${FALLBACK_PROVIDER_VAR}=routed-via-agent-vault" /opt/aaas/tenants/{tenant-id}/.env \
+  && echo "OK: fallback placeholder set" \
+  || echo "FAIL: ${FALLBACK_PROVIDER_VAR} does not hold the placeholder — step 4.1 did not run or targeted the wrong var name"
 ```
 
 ### 7. Confirm the vault's egress scope
@@ -264,6 +308,12 @@ Return control to the calling SOP (onboard-tenant step 9 or update-tenant step 1
 
 ## Notes
 - Never store the real API key in `.env`, `config.yaml`, or any file in the tenant volume.
+- If onboard-tenant collected a fallback provider (optional), steps 2.1, 4.1, and
+  the step 6 check above register and scrub it the same way as the primary
+  provider. Skip all three if no fallback provider was collected — this is the
+  common case and is not an error. See
+  https://hermes-agent.nousresearch.com/docs/user-guide/features/fallback-providers
+  for what `fallback_providers:` in `config.yaml` actually does at runtime.
 - Each tenant has its own isolated Docker network (`hermes-{tenant-id}-net`),
   created in step 1a, with only that tenant's container and Agent Vault as
   members. Tenants never share a network with each other.

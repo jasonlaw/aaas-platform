@@ -126,7 +126,9 @@ opencode
 ```
 
 OpenCode will run the `setup-admin-hermes` skill, which:
-- Installs Hermes into an isolated venv under `/opt/aaas/admin/`
+- Installs Hermes via the official per-user installer (`~/.local/bin/hermes`,
+  no dedicated service account — runs as the same operator account that
+  owns the rest of `/opt/aaas`)
 - Provisions an `admin-vault` in Agent Vault for the admin LLM API key
   (same policy as tenants — the real key never touches `.env`)
 - Installs the Agent Vault MITM CA into the host system trust store

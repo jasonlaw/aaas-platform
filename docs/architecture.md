@@ -43,11 +43,14 @@ aaas-platform/
 ```
 
 Outside `platform/`, at the top level of `/opt/aaas/`, sit the other runtime
-roots: `tenants/` (per-tenant data), `agent-vault/` (the credential broker's
-own container data), and `admin/` (the admin agent's installed venv and
-`hermes` binary — kept separate from `platform/admin/`'s locked-down profile
-directory so the executable stays reachable by whichever account actually
-runs it, while `.env` and mnemosyne data stay protected).
+roots: `tenants/` (per-tenant data) and `agent-vault/` (the credential
+broker's own container data). The admin agent's Hermes install itself lives
+outside `/opt/aaas/` entirely — `~/.local/bin/hermes` and
+`~/.hermes/hermes-agent/`, the official per-user installer's own layout,
+owned by the same operator account as everything else. Only the rendered
+profile and secrets live under the platform tree, at `platform/admin/`
+(locked down, `chmod 700`/`.env` at `600`, but no separate identity owns it
+— see below).
 
 A few path distinctions worth knowing up front, since they're easy to mix up:
 
@@ -55,7 +58,7 @@ A few path distinctions worth knowing up front, since they're easy to mix up:
 - **`platform/tenant-hermes/evals/`** holds the tenant agent's own eval profiles — `_fixed-safety-v1.yaml` (vertical-agnostic safety checks run against every tenant) and `_skill-verification-primitives-v1.yaml` (credential-scanning rules used by `tenant-hermes/scripts/skill-verify.sh` inside the tenant container), plus `generated/{tenant-id}-v1.yaml` per-tenant checks created during onboarding. These are run against a live tenant container.
 - **`platform/evals/`** holds only `meta-eval-generation-v1.yaml`, a static synthetic test of the *admin* agent's onboarding generation step. It has nothing to do with any individual tenant and is run manually whenever `PLATFORM-REFERENCE.md` or the admin agent's model changes.
 - **`platform/admin-hermes/`** vs **`platform/tenant-hermes/`** mirrors this same host/tenant split for agent templates generally: `admin-hermes/` is the one Hermes admin agent that runs on the host, `tenant-hermes/` is the template every tenant's own Hermes agent is built from.
-- **`platform/admin-hermes/`** (templates) vs **`platform/admin/`** (deployed instance) vs **`/opt/aaas/admin/`** (venv + binary): the templates are upgrade-managed and refreshed by platform upgrades; the deployed profile under `platform/admin/` is rendered from them once and then holds live, operator-specific state (including `.env` secrets) that upgrades only diff-and-ask about, never overwrite; the venv/binary under `/opt/aaas/admin/` is pure install output with no secrets, reinstallable at any time.
+- **`platform/admin-hermes/`** (templates) vs **`platform/admin/`** (deployed instance) vs **`~/.local/bin/hermes` + `~/.hermes/hermes-agent/`** (the Hermes runtime itself): the templates are upgrade-managed and refreshed by platform upgrades; the deployed profile under `platform/admin/` is rendered from them once and then holds live, operator-specific state (including `.env` secrets) that upgrades only diff-and-ask about, never overwrite; the Hermes install under the operator's own home directory is pure install output with no secrets, managed entirely by the official installer (`hermes update` to upgrade it) and untouched by this platform's own upgrade process.
 
 ## Credential Security Model
 
@@ -315,7 +318,7 @@ It preserves:
 - `/opt/aaas/platform/reports/`
 - `/opt/aaas/platform/vault/` (knowledge vault notes — only missing folders/files are scaffolded in; existing notes are left untouched)
 - `/opt/aaas/platform/admin/` (the admin agent's deployed profile and secrets — diffed against current templates and refreshed only with operator confirmation, never overwritten automatically)
-- `/opt/aaas/admin/` (the admin agent's venv and binary — untouched by platform upgrades; reinstall separately if the `hermes-agent` package itself needs updating)
+- The admin agent's Hermes install itself (`~/.local/bin/hermes`, `~/.hermes/hermes-agent/`) — outside `/opt/aaas/` entirely, untouched by platform upgrades; run `hermes update` separately if the `hermes-agent` package itself needs updating
 
 If the installed `VERSION` is missing or older than the repository `VERSION`,
 the installer upgrades the managed assets. Versioned upgrades save a backup

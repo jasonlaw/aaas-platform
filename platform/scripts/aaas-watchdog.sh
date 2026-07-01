@@ -14,8 +14,10 @@
 #       * Docker entities: any container labelled `aaas.watchdog=true`,
 #         carrying `aaas.watchdog.priority` (lower = checked first) and
 #         `aaas.watchdog.playbook` (filename under platform/incidents/).
-#       * admin Hermes is the one non-Docker entity (host process) and is
-#         registered below with the same priority/playbook contract.
+#       * admin Hermes is the one non-Docker entity (host process, run as
+#         the platform operator's own user account — no dedicated service
+#         account) and is registered below with the same priority/playbook
+#         contract.
 #   - Priority 0 is reserved for Agent Vault. If Agent Vault is down and
 #     does not recover, the run escalates Agent Vault only and stops —
 #     every tenant and admin Hermes failure in the same cycle is almost
@@ -53,6 +55,21 @@ if [[ "${1:-}" == "--install" ]]; then
     exit 1
   fi
 
+  # The unit itself still needs root once, to register with systemd. But
+  # admin Hermes is a plain per-user install (no dedicated service account)
+  # — the operator who ran platform setup owns /opt/aaas and
+  # ~/.local/bin/hermes. Capture that operator once here via sudo's own
+  # SUDO_USER (falls back to logname for a direct root login) and bake it
+  # into the unit as User=; systemd resolves %h from User= at every run, so
+  # this stays correct even if the unit file is ever copied to another box
+  # — nothing here is a hardcoded path.
+  OPERATOR_USER="${SUDO_USER:-$(logname 2>/dev/null || echo root)}"
+  if [[ "$OPERATOR_USER" == "root" ]]; then
+    echo "Warning: could not determine a non-root operator (SUDO_USER unset)." >&2
+    echo "Installing the watchdog to run as root. Re-run via 'sudo ./aaas-watchdog.sh --install'" >&2
+    echo "from the operator's own login shell to run admin Hermes as that user instead." >&2
+  fi
+
   UNIT_DIR="/etc/systemd/system"
 
   cat > "$UNIT_DIR/aaas-watchdog.service" <<UNIT
@@ -63,11 +80,15 @@ Requires=docker.service
 
 [Service]
 Type=oneshot
-# Runs as root: restarting Docker containers and restarting admin Hermes as
-# the dedicated aaas service account both require it. There is exactly one
-# watchdog unit for the whole platform, so this is the only privileged
-# timer to account for.
-Environment=PATH=/opt/aaas/admin/bin:/usr/local/bin:/usr/bin:/bin
+# User= is the operator account (captured at install time above), not
+# root — it already owns /opt/aaas and is who admin Hermes was installed
+# as (user mode, no dedicated service account). Restarting Docker
+# containers still works under this user as long as they're in the docker
+# group (setup-prerequisites.sh already adds them). %h expands to that
+# user's \$HOME at every run via systemd itself, so ~/.local/bin/hermes
+# resolves correctly with no baked-in path.
+User=${OPERATOR_USER}
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=${PLATFORM_DIR}/scripts/aaas-watchdog.sh
 UNIT
 
@@ -207,7 +228,12 @@ admin_hermes_is_healthy() {
 admin_hermes_restart() {
   [[ -f "${ADMIN_DIR}/.env" ]] || { log "admin-hermes: ${ADMIN_DIR}/.env missing."; return 1; }
   mkdir -p "$LOG_DIR"
-  sudo -u aaas -H bash -c "
+  # No sudo -u wrapper needed: admin Hermes is a per-user install owned by
+  # whichever account this watchdog itself runs as (User= in the systemd
+  # unit — see --install above), same as every other command in this
+  # script. hermes just needs to be on PATH, which the unit's
+  # Environment=PATH=%h/.local/bin:... already guarantees.
+  bash -c "
     pkill -f 'hermes.*dashboard' 2>/dev/null || true
     sleep 2
     cd '${ADMIN_DIR}' && set -a && . ./.env && set +a

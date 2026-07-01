@@ -4,6 +4,16 @@ model:
   provider: openrouter
   default: openai/gpt-4.1-mini
 
+# Optional cross-provider failover for admin Hermes. Only present if the
+# operator gave a fallback provider during setup-admin-hermes "Ask The
+# Operator". Left commented out exactly as shipped here if declined.
+# Hermes switches to this provider:model, turn-scoped, if the primary
+# provider fails (rate limits, server errors, auth failures). See
+# https://hermes-agent.nousresearch.com/docs/user-guide/features/fallback-providers
+# fallback_providers:
+#   - provider: {{FALLBACK_MODEL_PROVIDER}}
+#     model: {{FALLBACK_MODEL_NAME}}
+
 # Native Hermes memory disabled - replaced by Mnemosyne.
 memory:
   provider: mnemosyne

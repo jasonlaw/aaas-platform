@@ -25,11 +25,17 @@ first. Do not proceed until it passes.
 - Managed templates exist under /opt/aaas/platform/admin-hermes
 - Agent Vault is running and healthy (verified above)
 - agent-vault CLI authenticated: agent-vault vault list must succeed
-- Python 3 and python3-venv are available
+- curl and git are available (the official Hermes installer needs them; on
+  Linux also make sure xz-utils is installed — the installer downloads
+  Node.js as a .tar.xz archive)
 - Never print, log, or store API keys or passwords in task reports
-- This skill runs as root (or via sudo). It creates and owns a dedicated
-  `aaas` service account — Hermes admin is not tied to any individual
-  operator's login account or $HOME.
+- This skill installs Hermes via the official per-user installer, as the
+  same operator account that owns the rest of /opt/aaas (the one that ran
+  platform setup) — no sudo for the install itself, and no dedicated
+  service account. There is exactly one identity for the whole platform.
+  The only steps in this skill that do need sudo are installing the Agent
+  Vault CA into the host trust store (Step 4) and, later, installing the
+  watchdog systemd unit (Step 8) — both unrelated to Hermes's own install.
 
 ## Ask The Operator
 
@@ -37,6 +43,13 @@ Collect before writing any files. Never write the real API key anywhere
 except Agent Vault (Step 5).
 
 1. LLM provider and model. Recommended: openrouter / openai/gpt-4.1-mini
+1.1. Fallback LLM provider and model (optional). Ask whether the operator
+   wants automatic failover to a backup provider:model if the primary
+   provider fails (rate limits, server errors, auth failures) — see
+   https://hermes-agent.nousresearch.com/docs/user-guide/features/fallback-providers.
+   If yes, also collect the fallback's real LLM API key — stored in Agent
+   Vault only, same as the primary key, never in .env. If declined, proceed
+   with no fallback configured — this is the common case and is not an error.
 2. Real LLM API key — stored in Agent Vault only, never in .env
 3. Dashboard host. Recommended: 127.0.0.1
 4. Dashboard port. Recommended: 9119
@@ -58,49 +71,49 @@ except Agent Vault (Step 5).
 
 ## Step 1 — Install Runtime
 
-Create the dedicated service account that owns Hermes admin, if it doesn't
-already exist. This keeps the agent independent of any individual
-operator's login account:
+Install Hermes using the official installer, in its default per-user mode
+— no `sudo`, and it runs as whichever account is doing this setup (the
+same operator that already owns the rest of /opt/aaas). This replaces an
+earlier design that hand-built a venv with `pip install 'hermes-agent[...]'`
+under a dedicated `aaas` service account; that approach is retired because
+(a) it duplicated permission bookkeeping that /opt/aaas already handles by
+being owned by the operator throughout, and (b) PyPI has historically
+lagged the `hermes-agent` git source (e.g. serving 0.13.0 while source was
+already at 0.14.0), which was the root cause of a previously-unconfirmed
+Telegram/`dashboard_auth` packaging gap. The official installer clones and
+builds from git directly, sidestepping that lag entirely:
 
-    id -u aaas &>/dev/null || \
-      sudo useradd --system --no-create-home --shell /usr/sbin/nologin aaas
+    curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --skip-browser
 
-Install the venv and binary under /opt/aaas/admin — a single folder for the
-runtime install (venv + executable), kept separate from
-/opt/aaas/platform/admin, which holds the profile and secrets and stays
-locked to the aaas user only. Keeping them apart matters: the venv/bin need
-to stay reachable by whichever account actually runs `hermes` (OpenCode,
-watchdog, eval scripts), while the profile directory's restrictive
-permissions are what protect .env and mnemosyne data — nesting the
-executable inside that locked directory would make it unreachable to
-anything but aaas/root.
+`--skip-browser` skips the Playwright/Chromium install — this is a headless
+server and admin Hermes doesn't need in-agent browser automation. Omit it
+if that's ever needed later; it can be added afterward with
+`hermes tools`.
 
-    sudo mkdir -p /opt/aaas/admin
-    sudo python3 -m venv /opt/aaas/admin/venv
-    sudo /opt/aaas/admin/venv/bin/python -m pip install --upgrade pip
-    sudo /opt/aaas/admin/venv/bin/python -m pip install --upgrade \
-      'hermes-agent[web,pty]' 'mnemosyne-memory[embeddings]' mnemosyne-hermes
-    sudo mkdir -p /opt/aaas/admin/bin
-    sudo ln -sf /opt/aaas/admin/venv/bin/hermes /opt/aaas/admin/bin/hermes
-    sudo chown -R aaas:aaas /opt/aaas/admin
+This installs code + venv under `~/.hermes/hermes-agent/` and writes the
+launcher to `~/.local/bin/hermes`. Confirm it resolved onto PATH (most
+distros already add `~/.local/bin` to a login shell's PATH by default):
 
-Add /opt/aaas/admin/bin to the system PATH (not any one user's
-~/.bashrc), e.g. via /etc/profile.d/aaas.sh:
+    hermes --version
 
-    echo 'export PATH="/opt/aaas/admin/bin:$PATH"' | sudo tee /etc/profile.d/aaas.sh
+If that fails, add it explicitly — this is the one-line fallback the
+official docs themselves recommend for exactly this case:
 
-**Known gap (unverified, not yet fixed here):** a field report from a live
-setup additionally needed `dashboard_auth` (described as a `hermes-agent`
-wheel packaging bug) and the `plugins/platforms/telegram/` adapter plus
-`python-telegram-bot` v22.8 installed separately before Telegram would load
-at all — on top of the `home_chat_id`/`HERMES_HOME` fixes in Step 3.1 above.
-This skill's Step 1 install command was not changed to add these, because
-the exact missing extra/dependency and whether it's universal or specific
-to that environment could not be confirmed against `hermes-agent` source
-from here. If Telegram fails to load with an import error for
-`dashboard_auth` or a missing platform adapter after Step 1, check whether
-`'hermes-agent[web,pty,telegram]'` (or similar) is the intended extras
-syntax, and update this step once confirmed.
+    grep -qxF 'export PATH="$HOME/.local/bin:$PATH"' ~/.bashrc || \
+      echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+    source ~/.bashrc
+    hermes --version
+
+Then add the two extra packages this platform needs on top of the base
+install — the Mnemosyne memory integration — into the same managed venv
+the installer just created. The installer already provisioned `uv`; use it
+with `--python` pointed at the managed venv rather than guessing its exact
+folder name (installer versions have used both `venv/` and `.venv/`):
+
+    HERMES_VENV_PY="$(find ~/.hermes/hermes-agent -maxdepth 2 -type f -path '*/bin/python*' ! -path '*-config*' | head -1)"
+    test -n "$HERMES_VENV_PY" || { echo "FAIL: could not locate the Hermes venv python under ~/.hermes/hermes-agent"; exit 1; }
+    uv pip install --python "$HERMES_VENV_PY" --upgrade \
+      'mnemosyne-memory[embeddings]' mnemosyne-hermes
 
 ## Step 2 — Create Admin Profile
 
@@ -114,15 +127,25 @@ Copy only missing files (never overwrite without operator confirmation):
 - admin-hermes/env.template -> admin/.env
 
     mkdir -p /opt/aaas/platform/admin/mnemosyne/data
-    chown -R aaas:aaas /opt/aaas/platform/admin
     chmod 700 /opt/aaas/platform/admin
     chmod 600 /opt/aaas/platform/admin/.env
+
+No `chown` needed — this directory is already owned by the operator
+running this setup, same as the rest of `/opt/aaas`. The `chmod` calls
+above still matter: they keep `.env` and mnemosyne data unreadable by
+other local accounts on a shared box, same intent as before, just without
+a dedicated identity to own it.
 
 ## Step 3 — Configure Files
 
 Update /opt/aaas/platform/admin/config.yaml with provider, model, dashboard
-values. Leave .env untouched until Step 5 — real API key must never be
-written into .env.
+values. If a fallback provider was collected in Ask The Operator, also add a
+top-level `fallback_providers:` list with one entry (`provider` and `model`,
+matching admin-hermes/config.yaml.template's commented example) — never write
+the fallback API key into config.yaml, it is scrubbed the same way as the
+primary key in Step 5.7. If no fallback provider was collected, leave the
+`fallback_providers` block commented out exactly as shipped. Leave .env
+untouched until Step 5 — real API key must never be written into .env.
 
 ## Step 3.1 — Configure Telegram (optional)
 
@@ -284,6 +307,35 @@ Docker container hostname used by tenant containers.
 
 If either check fails, stop. Remove the real key manually and re-run Step 5.5.
 
+### 5.7 (Optional) Provision the fallback provider credential
+
+Skip entirely if no fallback provider was collected in Ask The Operator.
+Otherwise, same pattern as 5.1–5.6, under the fallback's own provider
+variable and hostname (see the table in 5.2) — both credentials live in the
+same `admin-vault`:
+
+    agent-vault vault credential set {FALLBACK_PROVIDER_VAR}={fallback-real-api-key} --vault admin-vault
+
+    agent-vault vault service add \
+      --vault admin-vault \
+      --name {FALLBACK_PROVIDER_VAR} \
+      --host {fallback-hostname} \
+      --auth-type Bearer \
+      --token-key {FALLBACK_PROVIDER_VAR}
+
+    FALLBACK_PROVIDER_VAR={FALLBACK_PROVIDER_VAR}
+    sed -i "s|^${FALLBACK_PROVIDER_VAR}=.*|${FALLBACK_PROVIDER_VAR}=routed-via-agent-vault|" \
+      /opt/aaas/platform/admin/.env
+
+Verify the same two checks as 5.6, against `${FALLBACK_PROVIDER_VAR}` this
+time:
+
+    grep -qx "${FALLBACK_PROVIDER_VAR}=routed-via-agent-vault" /opt/aaas/platform/admin/.env \
+      && echo "OK: fallback placeholder set" \
+      || echo "FAIL: fallback real key not scrubbed"
+    grep -E "(sk-[A-Za-z0-9_-]{10,}|sk-ant-|sk-or-v1-)" /opt/aaas/platform/admin/.env
+    # Expected: no output.
+
 ## Step 6 — Validate Installation
 
     command -v hermes && hermes --version
@@ -385,11 +437,14 @@ Run Step 3.1 item 6's log check after Step 7 for that.
 
 ## Step 7 — Start Hermes and Verify Proxy
 
-    sudo -u aaas -H bash -c 'cd /opt/aaas/platform/admin && set -a && . ./.env && set +a && hermes dashboard --no-open'
+    cd /opt/aaas/platform/admin && set -a && . ./.env && set +a && hermes dashboard --no-open
 
 In a second terminal, confirm the proxy intercepts LLM calls:
 
-    sudo -u aaas -H bash -c 'cd /opt/aaas/platform/admin && set -a && . ./.env && set +a && hermes -z "Reply with the single word: PROXY_OK"'
+    cd /opt/aaas/platform/admin && set -a && . ./.env && set +a && hermes -z "Reply with the single word: PROXY_OK"
+
+No `sudo -u` wrapper needed — Hermes runs as whichever account this setup
+is running as, the same one that owns `/opt/aaas/platform/admin`.
 
 Expected: a response containing PROXY_OK. If the call fails with a proxy or
 SSL error, re-check Step 4 (CA trust) and Step 5 (proxy vars in .env).
@@ -418,6 +473,8 @@ Include: provider name, model name, dashboard host/port, files created, vault
 name, agent token name (hermes_admin), CA trust status, proxy verification
 result, watchdog install status, Telegram enabled/declined status, and (if
 enabled) allow-list size and test message delivery result per user ID.
+Fallback provider/model configured (or declined), and if configured, the
+fallback credential's vault/service registration status.
 
 Never include: API keys, vault tokens, passwords, auth secrets, Telegram bot
 tokens, or any credential-shaped value.
