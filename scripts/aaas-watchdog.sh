@@ -127,6 +127,15 @@ Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 # aaas-watchdog.sh for why this is required.
 Environment=XDG_RUNTIME_DIR=/run/user/%U
 Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+# Default KillMode=control-group kills EVERY process in this oneshot's
+# cgroup when it exits — including the nohup fallback in
+# admin_hermes_restart() (nohup only blocks SIGHUP; it does nothing against
+# systemd's direct cgroup kill on service stop). That silently killed the
+# fallback-started process shortly after each tick, so it never actually
+# survived past the run that started it. KillMode=process limits the kill
+# to the tracked main process (this script) and leaves other cgroup
+# members — i.e. any detached background child — running.
+KillMode=process
 ExecStart=${PLATFORM_DIR}/scripts/aaas-watchdog.sh
 UNIT
 
