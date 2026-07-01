@@ -32,6 +32,9 @@ Options:
   --upgrade         Force upgrade mode; fail if /opt/aaas/platform is missing.
   --build-image     Build and tag hermes-tenant:latest after platform setup.
   --validate-only   Validate installed platform files without copying assets.
+  --yes, --no-tty   Assume "1. Continue with backup" at setup-platform.sh's
+                     version-confirm prompt instead of requiring /dev/tty.
+                     For automated or headless runs.
   -h, --help        Show this help.
 
 Without --fresh or --upgrade, the installer auto-detects:
@@ -46,6 +49,7 @@ EOF
 MODE="auto"
 BUILD_IMAGE=false
 VALIDATE_ONLY=false
+ASSUME_YES=false
 
 export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
 
@@ -55,6 +59,7 @@ while [ "${1:-}" != "" ]; do
     --upgrade) MODE="upgrade" ;;
     --build-image) BUILD_IMAGE=true ;;
     --validate-only) VALIDATE_ONLY=true ;;
+    --yes|--no-tty) ASSUME_YES=true ;;
     -h|--help) usage; exit 0 ;;
     *) error "Unknown option: $1" ;;
   esac
@@ -134,6 +139,10 @@ fi
 PLAN_A_ARGS=()
 if [ "$VALIDATE_ONLY" = true ]; then
   PLAN_A_ARGS+=(--validate-only)
+fi
+
+if [ "$ASSUME_YES" = true ]; then
+  PLAN_A_ARGS+=(--yes)
 fi
 
 if [ "$MODE" = "fresh" ] && [ "$VALIDATE_ONLY" = false ]; then

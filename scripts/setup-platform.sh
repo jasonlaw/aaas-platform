@@ -29,6 +29,7 @@ TMP_ASSET_DIR=""
 BUILD_IMAGE=false
 VALIDATE_ONLY=false
 BACKUP_BEFORE_INSTALL=true
+ASSUME_YES=false
 
 usage() {
   cat <<EOF
@@ -40,6 +41,9 @@ data, tenants.yaml, docker-compose.yaml, reports, and report index history.
 Options:
   --build-image     Build and tag hermes-tenant:latest after installing files.
   --validate-only   Check prerequisites and installed files without copying.
+  --yes, --no-tty   Assume "1. Continue with backup" at the version-confirm
+                     prompt instead of requiring /dev/tty. For automated or
+                     headless runs (CI, provisioning scripts, etc.).
   -h, --help        Show this help.
 EOF
 }
@@ -48,6 +52,7 @@ while [ "${1:-}" != "" ]; do
   case "$1" in
     --build-image) BUILD_IMAGE=true ;;
     --validate-only) VALIDATE_ONLY=true ;;
+    --yes|--no-tty) ASSUME_YES=true ;;
     -h|--help) usage; exit 0 ;;
     *) error "Unknown option: $1" ;;
   esac
@@ -104,6 +109,12 @@ prompt_confirm_install() {
   echo "  3. Cancel"
   echo ""
 
+  if [ "$ASSUME_YES" = true ]; then
+    BACKUP_BEFORE_INSTALL=true
+    log "Auto-selecting '1. Continue with backup' for version $source_version (--yes/--no-tty)"
+    return
+  fi
+
   if [ -r /dev/tty ]; then
     while true; do
       printf "Selection [1-3]: " > /dev/tty
@@ -129,7 +140,7 @@ prompt_confirm_install() {
     done
   fi
 
-  error "Platform version confirmation is required, but no interactive terminal is available."
+  error "Platform version confirmation is required, but no interactive terminal is available. Re-run with --yes or --no-tty to assume 'Continue with backup' automatically."
 }
 
 decide_install_strategy() {
