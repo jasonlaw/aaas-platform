@@ -4,6 +4,14 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.14.1 - 2026-07-01
+
+### Changed
+- **Split `README.md` into a short getting-started intro and a new `docs/architecture.md` covering platform design.** `README.md` previously mixed installation steps with deep design material (full repository structure tree, credential security model, policy framework, task reports, both knowledge vault systems, tenant harness/eval layers, watchdog design, upgrade preservation rules, versioning policy) in one long file. Moved everything except the intro, documentation index, "Before You Begin," and the install/Agent-Vault-setup/OpenCode/admin-Hermes-setup/upgrade-command steps into `docs/architecture.md`, and added a Documentation table at the top of `README.md` pointing to it and the other `docs/*.md` files. No content was deleted; sections were relocated as-is (with corrected relative links) and one new subsection was added to the moved "Repository Structure" tree documenting the `platform/admin/` vs `/opt/aaas/admin/` split from the previous release.
+
+### Fixed
+- **Admin Hermes install footprint consolidated from three scattered locations to two, fixing a latent permission bug in the process.** Previously `setup-admin-hermes.md` installed the venv at `/opt/aaas/hermes-admin-venv/`, symlinked the binary at `/opt/aaas/bin/hermes`, and rendered the profile/secrets at `/opt/aaas/platform/admin/` — three separate top-level locations for one component. Consolidated the venv and binary into a single new folder, `/opt/aaas/admin/` (`/opt/aaas/admin/venv/`, `/opt/aaas/admin/bin/hermes`), kept deliberately separate from `/opt/aaas/platform/admin/`, which stays locked to the `aaas` user (`chmod 700`) to protect `.env` and mnemosyne data. Nesting the executable inside the locked profile directory (an earlier draft of this change) was rejected: resolving `bin/hermes` requires traversal permission on every path component, so anything running as an account other than `aaas`/root (e.g. OpenCode) would lose the ability to invoke `hermes` at all. Also fixed `platform/scripts/eval-judge.sh`, which already pointed `ADMIN_HERMES` at `/opt/aaas/platform/admin/hermes` — missing the `bin/` segment entirely, so the executable check would have failed on any install. Updated `platform/skills/setup-admin-hermes.md` (Step 1 install commands and PATH export) and `platform/scripts/aaas-watchdog.sh` (systemd unit `PATH=`) to match.
+
 ## 0.14.0 - 2026-07-01
 
 ### Changed

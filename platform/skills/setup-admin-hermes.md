@@ -65,20 +65,29 @@ operator's login account:
     id -u aaas &>/dev/null || \
       sudo useradd --system --no-create-home --shell /usr/sbin/nologin aaas
 
-Install the venv and binary under /opt/aaas, owned by aaas:
+Install the venv and binary under /opt/aaas/admin — a single folder for the
+runtime install (venv + executable), kept separate from
+/opt/aaas/platform/admin, which holds the profile and secrets and stays
+locked to the aaas user only. Keeping them apart matters: the venv/bin need
+to stay reachable by whichever account actually runs `hermes` (OpenCode,
+watchdog, eval scripts), while the profile directory's restrictive
+permissions are what protect .env and mnemosyne data — nesting the
+executable inside that locked directory would make it unreachable to
+anything but aaas/root.
 
-    sudo python3 -m venv /opt/aaas/hermes-admin-venv
-    sudo /opt/aaas/hermes-admin-venv/bin/python -m pip install --upgrade pip
-    sudo /opt/aaas/hermes-admin-venv/bin/python -m pip install --upgrade \
+    sudo mkdir -p /opt/aaas/admin
+    sudo python3 -m venv /opt/aaas/admin/venv
+    sudo /opt/aaas/admin/venv/bin/python -m pip install --upgrade pip
+    sudo /opt/aaas/admin/venv/bin/python -m pip install --upgrade \
       'hermes-agent[web,pty]' 'mnemosyne-memory[embeddings]' mnemosyne-hermes
-    sudo mkdir -p /opt/aaas/bin
-    sudo ln -sf /opt/aaas/hermes-admin-venv/bin/hermes /opt/aaas/bin/hermes
-    sudo chown -R aaas:aaas /opt/aaas/hermes-admin-venv /opt/aaas/bin
+    sudo mkdir -p /opt/aaas/admin/bin
+    sudo ln -sf /opt/aaas/admin/venv/bin/hermes /opt/aaas/admin/bin/hermes
+    sudo chown -R aaas:aaas /opt/aaas/admin
 
-Add /opt/aaas/bin to the system PATH (not any one user's ~/.bashrc), e.g.
-via /etc/profile.d/aaas.sh:
+Add /opt/aaas/admin/bin to the system PATH (not any one user's
+~/.bashrc), e.g. via /etc/profile.d/aaas.sh:
 
-    echo 'export PATH="/opt/aaas/bin:$PATH"' | sudo tee /etc/profile.d/aaas.sh
+    echo 'export PATH="/opt/aaas/admin/bin:$PATH"' | sudo tee /etc/profile.d/aaas.sh
 
 **Known gap (unverified, not yet fixed here):** a field report from a live
 setup additionally needed `dashboard_auth` (described as a `hermes-agent`

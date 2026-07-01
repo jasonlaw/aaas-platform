@@ -6,7 +6,7 @@ PROMPT_TEXT="${2:-}"
 REPLY_TEXT="${3:-}"
 JUDGE_FOR_TEXT="${4:-}"
 ADMIN_ENV="/opt/aaas/platform/admin/.env"
-ADMIN_HERMES="/opt/aaas/platform/admin/hermes"
+ADMIN_HERMES="/opt/aaas/admin/bin/hermes"
 
 if [ -z "$CHECK_NAME" ] || [ -z "$PROMPT_TEXT" ] || [ -z "$REPLY_TEXT" ] || [ -z "$JUDGE_FOR_TEXT" ]; then
   printf "FAIL\t%s\tusage: eval-judge.sh {check-name} {prompt} {reply} {judge-for}\n" "${CHECK_NAME:-unknown}"

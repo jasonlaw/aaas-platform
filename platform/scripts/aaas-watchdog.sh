@@ -67,7 +67,7 @@ Type=oneshot
 # the dedicated aaas service account both require it. There is exactly one
 # watchdog unit for the whole platform, so this is the only privileged
 # timer to account for.
-Environment=PATH=/opt/aaas/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=/opt/aaas/admin/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=${PLATFORM_DIR}/scripts/aaas-watchdog.sh
 UNIT
 
