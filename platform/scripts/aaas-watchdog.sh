@@ -31,6 +31,25 @@
 
 set -euo pipefail
 
+# `systemctl --user ...` (used below for admin Hermes) needs a reachable
+# user D-Bus/session for the account this script runs as. That's only set
+# automatically for an interactive login session. When this script runs as
+# the installed system unit (aaas-watchdog.service, User=<operator> — see
+# --install below) — or via cron, or over a bare SSH command — neither
+# XDG_RUNTIME_DIR nor DBUS_SESSION_BUS_ADDRESS is set, so every
+# `systemctl --user` call below silently fails to connect to the bus. That
+# failure was previously swallowed (`&>/dev/null` on the list-unit-files
+# check), which made admin_hermes_restart always fall through to the nohup
+# fallback path even when the systemd --user unit was installed correctly —
+# meaning Restart=on-failure never actually protected the process between
+# watchdog ticks. Derive both from our own UID and export them so every
+# `systemctl --user` call in this script (and in the OpenCode subprocess
+# escalate() spawns, which hits the same calls via the incident playbook)
+# reaches the right session bus regardless of how this script was invoked.
+: "${XDG_RUNTIME_DIR:=/run/user/$(id -u)}"
+: "${DBUS_SESSION_BUS_ADDRESS:=unix:path=${XDG_RUNTIME_DIR}/bus}"
+export XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS
+
 PLATFORM_DIR="/opt/aaas/platform"
 ADMIN_DIR="${PLATFORM_DIR}/admin"
 REPORT_DIR="${PLATFORM_DIR}/reports"
@@ -102,6 +121,21 @@ Type=oneshot
 # resolves correctly with no baked-in path.
 User=${OPERATOR_USER}
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# %U resolves to the UID of User= above (works for a system unit, not just
+# user units). Needed so systemctl --user (used to restart admin Hermes)
+# can reach that user's session bus — see the comment at the top of
+# aaas-watchdog.sh for why this is required.
+Environment=XDG_RUNTIME_DIR=/run/user/%U
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+# Default KillMode=control-group kills EVERY process in this oneshot's
+# cgroup when it exits — including the nohup fallback in
+# admin_hermes_restart() (nohup only blocks SIGHUP; it does nothing against
+# systemd's direct cgroup kill on service stop). That silently killed the
+# fallback-started process shortly after each tick, so it never actually
+# survived past the run that started it. KillMode=process limits the kill
+# to the tracked main process (this script) and leaves other cgroup
+# members — i.e. any detached background child — running.
+KillMode=process
 ExecStart=${PLATFORM_DIR}/scripts/aaas-watchdog.sh
 UNIT
 
@@ -184,10 +218,17 @@ escalate() {
     return 1
   fi
 
-  timeout "${OPENCODE_TIMEOUT}" opencode \
-    --non-interactive \
-    --workdir "${PLATFORM_DIR}" \
-    --message "${name} is down and automatic restart failed. \
+  # `opencode run` (not the old `opencode --non-interactive --workdir
+  # --message`, which doesn't exist in this CLI version — see `opencode run
+  # --help`) with `--auto`, which auto-approves permissions not explicitly
+  # denied. This is deliberate: escalation only fires when it's already an
+  # unattended, autonomous-recovery session with no operator present to
+  # approve prompts, so requiring interactive approval here would just make
+  # every escalation hang until OPENCODE_TIMEOUT and fail closed anyway.
+  timeout "${OPENCODE_TIMEOUT}" opencode run \
+    --dir "${PLATFORM_DIR}" \
+    --auto \
+    "${name} is down and automatic restart failed. \
 Read /opt/aaas/platform/incidents/${playbook}, diagnose and fix the issue. \
 Use /opt/aaas/platform/sop/write-report.md to write a troubleshoot report. \
 Set the report's trigger field to watchdog (this session was started \
@@ -246,11 +287,22 @@ admin_hermes_restart() {
   # wrapper needed: admin Hermes is a per-user install owned by whichever
   # account this watchdog itself runs as (User= in the systemd unit — see
   # --install above), same as every other command in this script.
-  if systemctl --user list-unit-files aaas-admin-hermes.service &>/dev/null; then
+  local unit_check
+  unit_check="$(systemctl --user list-unit-files aaas-admin-hermes.service 2>&1)"
+  if [[ $? -eq 0 ]]; then
     systemctl --user restart aaas-admin-hermes.service
     return
   fi
-  log "admin-hermes: systemd --user unit not installed (re-run setup-admin-hermes.md Step 7). Falling back to nohup."
+  # Distinguish "unit genuinely not installed" from "couldn't reach the
+  # user session bus" (e.g. XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS unset
+  # or linger not enabled) — these used to be logged identically, which
+  # made a bus-connection problem look like a missing install and masked
+  # the real fix.
+  if grep -qi "failed to connect to bus\|no such file or directory" <<<"$unit_check"; then
+    log "admin-hermes: could not reach the user systemd session bus (XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-unset}). Check 'loginctl enable-linger ${USER}' was run. Falling back to nohup: ${unit_check}"
+  else
+    log "admin-hermes: systemd --user unit not installed (re-run setup-admin-hermes.md Step 7). Falling back to nohup."
+  fi
   # No log redirect here by design — admin Hermes does not get a process
   # log (see aaas-admin-hermes.service); discard stdout/stderr the same way
   # the systemd unit does instead of quietly reintroducing one here.
