@@ -390,6 +390,30 @@ cat /opt/aaas/platform/docker/docker-compose.yaml
 echo ""
 
 # ------------------------------------------------------------------------------
+# Activate new PATH entries in the current shell session
+# ------------------------------------------------------------------------------
+# The installers above (nvm, opencode) wrote PATH and shell function exports to
+# ~/.bashrc, but a child script can't modify the *parent* shell's environment.
+# Source the key files here so every tool is live for the remainder of *this*
+# shell session (e.g. if the user runs setup.sh from the same terminal).
+# This is safe to run multiple times — the guards inside ~/.bashrc prevent
+# duplicate entries.
+
+log "Activating environment in current shell session..."
+
+# nvm
+export NVM_DIR="$HOME/.nvm"
+# shellcheck disable=SC1090
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+# shellcheck disable=SC1090
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+
+# opencode and other ~/.local/bin tools
+export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
+
+success "Environment activated in current shell session"
+
+# ------------------------------------------------------------------------------
 # Done
 # ------------------------------------------------------------------------------
 echo ""
@@ -408,8 +432,12 @@ echo "  2. Update your git identity:"
 echo "     git config --global user.name  \"Your Name\""
 echo "     git config --global user.email \"you@yourdomain.com\""
 echo ""
-echo "  3. Run 'source ~/.bashrc' or open a new terminal"
-echo "     to activate nvm, Docker auto-start, and SSH agent."
+echo "  3. Your current terminal session is already fully configured — no"
+echo "     restart needed. If you open a NEW terminal later and tools like"
+echo "     nvm or opencode are missing, run:"
+echo "         exec bash"
+echo "     (This reloads your shell, picking up all ~/.bashrc changes,"
+echo "     and is faster and more reliable than 'source ~/.bashrc'.)"
 echo ""
 echo "  4. Proceed with the main setup entrypoint:"
 echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash"

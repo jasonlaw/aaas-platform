@@ -705,8 +705,13 @@ validate_install() {
     || error "Dockerfile must install mnemosyne-hermes"
   grep -q "agent-vault-ca.crt" "$PLATFORM_ROOT/docker/Dockerfile" \
     || error "Dockerfile must include the Agent Vault MITM CA trust block (COPY agent-vault-ca.pem + update-ca-certificates)"
+  # agent-vault-ca.pem is fetched from a running Agent Vault container during
+  # the setup-agent-vault SOP (step 3). On a fresh install the container has
+  # not been started yet at this point in the flow, so the file legitimately
+  # doesn't exist. Warn rather than error so validation doesn't block the very
+  # setup sequence that creates it.
   [ -f "$PLATFORM_ROOT/docker/agent-vault-ca.pem" ] \
-    || error "Agent Vault CA certificate missing: $PLATFORM_ROOT/docker/agent-vault-ca.pem — run the setup-agent-vault SOP step 3 to fetch it from the running Agent Vault container"
+    || warn "Agent Vault CA certificate not yet present: $PLATFORM_ROOT/docker/agent-vault-ca.pem — fetch it by following setup-agent-vault SOP step 3 once Agent Vault is running"
   grep -q "^services:" "$PLATFORM_ROOT/docker/docker-compose.yaml" \
     || error "docker-compose.yaml must contain a top-level services mapping"
   grep -q "docker compose up -d {service-name}" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \

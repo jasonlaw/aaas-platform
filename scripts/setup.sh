@@ -51,6 +51,14 @@ BUILD_IMAGE=false
 VALIDATE_ONLY=false
 ASSUME_YES=false
 
+# Ensure tools installed by setup-prerequisites.sh (nvm, opencode, agent-vault)
+# are on PATH for this shell session. These are no-ops if the tools aren't
+# installed yet — setup-prerequisites.sh will install them and source the same
+# files inside its own subprocess, then return with the tools available because
+# the subprocess exports PATH as well.
+export NVM_DIR="$HOME/.nvm"
+# shellcheck disable=SC1090
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 export PATH="$HOME/.local/bin:$HOME/.opencode/bin:$PATH"
 
 while [ "${1:-}" != "" ]; do
