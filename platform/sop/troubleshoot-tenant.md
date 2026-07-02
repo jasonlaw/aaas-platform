@@ -48,21 +48,18 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
 
 ### Permission Denied In Logs
 - Repair tenant ownership:
-  `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
-- `chown -R` only fixes ownership for the *container*; it does not restore
-  host-side read access for the operator/automation user. Repair that too,
-  recursively (a top-level-only chmod misses subdirectories the container
-  creates later at runtime and they silently revert to unreadable):
-  `sudo chmod -R go+rX /opt/aaas/tenants/{tenant-id}/`
-- The ownership/mode repair above takes effect on disk immediately and does
-  not itself require a container replace. Force-recreate is only needed if
-  the running process actually still has the old permission error cached
-  (e.g. it opened a file handle before the repair and won't retry) — confirm
-  that from `docker logs` before recreating rather than recreating by
-  default. **Unattended:** never recreate here — apply the chown/chmod
-  above, re-check logs, and if the error persists, stop and alert per the
-  Container Recreate Policy above instead of recreating. **Attended:**
-  confirm with the operator per the Container Recreate Policy above, then:
+  ```bash
+  /opt/aaas/platform/scripts/repair-tenant-ownership.sh {tenant-id}
+  ```
+- The ownership/mode repair takes effect on disk immediately and does not
+  itself require a container replace. Force-recreate is only needed if the
+  running process still has the old permission error cached (e.g. it opened
+  a file handle before the repair and won't retry) — confirm that from
+  `docker logs` before recreating rather than recreating by default.
+  **Unattended:** never recreate here — apply the repair above, re-check
+  logs, and if the error persists, stop and alert per the Container Recreate
+  Policy above instead of recreating. **Attended:** confirm with the
+  operator per the Container Recreate Policy above, then:
   `cd /opt/aaas/platform/docker && docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`
 
 ### Invalid Config
@@ -136,11 +133,7 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
 - If `/opt/aaas/tenants/{tenant-id}/vault/` is missing, back-fill it (safe to
   re-run, never overwrites existing notes):
   ```bash
-  mkdir -p /opt/aaas/tenants/{tenant-id}/scripts
-  cp /opt/aaas/platform/tenant-hermes/scripts/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
-  chmod +x /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
-  TENANT_DIR=/opt/aaas/tenants/{tenant-id} BUSINESS_NAME="{business-name}" \
-    /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh {tenant-id}
+  /opt/aaas/platform/scripts/backfill-tenant-vault.sh {tenant-id} "{business-name}"
   ```
 - If it exists but the container can't see it, check the compose service has
   the `vault -> /home/hermes/vault` mount. If it was missing and you just

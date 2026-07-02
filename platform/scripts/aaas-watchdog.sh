@@ -249,26 +249,12 @@ escalate() {
     --auto \
     "${name} is down and automatic restart failed. \
 Read /opt/aaas/platform/incidents/${playbook}, diagnose and fix the issue. \
-HARD CONSTRAINT, no exceptions: this session is unattended (started by \
-aaas-watchdog.sh, no operator present) and --auto means every command you \
-run is auto-approved with nobody able to stop it. You must NEVER run \
-'docker compose up --force-recreate', 'docker compose down', 'docker compose \
-rm', or any other command that stops, removes, or replaces a container as \
-part of this session — this applies to every container (tenant, Agent \
-Vault, admin Hermes) and every playbook step that would normally include \
-one, with no exception for this being an incident response. If the \
-narrowest fix the evidence points to would require recreating or replacing \
-a container, do not run it: apply only the non-recreate portion of the fix \
-(e.g. permission repair, restarting a stopped-but-intact container with \
-plain 'docker compose up -d', diagnosis, log collection), then stop, write \
-the alert file, and write a task report stating exactly which recreate \
-command the operator needs to run manually and why. \
-Use /opt/aaas/platform/sop/write-report.md to write a troubleshoot report. \
-Set the report's trigger field to watchdog (this session was started \
-automatically by aaas-watchdog.sh, not by a human operator) and set \
-operator_request to this exact message, verbatim, not a paraphrase. \
-In the report, state clearly what was found, what was fixed, and if \
-unresolved, exactly what the operator needs to do next." \
+HARD CONSTRAINT: this session is unattended (--auto, no operator). \
+Follow the Container Recreate Policy in troubleshoot-tenant.md exactly — \
+never recreate, stop, or remove any container for any reason. Apply only \
+non-recreate fixes, then write an alert and a troubleshoot report via \
+/opt/aaas/platform/sop/write-report.md. Set trigger to watchdog and \
+operator_request to this message verbatim." \
     >> "$WATCHDOG_LOG" 2>&1 || log "${name}: OpenCode exited with error or timed out."
 
   log "${name}: OpenCode invocation complete. See reports/ for the task report."

@@ -20,25 +20,18 @@ tenant using the full onboard-tenant SOP.
 5.1. **For tenant-specific access restrictions (tenant policy):** edit `/opt/aaas/tenants/{tenant-id}/tenant-policy.yaml`, adding or modifying rules in the same shape as a platform-policy.yaml rule (id, category, agent_instruction, eval_checks). Reject any rule that contradicts or widens past a `platform-policy.yaml` rule — tenant policy may only narrow. Re-render the `<!-- BEGIN TENANT RULES -->`/`<!-- END TENANT RULES -->` block in `SOUL.md` from the updated `tenant-policy.yaml`, copying `agent_instruction` verbatim. If `/opt/aaas/platform/policy/platform-policy.yaml` itself changed since this tenant was last onboarded or updated (e.g. after a platform upgrade), also re-render the `<!-- BEGIN PLATFORM RULES -->`/`<!-- END PLATFORM RULES -->` block from the current `platform-policy.yaml`.
 6. For new channels, add token to `.env`, add gateway platform block to `config.yaml`, and update channels in tenants.yaml.
 7. Ensure `/opt/aaas/tenants/{tenant-id}/harness.yaml`, `/opt/aaas/tenants/{tenant-id}/ACCEPTANCE.md`, and `/opt/aaas/tenants/{tenant-id}/tenant-policy.yaml` exist. If `harness.yaml` or `ACCEPTANCE.md` is missing, create it from `/opt/aaas/platform/harness/` templates using known tenant metadata and mark unknown fields clearly. If `tenant-policy.yaml` is missing (tenant onboarded before the policy framework existed), create it from `/opt/aaas/platform/tenant-hermes/policy/tenant-policy.yaml.template` with an empty `rules: []` list, then render the BEGIN/END policy blocks into `SOUL.md` per step 5.1.
-7.1. Ensure `/opt/aaas/tenants/{tenant-id}/vault/` exists (tenants onboarded before this feature existed will not have it). If missing, back-fill it - safe to re-run, never overwrites existing notes:
+7.1. Ensure `/opt/aaas/tenants/{tenant-id}/vault/` exists (tenants onboarded before this feature existed will not have it). If missing, back-fill it:
    ```bash
-   mkdir -p /opt/aaas/tenants/{tenant-id}/scripts
-   cp /opt/aaas/platform/tenant-hermes/scripts/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
-   chmod +x /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
-   TENANT_DIR=/opt/aaas/tenants/{tenant-id} BUSINESS_NAME="{business-name}" \
-     /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh {tenant-id}
+   /opt/aaas/platform/scripts/backfill-tenant-vault.sh {tenant-id} "{business-name}"
    ```
-   Also add the `vault -> /home/hermes/vault` mount to this tenant's compose service block in `docker-compose.yaml` if it is missing.
+   Safe to re-run — never overwrites existing notes. Also add the `vault -> /home/hermes/vault` mount to this tenant's compose service block in `docker-compose.yaml` if it is missing.
 8. Repair tenant volume ownership after edits or file creation:
-   `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
-   Files created with `sudo tee` or a root editor after onboarding can otherwise remain root-owned even when the existing volume is correct.
-   `chown -R` does not change file mode, so also repair host-side access for the `docker compose` CLI:
-   `sudo chmod -R go+rX /opt/aaas/tenants/{tenant-id}/`
-   Use `-R`, not a top-level-only chmod — subdirectories the tenant container
-   creates at runtime (UID 10000) inherit a restrictive default umask and
-   will otherwise stay unreadable to the host operator even after this step.
-   Re-check with `harness/check-tenant.sh`'s `tenant_volume_host_readable`
-   result.
+   ```bash
+   /opt/aaas/platform/scripts/repair-tenant-ownership.sh {tenant-id}
+   ```
+   Files created with `sudo tee` or a root editor after onboarding can otherwise
+   remain root-owned even when the existing volume is correct. Re-check with
+   `harness/check-tenant.sh`'s `tenant_volume_host_readable` result.
 9. Validate the updated tenant config:
    `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
 10. Recreate only this tenant's container to guarantee a clean config reload. This is an unattended-forbidden, always-confirm action — `update-tenant` is only ever run interactively (an operator explicitly asked for a change), but the recreate is a distinct disruptive step from the edit itself, so confirm it separately before running it: state plainly that the container will be replaced (brief downtime) to load the `.env`/`config.yaml`/`SOUL.md` changes just made, and get an explicit y/n:

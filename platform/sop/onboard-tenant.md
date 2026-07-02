@@ -63,69 +63,56 @@ do not attempt to author it inline; report this and stop.
 4.2. **Scaffold the tenant's knowledge vault.** This is a separate system from
    both Mnemosyne and `business-data.md` — see the three-way explanation in
    `SOUL.md` (rendered from `SOUL.md.template`) for what the tenant agent is
-   told about each. Copy the scaffolder into the tenant volume and run it now,
-   before step 7's `chown -R`, so the ownership pass covers it:
+   told about each. Run the deterministic scaffolder now, before step 7's
+   ownership repair, so the ownership pass covers it:
    ```bash
-   mkdir -p /opt/aaas/tenants/{tenant-id}/scripts
-   cp /opt/aaas/platform/tenant-hermes/scripts/vault-init-tenant.sh /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
-   chmod +x /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh
-   TENANT_DIR=/opt/aaas/tenants/{tenant-id} BUSINESS_NAME="{{BUSINESS_NAME}}" \
-     /opt/aaas/tenants/{tenant-id}/scripts/vault-init-tenant.sh {tenant-id}
+   /opt/aaas/platform/scripts/backfill-tenant-vault.sh {tenant-id} "{business-name}"
    ```
    This creates `/opt/aaas/tenants/{tenant-id}/vault/` with `Customers/`,
    `Suppliers/`, `Recurring/`, `Reference/` folders, a minimal `.obsidian/`
    config so it opens cleanly in the Obsidian app, and a `README.md` written
-   from the actual `{{BUSINESS_NAME}}` (not a template placeholder left
-   unfilled). The tenant agent itself maintains this vault at runtime — the
-   admin agent's job here is only to scaffold it once during onboarding.
+   from the actual business name (not a template placeholder left unfilled).
+   The tenant agent itself maintains this vault at runtime — the admin agent's
+   job here is only to scaffold it once during onboarding.
 5. Render templates into `config.yaml`, `.env`, `.env.template`, `SOUL.md`, `memories/MEMORY.md`, `memories/USER.md`, `harness.yaml`, `ACCEPTANCE.md`, and `tenant-policy.yaml`. Use `/opt/aaas/platform/harness/tenant-harness.yaml.template` for the manifest, `/opt/aaas/platform/harness/ACCEPTANCE.md.template` for acceptance, and `/opt/aaas/platform/tenant-hermes/policy/tenant-policy.yaml.template` for the tenant policy file — fill in `{{TENANT_ID}}` and `{{BUSINESS_NAME}}`, and add the `rules:` list generated in step 1.2 (empty list if the operator gave no restrictions). Keep `home_chat_id: ""` in `config.yaml`; Telegram routing is restricted by `TELEGRAM_ALLOWED_USERS` in `.env`. Substitute `{{VERTICAL_CAPABILITIES_BLOCK}}` into `SOUL.md` and `{{VERTICAL_BRAND_FACTS_BLOCK}}` into `memories/MEMORY.md` using the stable facts generated and confirmed in step 1.2. Operational details classified in step 1.2 must not appear in `MEMORY.md`. Write the generated eval checks from step 1.2 to `/opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml` using the same YAML structure as `_fixed-safety-v1.yaml` (top-level `eval_profile`, `version`, `purpose`, `run_mode`, `checks` list), with `eval_profile` set to `{tenant-id}-v1`. If a fallback provider was collected in step 1, add a top-level `fallback_providers:` list to `config.yaml` with one entry (`provider` and `model`, matching `tenant-hermes/config.yaml.template`'s commented example) — never write the fallback API key into `config.yaml`, it is scrubbed the same way as the primary key in step 6.3. If no fallback provider was collected, leave the `fallback_providers` block commented out exactly as shipped in the template.
 5.1. **Render platform and tenant policy into `SOUL.md`.** Read `/opt/aaas/platform/policy/platform-policy.yaml` and the `tenant-policy.yaml` just rendered in step 5. Render each rule's `agent_instruction` as a bullet point under the appropriate section header, inside the `<!-- BEGIN PLATFORM RULES -->`/`<!-- END PLATFORM RULES -->` and `<!-- BEGIN TENANT RULES -->`/`<!-- END TENANT RULES -->` marker comments already present in `SOUL.md.template`. Copy `agent_instruction` verbatim — do not paraphrase. If `tenant-policy.yaml` has an empty `rules:` list, the tenant rules block is correctly empty (markers present, no bullets); this is not an error.
 6. Verify `config.yaml` contains `memory.provider: mnemosyne`, `memory_enabled: false`, `user_profile_enabled: false`, and no secrets. If a fallback provider was collected in step 1, also verify `config.yaml` contains a top-level `fallback_providers:` list with the collected `provider` and `model` (and no API key); if no fallback provider was collected, verify the block is still commented out, not silently added. Verify `.env` contains the selected provider API key env var, `TELEGRAM_ALLOWED_USERS` as comma-separated numeric IDs, and `MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data`. Verify `SOUL.md` still contains, unchanged, every fixed conduct line from `platform/tenant-hermes/SOUL.md.template` (the "try to work it out yourself," "always save generated content," "always store owner-uploaded files," and "use `tenant-install.sh`" lines), the `BEGIN/END PLATFORM RULES` and `BEGIN/END TENANT RULES` marker blocks each containing the rendered `agent_instruction` bullets from step 5.1, and that generation only filled in `{{VERTICAL_CAPABILITIES_BLOCK}}` and the two policy marker blocks without altering any other line.
 6.1. Validate the rendered tenant config:
    `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
-6.2. Copy the tenant-side skill verification script into the tenant volume so the container can call it at runtime:
+6.2. Copy all tenant runtime scripts into the tenant volume using the deterministic install script:
 ```bash
-   cp /opt/aaas/platform/tenant-hermes/scripts/skill-verify.sh /opt/aaas/tenants/{tenant-id}/scripts/skill-verify.sh
-   chmod +x /opt/aaas/tenants/{tenant-id}/scripts/skill-verify.sh
+   /opt/aaas/platform/scripts/install-tenant-scripts.sh {tenant-id}
 ```
-   The tenant agent calls this as `/opt/data/scripts/skill-verify.sh` from inside the container.
-6.2.1. Copy the tenant plugin-persistence scripts into the tenant volume, same pattern as `skill-verify.sh` above — these give the tenant agent a supported way to install runtime pip/binary plugins that survive `--force-recreate` (see `docs/architecture.md`'s "What Gets Preserved on Upgrade" and `tenant-plugin-persistence-issue.md`):
-```bash
-   cp /opt/aaas/platform/tenant-hermes/scripts/tenant-install.sh /opt/aaas/tenants/{tenant-id}/scripts/tenant-install.sh
-   cp /opt/aaas/platform/tenant-hermes/scripts/reconcile-plugins.sh /opt/aaas/tenants/{tenant-id}/scripts/reconcile-plugins.sh
-   cp /opt/aaas/platform/tenant-hermes/scripts/tenant-entrypoint.sh /opt/aaas/tenants/{tenant-id}/scripts/tenant-entrypoint.sh
-   chmod +x /opt/aaas/tenants/{tenant-id}/scripts/tenant-install.sh \
-     /opt/aaas/tenants/{tenant-id}/scripts/reconcile-plugins.sh \
-     /opt/aaas/tenants/{tenant-id}/scripts/tenant-entrypoint.sh
-```
-   The tenant agent calls `tenant-install.sh` (as `/opt/data/scripts/tenant-install.sh`) to install a new pip package or binary; `reconcile-plugins.sh` runs automatically on every container start via `tenant-entrypoint.sh` (see step 8's `command:`) and never needs to be called directly.
-6.2.2. Copy the Mnemosyne seed script into the tenant volume, same pattern as `skill-verify.sh` — step 13 below calls it as `/opt/data/scripts/seed-mnemosyne.py`:
-```bash
-   cp /opt/aaas/platform/tenant-hermes/scripts/seed-mnemosyne.py /opt/aaas/tenants/{tenant-id}/scripts/seed-mnemosyne.py
-   chmod +x /opt/aaas/tenants/{tenant-id}/scripts/seed-mnemosyne.py
-```
+   This installs `skill-verify.sh`, `tenant-install.sh`, `reconcile-plugins.sh`,
+   `tenant-entrypoint.sh`, and `seed-mnemosyne.py` into
+   `/opt/aaas/tenants/{tenant-id}/scripts/`, each with `chmod +x`. Idempotent —
+   already-current files are skipped. Adding a new runtime script in the future
+   only requires updating `install-tenant-scripts.sh` in one place.
 6.3. **Provision the tenant vault in Agent Vault:**
-   Run `/opt/aaas/platform/sop/provision-tenant-vault.md` now — after `.env` exists
-   but before container start. Pass it the provider-specific API key env var name
-   collected in step 1 (e.g. `ANTHROPIC_API_KEY`) — provision-tenant-vault uses
-   this exact name to scrub the real key, so it must not be hardcoded or guessed.
-   If a fallback provider was collected in step 1, also pass its provider-specific
-   API key env var name and value — provision-tenant-vault registers and scrubs
-   the fallback credential the same way as the primary, under its own section. If
-   no fallback provider was collected, skip that section of provision-tenant-vault
-   entirely.
-   This SOP will:
-   - Create `{tenant-id}-vault` in Agent Vault and store the real LLM API key in it
-   - Replace the real key in `.env` with the placeholder `routed-via-agent-vault`
-     under that same provider env var name
-   - Write `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, `AGENT_VAULT_TOKEN`, and
-     `AGENT_VAULT_VAULT` into `.env`
-   - The vault is scoped to only the registered LLM provider host by
-     construction (registering a service is what permits a host through the
-     proxy; unregistered hosts are denied by default), so only that host
-     (and anything else explicitly added) can be reached through it
-   After this step, `.env` must contain no real LLM API key — verify with
-   provision-tenant-vault's step 6 checks, not just a visual scan.
+   Run the deterministic provision script now — after `.env` exists but before
+   container start. Pass the provider-specific API key env var name collected in
+   step 1 (e.g. `ANTHROPIC_API_KEY`) — the script uses this exact name to scrub
+   the real key, so it must not be hardcoded or guessed.
+   ```bash
+   /opt/aaas/platform/scripts/provision-tenant-vault.sh \
+     {tenant-id} {provider-env-var} {real-api-key}
+   ```
+   If a fallback provider was collected in step 1, pass both its env var and key
+   as the optional 4th and 5th arguments:
+   ```bash
+   /opt/aaas/platform/scripts/provision-tenant-vault.sh \
+     {tenant-id} {provider-env-var} {real-api-key} \
+     {fallback-provider-env-var} {fallback-real-api-key}
+   ```
+   The script creates `{tenant-id}-vault`, stores the credential, creates the
+   isolated network and forwarding sidecar, mints a proxy token, replaces the
+   real key in `.env` with the placeholder `routed-via-agent-vault`, and injects
+   `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, `AGENT_VAULT_TOKEN`, and
+   `AGENT_VAULT_VAULT`. It exits non-zero if any step fails, and verifies no real
+   key remains in `.env` before returning. The full procedure is documented in
+   `provision-tenant-vault.md` for reference.
+   After this step, `.env` must contain no real LLM API key — the script's own
+   step 6 checks confirm this; a non-zero exit means do not proceed.
 6.4. **Copy the tenant-side admin contact skill and credentials:**
 ```bash
    cp /opt/aaas/platform/tenant-hermes/skills/tenant-contact-admin.md /opt/aaas/tenants/{tenant-id}/skills/tenant-contact-admin.md
@@ -138,23 +125,17 @@ do not attempt to author it inline; report this and stop.
    per-tenant change. This call reaches admin Hermes's own API server
    (`127.0.0.1:8642`, see step 8 below); the tenant does not run an API
    server of its own.
-7. Set tenant volume ownership for the Hermes container user before starting the container:
-   `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
-   The tenant container runs as UID `10000`; without this, mounted `/opt/data` paths such as logs and Mnemosyne data can fail with `Permission denied`. Use `sudo cat` from the host when inspecting seeded files after this point.
-   `chown -R` only changes ownership, not mode — immediately repair host-side access so the `docker compose` CLI (run as the operator/automation user, not root) can still read the files it needs:
-   `sudo chmod -R go+rX /opt/aaas/tenants/{tenant-id}/`
-   Without this, `docker compose up` for the tenant can fail to read `.env` even though the daemon itself runs as root, because the CLI parses `env_file` client-side before submitting the request.
-   Use `-R` (recursive), not a single chmod on the top-level directory only —
-   a non-recursive chmod leaves any subdirectory the tenant container creates
-   later at runtime (Mnemosyne data, logs, etc., owned by UID 10000 with its
-   own restrictive default umask) unreadable to the host operator again, even
-   though the top-level directory looks fine. `go+rX` adds read (and execute,
-   only where already set — i.e. only on directories and already-executable
-   files) for group and other without touching owner bits or stripping `+x`
-   off scripts. This step is gated by the `tenant_volume_host_readable`
-   checklist item — re-run it (and re-run `troubleshoot-tenant.md`'s
-   permission-repair step below) any time `harness/check-tenant.sh` reports
-   that check as FAIL, including after the tenant has been running a while.
+7. Set tenant volume ownership and host-side read access before starting the container:
+   ```bash
+   /opt/aaas/platform/scripts/repair-tenant-ownership.sh {tenant-id}
+   ```
+   This runs `sudo chown -R 10000:10000` (so the Hermes container user, UID 10000,
+   can write mounted `/opt/data` paths) and `sudo chmod -R go+rX` (so the
+   `docker compose` CLI, run as the operator user, can still read `.env` and other
+   tenant files). Both must be recursive — subdirectories the tenant container
+   creates at runtime inherit a restrictive default umask and would otherwise
+   become unreadable to the host operator. Re-run this script any time
+   `harness/check-tenant.sh` reports `tenant_volume_host_readable` as FAIL.
 8. Add this tenant's service block to `/opt/aaas/platform/docker/docker-compose.yaml` using the deterministic script — do not write the YAML by hand:
    ```bash
    /opt/aaas/platform/scripts/add-tenant-compose-service.sh {tenant-id}
