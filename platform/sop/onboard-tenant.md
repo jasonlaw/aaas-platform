@@ -155,27 +155,11 @@ do not attempt to author it inline; report this and stop.
    checklist item — re-run it (and re-run `troubleshoot-tenant.md`'s
    permission-repair step below) any time `harness/check-tenant.sh` reports
    that check as FAIL, including after the tenant has been running a while.
-8. Update `/opt/aaas/platform/docker/docker-compose.yaml` structurally under the top-level `services:` mapping. If the file only contains an empty placeholder, replace it with a normal `services:` block plus the tenant service:
-   - service/container name: `hermes_{tenant-id}`
-   - image: `hermes-tenant:latest`
-   - command: `/opt/data/scripts/tenant-entrypoint.sh` — a thin shim that runs `reconcile-plugins.sh` (best-effort, never blocking) then `exec`s `gateway run`, so the healthcheck below and `aaas-watchdog.sh` still see the same `gateway run` process they always did
-   - restart policy: `restart: unless-stopped` so the tenant starts again after host or Docker daemon reboot
-   - mounts tenant folder to `/opt/data`, files folder to `/home/hermes/files`, and vault folder to `/home/hermes/vault`
-   - `env_file` points to the tenant `.env`
-   - resource limits: `mem_limit: 1g` and `cpus: "1.0"`
-   - no published ports — the tenant agent only makes outbound calls (to
-     Agent Vault's proxy and to admin Hermes's API server, both host-side);
-     it does not run a listener of its own that needs to be reachable
-   - network: `hermes-{tenant-id}-net` (this tenant's isolated network, created in provision-tenant-vault.md step 1a and joined by the forwarding sidecar `agent-vault-proxy-{tenant-id}` in step 1b — not Agent Vault itself — so the container can reach the Agent Vault proxy on `http://agent-vault-proxy-{tenant-id}:14322` without sharing a network with any other tenant, and without the management API at `:14321` ever being reachable). Declare this network as `external: true` with `name: hermes-{tenant-id}-net` at the bottom of docker-compose.yaml if not already present — the explicit `name:` is required, see provision-tenant-vault.md step 8 for why.
-   - healthcheck: the tenant container publishes no port (see above), so liveness can't be an HTTP probe — use a process check instead: `test: ["CMD-SHELL", "pgrep -f 'gateway run' || exit 1"]` with `interval: 60s`, `timeout: 5s`, `retries: 3`. This is what makes `docker inspect`'s `.State.Health.Status` meaningful for this container; without it the watchdog (next bullet) can only see "running", not "running but stuck".
-   - watchdog labels, so `aaas-watchdog.sh` (`/opt/aaas/platform/scripts/aaas-watchdog.sh`) picks this tenant up automatically — no separate registration step:
-     ```yaml
-     labels:
-       aaas.watchdog: "true"
-       aaas.watchdog.priority: "5"
-       aaas.watchdog.playbook: "troubleshoot-tenant.md"
-     ```
-     Priority 5 is the standard tenant tier (below Agent Vault at 0 and admin Hermes at 1) — use the same value for every tenant unless the operator has a specific reason to prioritize one tenant's recovery over another's.
+8. Add this tenant's service block to `/opt/aaas/platform/docker/docker-compose.yaml` using the deterministic script — do not write the YAML by hand:
+   ```bash
+   /opt/aaas/platform/scripts/add-tenant-compose-service.sh {tenant-id}
+   ```
+   The script appends the complete service block (image, command, restart policy, mounts, env_file, resource limits, network, healthcheck, watchdog labels) and the required `external: true` network declaration, all with the exact field values the harness and watchdog expect. If the script prints `SKIP` (service already present), stop and confirm with the operator before proceeding — do not re-run or edit the existing block without operator approval.
 9. Start only this tenant: `docker compose up -d hermes_{tenant-id}`.
 10. **Verify container outbound connectivity** (critical for Telegram and external APIs):
     - Wait 5 seconds for container to stabilize

@@ -244,6 +244,17 @@ service_contains "$SERVICE" "hermes-${TENANT_ID}-net" "compose_uses_isolated_ten
 # passes — the scripts existing on disk proves nothing if they're never
 # invoked. Check the wiring, not just the files.
 service_contains "$SERVICE" "/opt/data/scripts/tenant-entrypoint.sh" "compose_uses_tenant_entrypoint"
+# Healthcheck — required so docker inspect .State.Health.Status is meaningful
+# for the watchdog; without it the watchdog can only see "running", not "stuck".
+service_contains "$SERVICE" "pgrep -f 'gateway run'" "compose_has_healthcheck"
+# Watchdog labels — required for aaas-watchdog.sh to pick up this tenant automatically.
+service_contains "$SERVICE" "aaas\.watchdog:[[:space:]]*\"true\"" "compose_has_watchdog_label"
+service_contains "$SERVICE" "aaas\.watchdog\.priority:[[:space:]]*\"5\"" "compose_has_watchdog_priority"
+service_contains "$SERVICE" "aaas\.watchdog\.playbook:[[:space:]]*\"troubleshoot-tenant\.md\"" "compose_has_watchdog_playbook"
+# External network declaration — required so Compose does not try to create a
+# network it doesn't own, and so the explicit name: prevents project-prefixing.
+contains "$COMPOSE_FILE" "hermes-${TENANT_ID}-net:" "compose_network_block_declared"
+contains "$COMPOSE_FILE" "external:[[:space:]]*true" "compose_network_external_true"
 contains "$TENANTS_FILE" "id:[[:space:]]*$TENANT_ID|tenant_id:[[:space:]]*$TENANT_ID|$TENANT_ID" "tenant_registry_mentions_tenant"
 
 if command -v docker >/dev/null 2>&1; then

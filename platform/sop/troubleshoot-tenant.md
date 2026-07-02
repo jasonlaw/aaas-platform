@@ -22,9 +22,11 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
    `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
 7. Run the tenant harness check:
    `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`
-8. Check container state:
-   - `docker ps -a --filter name=hermes_{tenant-id}`
-   - `docker logs hermes_{tenant-id} --tail 80`
+8. Check container state and diagnose log errors using the platform error vocabulary:
+   ```bash
+   /opt/aaas/platform/scripts/diagnose-tenant-logs.sh {tenant-id}
+   ```
+   The script checks container status, scans the last 200 log lines against known error patterns (permission, vault, mnemosyne, network, config, plugin, container), and prints each finding with the exact recovery command. Pass a higher tail count for intermittent issues: `diagnose-tenant-logs.sh {tenant-id} 500`. If the script prints `none / no_known_patterns_matched`, read raw logs manually: `docker logs hermes_{tenant-id} --tail 80`
 9. Check network only if the container is running:
    - `docker exec hermes_{tenant-id} ping -c 1 -W 2 api.telegram.org`
    - `docker exec hermes_{tenant-id} curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 https://api.telegram.org && echo`
