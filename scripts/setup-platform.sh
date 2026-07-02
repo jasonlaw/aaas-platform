@@ -192,16 +192,13 @@ prompt_confirm_install() {
   local source_version="$2"
   local answer=""
 
-  if [ "$installed_version" = "$source_version" ]; then
-    warn "Installed platform version already matches repository version: $installed_version"
-    warn "Rerunning setup will overwrite managed assets with the same version."
-  else
-    warn "Installed platform version is $installed_version; repository version is $source_version"
-    warn "Continuing will overwrite managed assets with the repository version."
-  fi
+  # Only reached when installed > source (downgrade). Always warn and require
+  # explicit confirmation — or --yes/--no-tty for automated runs.
+  warn "Installed platform version $installed_version is newer than repository version $source_version"
+  warn "Continuing will DOWNGRADE managed assets to the repository version."
   echo ""
   echo "Choose how to continue:"
-  echo "  1. Continue with backup"
+  echo "  1. Continue with backup (recommended)"
   echo "  2. Continue without backup"
   echo "  3. Cancel"
   echo ""
@@ -272,9 +269,16 @@ decide_install_strategy() {
       BACKUP_BEFORE_INSTALL=true
       ;;
     equal)
-      prompt_confirm_install "$installed_version" "$source_version"
+      # Same version: back up and re-apply without prompting. This is always
+      # the right behavior (idempotent re-run, fresh install that reuses the
+      # same version tag, etc.) and prompting here was the cause of hangs
+      # when setup was re-run after a partial failure or via curl | bash.
+      warn "Installed platform version already matches repository version: $installed_version"
+      warn "Re-applying managed assets with backup."
+      BACKUP_BEFORE_INSTALL=true
       ;;
     newer)
+      # Genuinely dangerous: would downgrade. Always prompt.
       warn "Installed platform version $installed_version is newer than repository version $source_version"
       warn "This may downgrade managed platform assets."
       prompt_confirm_install "$installed_version" "$source_version"
@@ -394,7 +398,23 @@ ensure_plan0_ready() {
   [ -d "$PLATFORM_ROOT" ] || error "$PLATFORM_ROOT does not exist. Run scripts/setup-prerequisites.sh first."
 
   docker --version >/dev/null
-  docker info >/dev/null 2>&1 || error "Docker Engine is not reachable. Start Docker, then rerun platform setup."
+  # Try docker info as the current user first. If it fails due to a socket
+  # permission error (group not yet active in this session), fall back to
+  # sudo docker info to confirm Docker is actually running. If even that
+  # fails, Docker genuinely isn't running and we error with a clear message.
+  if ! docker info >/dev/null 2>&1; then
+    if sudo docker info >/dev/null 2>&1; then
+      warn "Docker is running but the docker group is not active in this shell session."
+      warn "Run 'exec bash' (or log out and back in) to activate it, then re-run setup."
+      warn "Continuing with sudo for this session..."
+      # Re-export a wrapper so subsequent docker calls in this script work.
+      # For docker compose calls, sudo is inherited via the PATH docker binary.
+      docker() { sudo docker "$@"; }
+      export -f docker
+    else
+      error "Docker Engine is not reachable. Start Docker with 'sudo systemctl start docker', then rerun platform setup."
+    fi
+  fi
   opencode --version >/dev/null
   command -v agent-vault >/dev/null 2>&1 || error "agent-vault CLI not found. Run scripts/setup-prerequisites.sh first."
   success "Prerequisite tools and folders are present"

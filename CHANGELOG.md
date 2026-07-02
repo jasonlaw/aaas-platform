@@ -4,7 +4,49 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
-## 0.15.5 - 2026-07-03
+## 0.15.6 - 2026-07-03
+
+### Fixed
+
+- **`scripts/setup-platform.sh` — same-version re-run no longer pauses for interactive input.**
+  `decide_install_strategy` previously called `prompt_confirm_install` when the
+  installed and repo versions were equal, which blocks on `/dev/tty`. This caused
+  a hang whenever setup was re-run after a partial failure, a clean re-run of the
+  same version, or any `curl | bash` / `bash <(curl ...)` invocation without
+  `--yes`. The `equal` case now auto-selects "continue with backup" without
+  prompting — this is always the correct behavior (idempotent, safe, no data
+  loss). The interactive prompt is now only shown for genuine downgrades
+  (installed version newer than repo version), where operator confirmation
+  is legitimately required.
+
+
+
+### Fixed
+
+- **`scripts/setup-prerequisites.sh` — `sg` not found on minimal Ubuntu images; docker group re-exec now uses `sudo -g docker` instead.**
+  `sg` is part of `shadow-utils` and is absent on many Ubuntu cloud/minimal
+  configurations. The 0.15.4 re-exec used `exec sg docker -c "..."`, which
+  caused the script to exit immediately with `sg: not found` on affected
+  machines, forcing the user to re-run setup manually. The re-exec now uses
+  `exec sudo -E -u "$USER" -g docker bash "$0" "$@"` as the primary method
+  (`sudo` is always present on Ubuntu), with `sg` retained as a secondary
+  fallback. If neither is available a clear warning is printed and the script
+  continues, asking the user to log out/in if Docker commands subsequently fail.
+
+- **`scripts/setup-platform.sh` — misleading "Start Docker" error when Docker is running but the group is not yet active in the shell.**
+  When a user re-runs `setup.sh` after a failed prerequisites run (e.g. after
+  the `sg: not found` failure above), `setup.sh` auto-detects upgrade mode
+  (platform dir already exists) and skips the prerequisites step, going straight
+  to `setup-platform.sh`. The `docker info` check there failed with
+  "Docker Engine is not reachable" even though Docker was running fine — the
+  real cause was the docker group not being active in the current shell.
+  The check now tries `sudo docker info` as a fallback: if that succeeds it
+  warns the user about the group, installs a `docker()` wrapper for the
+  remainder of the session so all subsequent docker calls work, and continues.
+  Only if `sudo docker info` also fails does it error with a genuinely
+  actionable "Start Docker" message.
+
+
 
 ### Fixed
 
@@ -40,7 +82,7 @@ All notable changes to this platform setup are tracked here. The platform setup 
   and carry an explanation of why it is required in this context. The README
   upgrade section is updated identically.
 
-## 0.15.4 - 2026-07-03
+
 
 ### Fixed
 

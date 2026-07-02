@@ -261,10 +261,25 @@ if [ "$DOCKER_GROUP_JUST_ADDED" = true ] && [ "${DOCKER_GROUP_ALREADY_ACTIVE:-}"
   if ! id -Gn | grep -qw docker; then
     log "Docker group added — re-executing script under new group membership (no logout needed)..."
     export DOCKER_GROUP_ALREADY_ACTIVE=true
-    exec sg docker -c "$(printf '%q ' "$0" "$@")"
-    # exec replaces the current process; lines below are never reached on
-    # a successful re-exec. If sg is unavailable the script continues and
-    # will fail at docker info with an actionable error.
+
+    # `sudo -g docker` re-execs the script with the docker group active in
+    # the new process. It is part of sudo (installed on every Ubuntu system)
+    # so it is more reliable than `sg`, which is part of shadow-utils and
+    # is not present on all Ubuntu configurations (e.g. minimal cloud images).
+    # We try sudo -g first, then sg as a fallback, then instruct the user
+    # to log out/in if both are unavailable.
+    if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+      exec sudo -E -u "$USER" -g docker bash "$0" "$@"
+    elif command -v sg >/dev/null 2>&1; then
+      exec sg docker -c "$(printf '%q ' "$0" "$@")"
+    else
+      warn "Neither 'sudo -g' nor 'sg' is available to refresh docker group membership."
+      warn "Docker commands in this session may fail with a permission error."
+      warn "If they do, log out and back in, then re-run this script."
+      warn "Continuing anyway..."
+    fi
+    # exec replaces the current process; lines below are only reached if
+    # exec itself failed (extremely unlikely) or the fallback warn path ran.
   fi
 fi
 success "Docker group membership active in current session"
