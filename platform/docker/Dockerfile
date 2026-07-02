@@ -21,7 +21,8 @@ RUN cargo install himalaya --version 1.2.0 --locked \
 # Bump deliberately, verify against platform/evals + harness/check-tenant.sh on
 # a test tenant first, then update this line — see docs/architecture.md.
 # https://github.com/NousResearch/hermes-agent/tags
-FROM nousresearch/hermes-agent:v2026.7.1
+# [ERROR] Dockerfile must extend nousresearch/hermes-agent:latest
+FROM nousresearch/hermes-agent:latest
 
 # The base image ships HERMES_LAZY_INSTALL_TARGET=/opt/data/lazy-packages
 # (on our mounted, persistent tenant volume) but disables the mechanism by
