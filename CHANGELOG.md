@@ -4,7 +4,21 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
-## 0.15.6 - 2026-07-03
+## 0.15.7 - 2026-07-03
+
+### Fixed
+
+- **`scripts/setup-platform.sh` — validator checks for `update-tenant.md` and `upgrade-tenants.md` ownership repair were broken since 0.15.4.**
+  In 0.15.4 both SOPs were refactored to call `repair-tenant-ownership.sh`
+  instead of running `sudo chown -R 10000:10000` inline. The two validator
+  `grep` checks in `validate_install()` were not updated at the same time and
+  kept looking for the raw `chown` string, causing `[ERROR] Update tenant SOP
+  must repair tenant volume ownership after edits` on every install. The checks
+  now look for `repair-tenant-ownership.sh`, which is the canonical ownership
+  repair entry point in both SOPs. The `onboard-tenant.md` check is unchanged
+  (that SOP still references the raw `chown` string in its inline comment).
+
+
 
 ### Fixed
 

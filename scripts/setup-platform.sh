@@ -781,9 +781,9 @@ validate_install() {
     || error "VERSION must contain a semantic version like 0.1.0"
   grep -q "sudo chown -R 10000:10000" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must set tenant volume ownership for Hermes UID 10000"
-  grep -q "sudo chown -R 10000:10000" "$PLATFORM_ROOT/sop/update-tenant.md" \
+  grep -q "repair-tenant-ownership.sh" "$PLATFORM_ROOT/sop/update-tenant.md" \
     || error "Update tenant SOP must repair tenant volume ownership after edits"
-  grep -q "sudo chown -R 10000:10000" "$PLATFORM_ROOT/sop/upgrade-tenants.md" \
+  grep -q "repair-tenant-ownership.sh" "$PLATFORM_ROOT/sop/upgrade-tenants.md" \
     || error "Upgrade tenants SOP must repair tenant volume ownership after edits"
   grep -q "tenant_harness_owner_is_10000" "$PLATFORM_ROOT/harness/check-tenant.sh" \
     || error "Tenant harness check must verify harness.yaml ownership"
