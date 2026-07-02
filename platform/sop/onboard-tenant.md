@@ -168,10 +168,10 @@ do not attempt to author it inline; report this and stop.
     - Curl Telegram API HTTPS endpoint: `docker exec hermes_{tenant-id} curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 https://api.telegram.org && echo`
     - Retest ping/curl if rules were added.
 11. Verify with `docker ps` and `docker logs hermes_{tenant-id} --tail 20`.
-12. Install/activate the Mnemosyne Hermes plugin inside the tenant volume, then restart only this tenant:
+12. Install/activate the Mnemosyne Hermes plugin inside the tenant volume, then restart only this tenant. All three commands must pin `HERMES_HOME=/opt/data` — this is the same activation operation split across three calls, and it must target the persistent tenant volume every time, not just on the first call, or the resulting activation state may not survive the container recreate on the last line:
    `docker exec -e HERMES_HOME=/opt/data hermes_{tenant-id} mnemosyne-hermes install`
-   `docker exec hermes_{tenant-id} hermes config set memory.provider mnemosyne`
-   `docker exec hermes_{tenant-id} hermes memory setup`
+   `docker exec -e HERMES_HOME=/opt/data hermes_{tenant-id} hermes config set memory.provider mnemosyne`
+   `docker exec -e HERMES_HOME=/opt/data hermes_{tenant-id} hermes memory setup`
    `docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`
 13. Seed Mnemosyne with `memories/MEMORY.md` and `memories/USER.md`. The Mnemosyne CLI command is `store`, not `remember`; if unsure, run `docker exec hermes_{tenant-id} mnemosyne --help`. Because tenant files are owned by UID `10000`, read seed files with `sudo cat` from the host:
    `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8`

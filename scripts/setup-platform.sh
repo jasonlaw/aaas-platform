@@ -734,6 +734,12 @@ validate_install() {
     || error "Tenant config validator must verify the tenant knowledge vault ownership"
   grep -q "HERMES_HOME=/opt/data" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must install mnemosyne-hermes via HERMES_HOME env var"
+  [ "$(grep -c -- '-e HERMES_HOME=/opt/data' "$PLATFORM_ROOT/sop/onboard-tenant.md")" -ge 3 ] \
+    || error "Onboarding SOP step 12 must pin HERMES_HOME=/opt/data on all three mnemosyne activation commands, not just the install call"
+  grep -q "HERMES_HOME=/opt/data" "$PLATFORM_ROOT/tenant-hermes/env.template" \
+    || error "Tenant env template must pin HERMES_HOME=/opt/data for runtime, matching the onboarding activation commands"
+  grep -q "container_mnemosyne_active" "$PLATFORM_ROOT/harness/check-tenant.sh" \
+    || error "Tenant harness check must verify Mnemosyne is functionally active, not just that config files reference it"
   grep -q "mnemosyne store" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must seed Mnemosyne with the store command"
   grep -q "chat not found" "$PLATFORM_ROOT/sop/onboard-tenant.md" \

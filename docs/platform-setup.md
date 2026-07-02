@@ -512,12 +512,15 @@ Wait 10 seconds for container to fully initialise:
 sleep 10
 
 Install the Mnemosyne Hermes plugin link into the tenant's `/opt/data` volume,
-then activate the provider:
+then activate the provider. All three `docker exec` calls must pin
+`HERMES_HOME=/opt/data` so the activation state lands on the persistent tenant
+volume, and the final step must be a `--force-recreate`, not a plain
+`restart`, to guarantee a clean reload of the new state:
 ```bash
 docker exec -e HERMES_HOME=/opt/data hermes_{tenant-id} mnemosyne-hermes install
-docker exec hermes_{tenant-id} hermes config set memory.provider mnemosyne
-docker exec hermes_{tenant-id} hermes memory setup
-docker compose restart hermes_{tenant-id}
+docker exec -e HERMES_HOME=/opt/data hermes_{tenant-id} hermes config set memory.provider mnemosyne
+docker exec -e HERMES_HOME=/opt/data hermes_{tenant-id} hermes memory setup
+docker compose up --force-recreate --no-deps -d hermes_{tenant-id}
 ```
 
 Seed brand and owner context through the active Mnemosyne provider. Prefer the

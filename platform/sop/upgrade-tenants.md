@@ -4,9 +4,9 @@
 Upgrade all active tenants to the latest Docker image after build-image.md completes.
 
 ## Steps
-1. Confirm: "This will restart all active tenant containers with the new image. Brief downtime per tenant. Proceed? (y/n)"
-2. Run `/opt/aaas/platform/scripts/preflight-check.sh`, then read tenants.yaml and list tenants with `status: active`.
-3. For each active tenant:
+1. Confirm: "This will restart tenant containers that actually need it (new image or a config/network backfill applied this run). Brief downtime per affected tenant. Proceed? (y/n)"
+2. Run `/opt/aaas/platform/scripts/preflight-check.sh`, then read tenants.yaml and list tenants with `status: active`. Resolve the target image ID once: `docker inspect --format '{{.Id}}' hermes-tenant:latest`.
+3. For each active tenant, track a per-tenant `NEEDS_RECREATE` flag (starts `false`; set `true` by any backfill sub-step below that actually changes a file, network, or compose entry for this tenant — not merely by running the idempotent check itself):
    - ensure `/opt/aaas/tenants/{tenant-id}/harness.yaml` exists; if missing, create it from `/opt/aaas/platform/harness/tenant-harness.yaml.template` using known tenant metadata and mark unknown fields clearly
    - ensure `/opt/aaas/tenants/{tenant-id}/ACCEPTANCE.md` exists; if missing, create it from `/opt/aaas/platform/harness/ACCEPTANCE.md.template`
    - ensure `/opt/aaas/tenants/{tenant-id}/vault/` exists (tenants onboarded before this feature existed will not have it); if missing, back-fill it without touching any other tenant state:
@@ -43,10 +43,13 @@ Upgrade all active tenants to the latest Docker image after build-image.md compl
    - repair ownership after any edits or file creation: `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`
    - `chown -R` does not change file mode, so also repair host-side access for the `docker compose` CLI, recursively — a top-level-only chmod misses subdirectories the tenant container creates at runtime, which is exactly the gap that has been leaving tenant directories unreadable after past upgrades: `sudo chmod -R go+rX /opt/aaas/tenants/{tenant-id}/`
    - run `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
-   - `docker compose stop hermes_{tenant-id}`
-   - `docker compose rm -f hermes_{tenant-id}`
-   - `docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`
+   - **Decide whether this tenant actually needs a recreate.** Compare the running container's current image against the target:
+     `docker inspect --format '{{.Image}}' hermes_{tenant-id}` vs. the target image ID resolved in step 2.
+     If they already match **and** `NEEDS_RECREATE` is still `false` for this tenant (no backfill sub-step changed anything above), this tenant is already fully up to date — skip the recreate entirely, verify with `docker ps | grep hermes_{tenant-id}`, run `check-tenant.sh`, record `skipped_recreate: no changes` in the report, and move to the next tenant. Recreating a container that needs nothing risks losing any state that only lives in the container's writable layer for zero benefit, and this platform's own operating rule is to avoid recreate unless it is a MUST.
+     Otherwise (image differs, or a backfill sub-step set `NEEDS_RECREATE`), recreate is required to load the new image and/or the updated file/network state cleanly:
+     `docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`
+     (`--force-recreate` already stops and replaces the container in one step — do not additionally `stop`/`rm -f` first, that only adds extra downtime without changing the outcome.)
    - verify with `docker ps | grep hermes_{tenant-id}`
    - run `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`
    - update tenants.yaml `last_updated`
-4. Report total upgraded, harness pass/warn/fail summaries, tenant-facing risks, and any failures.
+4. Report total tenants processed, how many were actually recreated vs. skipped (with reason), harness pass/warn/fail summaries, tenant-facing risks, and any failures.

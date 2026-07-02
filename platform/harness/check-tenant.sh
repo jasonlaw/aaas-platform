@@ -244,6 +244,20 @@ if command -v docker >/dev/null 2>&1; then
     record WARN "container_mnemosyne_env" "MNEMOSYNE_DATA_DIR not visible inside running container"
   fi
 
+  # Static config/env checks above only prove the tenant's files *say* it
+  # should use Mnemosyne; they don't prove the plugin is actually active in
+  # the running container. A HERMES_HOME mismatch between the one-time
+  # activation commands (onboard-tenant.md step 12) and the container's own
+  # runtime env, or a recreate that dropped activation state, would pass
+  # every check above while memory is silently non-functional. Check the
+  # live provider directly.
+  mnemosyne_status="$(docker exec "$SERVICE" sh -lc 'hermes memory status 2>/dev/null || hermes hermes-mnemosyne status 2>/dev/null' 2>/dev/null || true)"
+  if echo "$mnemosyne_status" | grep -qi 'mnemosyne'; then
+    record PASS "container_mnemosyne_active"
+  else
+    record WARN "container_mnemosyne_active" "hermes memory status did not report an active mnemosyne provider; container unavailable or plugin not activated - see mnemosyne-seed-corruption.md"
+  fi
+
   if docker exec "$SERVICE" sh -lc 'curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 https://api.telegram.org' 2>/dev/null | grep -Eq '^(200|301|302|404)$'; then
     record PASS "container_outbound_https"
   else
