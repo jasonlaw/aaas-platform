@@ -203,12 +203,14 @@ success "npm ready: $NPM_PATH — $(npm --version)"
 # ------------------------------------------------------------------------------
 log "Step 5: Installing Docker Engine..."
 
+DOCKER_GROUP_JUST_ADDED=false
 if command -v docker &> /dev/null; then
   warn "Docker already installed — skipping install"
   docker --version
 else
   curl -fsSL https://get.docker.com | sh
   sudo usermod -aG docker $USER
+  DOCKER_GROUP_JUST_ADDED=true
   success "Docker installed"
 fi
 
@@ -239,6 +241,33 @@ fi
 # Verify Docker
 docker --version || error "Docker installation failed"
 success "Docker Engine ready"
+
+# ------------------------------------------------------------------------------
+# Step 5.1: Refresh docker group membership in the current shell session
+# ------------------------------------------------------------------------------
+# `sudo usermod -aG docker $USER` only takes effect in a new login session.
+# A child process (including a bash subprocess) inherits the parent's group
+# list at the time it was spawned and cannot pick up group additions made
+# afterward — not even via `source ~/.bashrc` or `exec bash`. The only
+# in-session mechanism is `newgrp` (which replaces the shell) or `sg`
+# (which re-execs a command under the new group). We use `sg` here to
+# re-exec this same script with the same arguments but with the docker group
+# already active, which makes every subsequent step — including those in
+# setup-platform.sh called by setup.sh — work without any logout or terminal
+# restart. The guard avoids an infinite re-exec loop: if the current process
+# already has the docker group (DOCKER_GROUP_ALREADY_ACTIVE is set, or
+# `id` confirms it), we skip the re-exec.
+if [ "$DOCKER_GROUP_JUST_ADDED" = true ] && [ "${DOCKER_GROUP_ALREADY_ACTIVE:-}" != "true" ]; then
+  if ! id -Gn | grep -qw docker; then
+    log "Docker group added — re-executing script under new group membership (no logout needed)..."
+    export DOCKER_GROUP_ALREADY_ACTIVE=true
+    exec sg docker -c "$(printf '%q ' "$0" "$@")"
+    # exec replaces the current process; lines below are never reached on
+    # a successful re-exec. If sg is unavailable the script continues and
+    # will fail at docker info with an actionable error.
+  fi
+fi
+success "Docker group membership active in current session"
 
 # ------------------------------------------------------------------------------
 # Step 5.5: Configure iptables to legacy mode (required for Docker bridge networking)
@@ -433,14 +462,21 @@ echo "     git config --global user.name  \"Your Name\""
 echo "     git config --global user.email \"you@yourdomain.com\""
 echo ""
 echo "  3. Your current terminal session is already fully configured — no"
-echo "     restart needed. If you open a NEW terminal later and tools like"
-echo "     nvm or opencode are missing, run:"
+echo "     logout or restart needed. Docker group membership, nvm, and"
+echo "     opencode are all active right now via in-script re-exec and"
+echo "     PATH export. If you open a NEW terminal later and tools are"
+echo "     missing, run:"
 echo "         exec bash"
 echo "     (This reloads your shell, picking up all ~/.bashrc changes,"
 echo "     and is faster and more reliable than 'source ~/.bashrc'.)"
 echo ""
 echo "  4. Proceed with the main setup entrypoint:"
-echo "       curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash"
+echo "       bash <(curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh) --yes"
+echo ""
+echo "     (Use 'bash <(curl ...)' rather than 'curl ... | bash' so that PATH"
+echo "     and group membership set by the script stay active in your current"
+echo "     terminal. The --yes flag skips the interactive version-confirm prompt,"
+echo "     required when running non-interactively.)"
 echo ""
 echo "     The setup script will:"
 echo "       - Install platform assets (SOPs, scripts, templates)"

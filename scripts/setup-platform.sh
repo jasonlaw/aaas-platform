@@ -309,25 +309,30 @@ backup_managed_assets() {
   local timestamp=""
   local backup_dir=""
   local relative_path=""
-  local paths=(
-    "AGENTS.md"
-    "PLATFORM-REFERENCE.md"
-    "VERSION"
-    "CHANGELOG.md"
-    "admin-hermes"
-    "docker/Dockerfile"
-    "harness"
-    "checklists"
-    "policy"
-    "evals"
-    "incidents"
-    "sop"
-    "skills"
-    "tenant-hermes"
-    "scripts"
-  )
 
-  for relative_path in "${paths[@]}"; do
+  # Derive the set of top-level managed paths from MANAGED_ASSET_RELATIVE_PATHS
+  # rather than a second hand-maintained list. Previously this function kept an
+  # independent directory list (AGENTS.md, admin-hermes/, sop/, scripts/, …)
+  # that had to stay in sync with MANAGED_ASSET_RELATIVE_PATHS by hand — any
+  # new asset added above but forgotten here would simply not be backed up with
+  # no warning. We now extract unique top-level path components (the first
+  # segment of each relative path) plus CHANGELOG.md (not in
+  # MANAGED_ASSET_RELATIVE_PATHS because it lives at repo root, not
+  # platform/) so the backup always mirrors exactly what will be overwritten.
+  declare -A _seen_roots
+  local backup_paths=()
+  for relative_path in "${MANAGED_ASSET_RELATIVE_PATHS[@]}"; do
+    local root_component="${relative_path%%/*}"
+    if [ -z "${_seen_roots[$root_component]+_}" ]; then
+      _seen_roots[$root_component]=1
+      backup_paths+=("$root_component")
+    fi
+  done
+  # CHANGELOG.md is copied by install_assets but is not in
+  # MANAGED_ASSET_RELATIVE_PATHS (it lives at repo root, not under platform/).
+  backup_paths+=("CHANGELOG.md")
+
+  for relative_path in "${backup_paths[@]}"; do
     if [ -e "$PLATFORM_ROOT/$relative_path" ]; then
       existing=true
       break
@@ -340,7 +345,7 @@ backup_managed_assets() {
   backup_dir="$PLATFORM_ROOT/backups/platform-assets-$timestamp"
   mkdir -p "$backup_dir"
 
-  for relative_path in "${paths[@]}"; do
+  for relative_path in "${backup_paths[@]}"; do
     if [ -e "$PLATFORM_ROOT/$relative_path" ]; then
       mkdir -p "$backup_dir/$(dirname "$relative_path")"
       cp -a "$PLATFORM_ROOT/$relative_path" "$backup_dir/$relative_path"

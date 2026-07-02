@@ -4,7 +4,66 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.15.5 - 2026-07-03
+
+### Fixed
+
+- **`scripts/setup-platform.sh` — `backup_managed_assets` no longer has a second hand-maintained asset list.**
+  The function previously kept its own independent directory list (`AGENTS.md`,
+  `admin-hermes/`, `sop/`, `scripts/`, …) separate from `MANAGED_ASSET_RELATIVE_PATHS`.
+  Any new managed asset added to `MANAGED_ASSET_RELATIVE_PATHS` but forgotten in
+  this secondary list would silently not be backed up before an upgrade — with no
+  warning. The function now derives its backup set directly from
+  `MANAGED_ASSET_RELATIVE_PATHS` by extracting unique top-level path components,
+  so a new managed asset added in one place is automatically backed up without any
+  secondary edit. `CHANGELOG.md` (copied from repo root, not listed in
+  `MANAGED_ASSET_RELATIVE_PATHS`) continues to be backed up explicitly.
+
+- **`curl | bash` pipe cannot propagate PATH or group changes back to the calling shell.**
+  When the installer is run as `curl ... | bash`, the script executes in a
+  subshell whose environment is discarded on exit — `export PATH=...` and group
+  membership gained via the docker `sg` re-exec (fixed in 0.15.4) cannot reach
+  the user's parent terminal. The "next steps" instructions then immediately say
+  `opencode`, which would fail with "command not found" after a piped run.
+  Fixed by: (a) updating README and `setup-prerequisites.sh` to recommend
+  `bash <(curl ...)` (process substitution — runs in the current shell, not a
+  subshell) as the canonical install form; (b) adding an explicit post-run note
+  in `setup.sh`'s completion output that explains the pipe limitation and tells
+  the user to run `exec bash` if they used the pipe form before invoking opencode.
+
+- **`platform/sop/upgrade-platform.md` — upgrade curl commands missing `--yes`, causing a hard error when the installed version matches the repository version.**
+  `prompt_confirm_install` is triggered when the installed and repo versions are
+  equal (or the installed is newer). It reads from `/dev/tty` to prompt the
+  operator — but `/dev/tty` is not available in a `curl | bash` pipe context,
+  so the script exited with an error instead of prompting. The upgrade SOP's
+  step 6 and 7 curl commands now include `--yes` (assumes "Continue with backup")
+  and carry an explanation of why it is required in this context. The README
+  upgrade section is updated identically.
+
 ## 0.15.4 - 2026-07-03
+
+### Fixed
+
+- **`scripts/setup-prerequisites.sh` — Docker group membership now active in the same shell session without logout.**
+  `sudo usermod -aG docker $USER` adds the user to the `docker` group, but group
+  changes only take effect in a new login session; the current process inherits the
+  group list it had at startup and cannot pick up additions via `source ~/.bashrc`
+  or `exec bash`. On a fresh install this caused every subsequent Docker command
+  in the same `setup.sh` run (`docker info`, `docker pull`, `docker build`,
+  `docker compose up`) to fail with a permission-denied on `/var/run/docker.sock`,
+  breaking the documented single-command install flow.
+
+  Fix: immediately after `usermod`, the script detects whether the current process
+  already has the `docker` group active. If it does not, it re-execs itself under
+  the new group via `sg docker -c "..."`, which replaces the process with an
+  identical one that carries the refreshed credential set — no logout, no new
+  terminal, no manual `newgrp` required. A `DOCKER_GROUP_ALREADY_ACTIVE` guard
+  prevents an infinite re-exec loop. When Docker was already installed before
+  this run (and the user was already in the group), the re-exec is skipped entirely.
+
+  The closing "next steps" message is updated to accurately describe what is now
+  active in the current session (Docker group, nvm, opencode) versus what `exec
+  bash` is needed for (new terminals opened later).
 
 ### Token optimizations (token-optimization-review.md findings 1–6)
 

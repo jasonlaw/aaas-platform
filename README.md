@@ -39,8 +39,19 @@ during the setup steps below.
 Run the installer inside Ubuntu/Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh)
 ```
+
+> **Why `bash <(curl ...)` instead of `curl ... | bash`?**
+> The piped form (`curl | bash`) runs the script in a subshell that cannot
+> export environment changes back to your terminal. Tools installed during
+> setup (nvm, opencode, docker group) will not be on PATH in the same session
+> if you use the pipe form — you'd need `exec bash` afterward. The process
+> substitution form above runs the script directly in your shell so PATH and
+> group membership are live immediately.
+>
+> If you prefer the pipe form, run `exec bash` after it completes before
+> trying `opencode` or other newly installed tools.
 
 Use the same command for fresh installs and platform setup upgrades. On a fresh
 machine it runs the prerequisite bootstrap, installs the platform setup,
@@ -52,7 +63,7 @@ for what an upgrade does and doesn't touch.
 To force an image rebuild during setup or upgrade:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash -s -- --build-image
+bash <(curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh) --build-image
 ```
 
 ## First-Time Setup: Agent Vault
@@ -154,8 +165,13 @@ To upgrade an existing `/opt/aaas/platform` installation to the latest
 platform setup, rerun the same setup link:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash
+bash <(curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh) --yes
 ```
+
+The `--yes` flag assumes "Continue with backup" at the version-confirm prompt.
+It is required when running via `curl | bash` or `bash <(curl ...)` because no
+interactive `/dev/tty` is available — without it the script will error out if
+the installed version already matches the repository version.
 
 Use `/opt/aaas/platform/sop/upgrade-platform.md` when asking the admin agent to perform
 or review a platform setup upgrade. See

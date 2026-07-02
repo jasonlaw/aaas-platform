@@ -40,10 +40,10 @@ Upgrade the installed platform assets to the latest repository version while pre
    - Alert operator that Docker daemon was restarted; all tenant containers must be restarted after the platform upgrade completes
 4. Explain to the operator that this upgrades platform assets only. It does not migrate tenant data, rebuild the tenant Docker image, or restart tenant containers unless explicitly requested.
 5. Ask for confirmation: "Proceed with platform upgrade? (y/n)"
-6. Run the latest setup installer. On an existing platform it auto-detects upgrade mode and skips image rebuild by default. If the installed `VERSION` already matches the repository `VERSION`, choose whether to continue with a backup, continue without a backup, or cancel:
-   `curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash`
-7. Validate the installed platform:
-   `curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash -s -- --validate-only`
+6. Run the latest setup installer. On an existing platform it auto-detects upgrade mode and skips image rebuild by default. `--yes` assumes "Continue with backup" at the version-confirm prompt, which is required when running via `curl | bash` (no `/dev/tty` is available in that context — without it the script errors out if the installed version already matches the repository version):
+   `curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash -s -- --yes`
+7. Validate the installed platform. `--yes` is also required here for the same reason:
+   `curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash -s -- --validate-only --yes`
 8. Read the new installed version:
    `cat /opt/aaas/platform/VERSION`
 9. Check that preserved files still exist:

@@ -15,6 +15,13 @@ Use this guide when a tenant is unhealthy and the answer is not obvious from the
 - Fix: start Docker, then rerun pre-flight.
 - Prevention: ensure `systemctl is-enabled docker` reports `enabled`; keep the `.bashrc` fallback for non-systemd hosts documented in prerequisites.
 
+### Docker Permission Denied During Fresh Install (`/var/run/docker.sock`)
+- Symptom: `Got permission denied while trying to connect to the Docker daemon socket` during `setup.sh` on a machine where Docker was just installed by the same script.
+- Cause: `sudo usermod -aG docker $USER` was run but group changes require a new login session to take effect. Prior to 0.15.4, the script did not compensate for this.
+- Fix (0.15.4+): the script automatically re-execs itself via `sg docker` after adding the user to the group — no logout or manual step required.
+- Fix (if running an older version): run `newgrp docker` then re-run `setup.sh`, or log out and back in before re-running.
+- Verification: `id -Gn | grep docker` should include `docker` before any Docker command is attempted.
+
 ### Container Permission Denied
 - Symptom: logs mention permission errors under `/opt/data`, logs, sessions, or Mnemosyne.
 - Fix: `sudo chown -R 10000:10000 /opt/aaas/tenants/{tenant-id}/`.
