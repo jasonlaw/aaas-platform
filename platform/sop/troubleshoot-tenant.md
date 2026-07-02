@@ -84,15 +84,26 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
 - If bridge rules are still missing, run `/opt/aaas/platform/sop/monitor-health.md` and document the result before manual iptables changes.
 
 ### Mnemosyne Not Active Or Not Seeded
-- Reinstall/activate using onboarding SOP step 12 — that step ends in a
-  `--force-recreate`, so the Container Recreate Policy above applies:
-  confirm with the operator first if attended; if unattended, run only the
-  `docker exec` install/config/seed commands (they don't themselves recreate
-  anything) and stop before the final `docker compose up --force-recreate`
-  line, then alert and let the operator run it.
-- Re-seed with `mnemosyne store`, not `mnemosyne remember`:
-  `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8`
-  `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8`
+- Check `MNEMOSYNE_DATA_DIR` first — a mismatch between the seeding
+  process's data dir/scope and what the agent's live session reads is a
+  known Mnemosyne failure mode (facts store without error but never surface
+  to recall) and is cheaper to rule out than a full reinstall:
+  `docker exec hermes_{tenant-id} sh -lc 'echo $MNEMOSYNE_DATA_DIR'`
+  — must equal `/opt/data/mnemosyne/data`, matching `.env`.
+- If that's fine, reinstall/activate using onboarding SOP step 12 — that step
+  ends in a `--force-recreate`, so the Container Recreate Policy above
+  applies: confirm with the operator first if attended; if unattended, run
+  only the `docker exec` install/config/seed commands (they don't themselves
+  recreate anything) and stop before the final
+  `docker compose up --force-recreate` line, then alert and let the operator
+  run it.
+- Re-seed with the SDK-based seed script, not `mnemosyne store`
+  (`/opt/data/scripts/seed-mnemosyne.py` — copy it in from
+  `/opt/aaas/platform/tenant-hermes/scripts/seed-mnemosyne.py` first if this
+  tenant predates it; see onboard-tenant.md step 6.2.2). It sets
+  `scope="global"` explicitly, which the old CLI blob-store never did:
+  `docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/MEMORY.md fact`
+  `docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/USER.md preference`
 
 ### Tenant-Installed Plugin Missing Or Not Working
 - Check `docker exec hermes_{tenant-id} cat /opt/data/installed-plugins.yaml`

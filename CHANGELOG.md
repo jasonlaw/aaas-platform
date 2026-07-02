@@ -4,6 +4,18 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.15.1 - 2026-07-02
+
+### Fixed
+- **Mnemosyne seeding stored a whole `MEMORY.md`/`USER.md` file as one blob, via `sudo cat` + CLI string-piping, with no explicit scope — matching the exact failure mode in `mnemosyne-seed-corruption.md` and defeating per-fact decay/importance/recall.** `mnemosyne`'s working memory is session-scoped by default; the seeding process's own throwaway invocation never shared a session with the tenant/admin agent's real one, so a store could report success and still never surface to `hermes mnemosyne inspect` — a better fit for the incident's reported symptom (zero facts recallable) than blob granularity alone. Fixed by moving to the SDK directly, one `remember()` call per fact, `scope="global"` set explicitly:
+  - **`platform/tenant-hermes/scripts/seed-mnemosyne.py`** (new) — reads a file, skips blank/`#` comment lines, calls `remember(fact, importance=, source=, scope="global")` per remaining line, exits non-zero on any single failed store so a partial seed is never reported as success. `test_seed_mnemosyne.py` covers the parsing and failure-propagation logic against a stubbed `mnemosyne` module.
+  - **`platform/tenant-hermes/MEMORY.md.template`** — dropped the upload-path/generated-path/confirm-before-posting/benefit-promise lines; these are already in `SOUL.md.template` and were being seeded a second time as if they were tenant facts, diluting recall. Only genuine business facts remain.
+  - **`platform/sop/onboard-tenant.md`** — step 6.2.2 (new) copies the script into the tenant volume; step 13 calls it instead of `mnemosyne store "$(sudo cat ...)"`.
+  - **`platform/sop/update-tenant.md`, `platform/sop/troubleshoot-tenant.md`** — same swap for re-seed/recovery paths; both now note `remember()` is additive (does not overwrite), and `troubleshoot-tenant.md`'s Mnemosyne recovery path now checks `MNEMOSYNE_DATA_DIR` first, ahead of a full reinstall.
+  - **`platform/incidents/mnemosyne-seed-corruption.md`** — Immediate Actions now leads with the scope/data-dir check; Recovery points at the new script.
+  - **`platform/PLATFORM-REFERENCE.md`, `docs/platform-setup.md`, `docs/tenant-agent-setup.md`, `docs/troubleshooting.md`** — every remaining copy of the old blob-seed command updated to match.
+- **Admin Hermes's own `MEMORY.md`/`USER.md` were never seeded into Mnemosyne at all, despite a 0.13.x changelog audit asserting they were "intentionally one-time seeds into Mnemosyne memory."** `setup-admin-hermes.md` Step 2 copied both templates onto disk and Step 6 checked only that the files existed — no `store`/`remember` call existed anywhere in the admin setup path. Added the missing step right after Step 2 (same seed script as tenant, run with the admin venv's own python and `MNEMOSYNE_DATA_DIR` from `.env`); Step 6 now asserts a nonzero Mnemosyne fact count via `get_stats()` instead of only checking `MEMORY.md` exists as a file.
+
 ## 0.15.0 - 2026-07-02
 
 ### Added

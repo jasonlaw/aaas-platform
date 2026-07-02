@@ -31,9 +31,14 @@ Use this guide when a tenant is unhealthy and the answer is not obvious from the
 - Ask the owner to start the bot before retrying welcome delivery.
 
 ### Mnemosyne Does Not Recall Brand Context
+- Check `MNEMOSYNE_DATA_DIR` inside the container matches `.env` first — a
+  scope/data-dir mismatch is a known way for a seed to report success but
+  never surface to recall.
 - Confirm `config.yaml` uses `provider: mnemosyne` and native memory is disabled.
 - Check `hermes memory status` and Mnemosyne stats inside the container.
-- Re-seed from `memories/MEMORY.md` and `memories/USER.md` with `mnemosyne store`.
+- Re-seed from `memories/MEMORY.md` and `memories/USER.md` with
+  `/opt/data/scripts/seed-mnemosyne.py` (not `mnemosyne store` — see
+  mnemosyne-seed-corruption.md).
 
 ### Tenant Agent Gives Generic Answers
 - Check `SOUL.md` contains the business name, brand tone, privacy rule, and generated/upload file rules.

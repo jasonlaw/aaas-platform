@@ -99,6 +99,11 @@ do not attempt to author it inline; report this and stop.
      /opt/aaas/tenants/{tenant-id}/scripts/tenant-entrypoint.sh
 ```
    The tenant agent calls `tenant-install.sh` (as `/opt/data/scripts/tenant-install.sh`) to install a new pip package or binary; `reconcile-plugins.sh` runs automatically on every container start via `tenant-entrypoint.sh` (see step 8's `command:`) and never needs to be called directly.
+6.2.2. Copy the Mnemosyne seed script into the tenant volume, same pattern as `skill-verify.sh` — step 13 below calls it as `/opt/data/scripts/seed-mnemosyne.py`:
+```bash
+   cp /opt/aaas/platform/tenant-hermes/scripts/seed-mnemosyne.py /opt/aaas/tenants/{tenant-id}/scripts/seed-mnemosyne.py
+   chmod +x /opt/aaas/tenants/{tenant-id}/scripts/seed-mnemosyne.py
+```
 6.3. **Provision the tenant vault in Agent Vault:**
    Run `/opt/aaas/platform/sop/provision-tenant-vault.md` now — after `.env` exists
    but before container start. Pass it the provider-specific API key env var name
@@ -183,10 +188,10 @@ do not attempt to author it inline; report this and stop.
    `docker exec -e HERMES_HOME=/opt/data hermes_{tenant-id} hermes config set memory.provider mnemosyne`
    `docker exec -e HERMES_HOME=/opt/data hermes_{tenant-id} hermes memory setup`
    `docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`
-13. Seed Mnemosyne with `memories/MEMORY.md` and `memories/USER.md`. The Mnemosyne CLI command is `store`, not `remember`; if unsure, run `docker exec hermes_{tenant-id} mnemosyne --help`. Because tenant files are owned by UID `10000`, read seed files with `sudo cat` from the host:
-   `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8`
-   `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8`
-   Verify with `docker exec hermes_{tenant-id} hermes memory status`, `docker exec hermes_{tenant-id} hermes mnemosyne stats`, and `docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"`. If `hermes mnemosyne` is unavailable, try the documented fallback `hermes hermes-mnemosyne`.
+13. Seed Mnemosyne with `memories/MEMORY.md` and `memories/USER.md`, one fact per memory, via the SDK-based seed script (runs inside the container, as the tenant process — no `sudo cat`, no shell string-piping, `scope="global"` so seeded facts are visible outside the seeding process's own session):
+   `docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/MEMORY.md fact`
+   `docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/USER.md preference`
+   Each call exits non-zero if any individual fact fails to store — treat a non-zero exit as a failed seed, not a partial success. Verify with `docker exec hermes_{tenant-id} hermes memory status`, `docker exec hermes_{tenant-id} hermes mnemosyne stats --global`, and `docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"`. If `hermes mnemosyne` is unavailable, try the documented fallback `hermes hermes-mnemosyne`.
    Note: `business-data.md` is not seeded into Mnemosyne — it is read directly by the tenant agent at runtime from `/home/hermes/files/assets/business-data.md`. The knowledge vault at `/home/hermes/vault/` is a third, separate system: scaffolded in step 4.2, maintained by the tenant agent itself at runtime, and never seeded into Mnemosyne either. Do not write business facts into the vault during onboarding — it starts empty (aside from its `README.md` and folder structure) and the tenant agent populates it over time as it learns durable, structured facts worth a dedicated note.
 14. Add or update the tenant entry in `/opt/aaas/platform/tenants.yaml`.
 15. Send the welcome message through the tenant's Telegram bot to every numeric ID in `TELEGRAM_ALLOWED_USERS`. This only succeeds for users who have already opened the bot and sent `/start`; report Telegram `400 Bad Request: chat not found` or `403 Forbidden` as "user must start the bot first":

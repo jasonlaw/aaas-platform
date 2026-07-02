@@ -301,7 +301,7 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Never run `docker compose up -d` without specifying the service name
 - Onboarding tenant volumes must be owned by UID `10000` before container startup
 - Use `HERMES_HOME=/opt/data mnemosyne-hermes install`; do not use a `--hermes-home` flag
-- Use `mnemosyne store`, not `mnemosyne remember`, when seeding memory
+- Use `mnemosyne store`, not `mnemosyne remember`, when seeding memory manually/ad hoc; use `/opt/data/scripts/seed-mnemosyne.py` for onboarding/update/troubleshooting flows (atomic, per-fact, SDK-based)
 - Telegram `chat not found` usually means the user has not opened the bot and sent `/start`
 - Use `/opt/aaas/platform/reports/INDEX.jsonl` for AI-readable report summaries; read recent matching entries before proposing platform improvements
 - Platform upgrades refresh managed platform assets only; preserve tenant data, tenants.yaml, docker-compose.yaml, and reports
@@ -523,14 +523,15 @@ docker exec -e HERMES_HOME=/opt/data hermes_{tenant-id} hermes memory setup
 docker compose up --force-recreate --no-deps -d hermes_{tenant-id}
 ```
 
-Seed brand and owner context through the active Mnemosyne provider. Prefer the
-installed version's Mnemosyne CLI and verify immediately afterward:
+Seed brand and owner context through the active Mnemosyne provider, one fact
+per memory, via the SDK-based seed script (copied into the tenant volume in
+onboard-tenant.md step 6.2.2) — not the CLI blob-store pattern this doc used
+to show, which matched the failure mode in mnemosyne-seed-corruption.md:
 ```bash
-docker exec hermes_{tenant-id} mnemosyne --help
-docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8
-docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8
+docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/MEMORY.md fact
+docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/USER.md preference
 docker exec hermes_{tenant-id} hermes memory status
-docker exec hermes_{tenant-id} hermes mnemosyne stats
+docker exec hermes_{tenant-id} hermes mnemosyne stats --global
 docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"
 ```
 
@@ -772,9 +773,11 @@ Update a tenant's config, secrets, brand context, or add a new channel.
 
    For brand/owner (re-seed Mnemosyne):
      Update memories/MEMORY.md or memories/USER.md
-     Then re-seed with the Mnemosyne `store` command:
-     docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8
-     docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8
+     Then re-seed with the seed script (adds new memories, does not
+     overwrite old ones — retire a superseded fact with
+     `hermes mnemosyne forget`/`invalidate` if it's now flatly wrong):
+     docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/MEMORY.md fact
+     docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/USER.md preference
 
    For new channel:
      Add token to .env

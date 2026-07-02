@@ -358,12 +358,12 @@ debugging:
 
 Seed brand facts:
 ```bash
-docker exec hermes_test-restaurant mnemosyne store "$(sudo cat /opt/aaas/tenants/test-restaurant/memories/MEMORY.md)" "tenant-memory" 0.8
+docker exec hermes_test-restaurant python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/MEMORY.md fact
 ```
 
 Seed owner profile:
 ```bash
-docker exec hermes_test-restaurant mnemosyne store "$(sudo cat /opt/aaas/tenants/test-restaurant/memories/USER.md)" "tenant-user" 0.8
+docker exec hermes_test-restaurant python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/USER.md preference
 ```
 
 ### 3.4 Verify Mnemosyne SQLite DB location

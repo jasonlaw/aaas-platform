@@ -136,6 +136,23 @@ above still matter: they keep `.env` and mnemosyne data unreadable by
 other local accounts on a shared box, same intent as before, just without
 a dedicated identity to own it.
 
+**Seed Mnemosyne with `admin/MEMORY.md` and `admin/USER.md`.** These are
+intentionally one-time seeds (see CHANGELOG.md's Step 2 file audit) — do
+this now, once, right after they're copied above; nothing else in this repo
+re-seeds them later. Uses the same SDK-based script tenant onboarding uses,
+run with the admin venv's own python and `MNEMOSYNE_DATA_DIR` pointed at the
+path just set in `.env`:
+
+    HERMES_VENV_PY="$(find ~/.hermes/hermes-agent -maxdepth 2 -type f -path '*/bin/python*' ! -path '*-config*' | head -1)"
+    test -n "$HERMES_VENV_PY" || { echo "FAIL: could not locate the Hermes venv python under ~/.hermes/hermes-agent"; exit 1; }
+    MNEMOSYNE_DATA_DIR=/opt/aaas/platform/admin/mnemosyne/data \
+      "$HERMES_VENV_PY" /opt/aaas/platform/tenant-hermes/scripts/seed-mnemosyne.py /opt/aaas/platform/admin/MEMORY.md fact
+    MNEMOSYNE_DATA_DIR=/opt/aaas/platform/admin/mnemosyne/data \
+      "$HERMES_VENV_PY" /opt/aaas/platform/tenant-hermes/scripts/seed-mnemosyne.py /opt/aaas/platform/admin/USER.md preference
+
+Each call exits non-zero if any individual fact fails to store — treat a
+non-zero exit as a failed seed, not a partial success.
+
 ## Step 3 — Configure Files
 
 Update /opt/aaas/platform/admin/config.yaml with provider, model, dashboard
@@ -367,6 +384,9 @@ time:
     test -f /opt/aaas/platform/admin/SOUL.md     && echo "OK: SOUL.md"
     test -f /opt/aaas/platform/admin/USER.md     && echo "OK: USER.md"
     test -f /opt/aaas/platform/admin/MEMORY.md   && echo "OK: MEMORY.md"
+    HERMES_VENV_PY="$(find ~/.hermes/hermes-agent -maxdepth 2 -type f -path '*/bin/python*' ! -path '*-config*' | head -1)"
+    MNEMOSYNE_DATA_DIR=/opt/aaas/platform/admin/mnemosyne/data \
+      "$HERMES_VENV_PY" -c "from mnemosyne import get_stats; s=get_stats(); assert s.get('working',0)+s.get('episodic',0) > 0, s; print('OK: mnemosyne has seeded facts')"
     test -f /opt/aaas/platform/admin/config.yaml && echo "OK: config.yaml"
     test -f /opt/aaas/platform/admin/.env        && echo "OK: .env"
     grep -q "provider: mnemosyne"       /opt/aaas/platform/admin/config.yaml && echo "OK: mnemosyne"
