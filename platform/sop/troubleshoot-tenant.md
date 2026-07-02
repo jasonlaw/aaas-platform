@@ -28,7 +28,7 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
    - `docker exec hermes_{tenant-id} hermes memory status`
    - `docker exec hermes_{tenant-id} hermes mnemosyne stats`
    - If `hermes mnemosyne` is unavailable, try `hermes hermes-mnemosyne`.
-11. Apply the narrowest recovery that matches the evidence. Do not delete tenant data during troubleshooting.
+11. Apply the narrowest recovery that matches the evidence. Do not delete tenant data during troubleshooting. If the evidence so far doesn't point to a narrow fix and continuing means iterating through further hypotheses with no clear bound, stop and check in with the operator before continuing — see PLATFORM-REFERENCE.md's Rules section. This step does not apply when running unattended (`trigger: watchdog`); there, no operator is present, so continue through the escalation path instead.
 12. Re-run config validation and harness check after the fix.
 13. If the issue affected brand recall, confirmation-before-posting, confirmation-before-deleting, files, uploads, Telegram behavior, privacy, or generated vertical behavior, run or operator-assist BOTH eval profiles once the tenant container is running: `/opt/aaas/platform/tenant-hermes/evals/_fixed-safety-v1.yaml` and `/opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml`. Use `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` for automated literal checks and record results in `ACCEPTANCE.md`.
 14. Write a task report using `/opt/aaas/platform/sop/write-report.md` with `sop` set to `troubleshoot-tenant`.

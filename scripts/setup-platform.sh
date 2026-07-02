@@ -31,6 +31,90 @@ VALIDATE_ONLY=false
 BACKUP_BEFORE_INSTALL=true
 ASSUME_YES=false
 
+# Single source of truth for every platform-managed asset's path, relative to
+# ASSET_ROOT (repo)/PLATFORM_ROOT (installed) — used by BOTH
+# validate_asset_source() (repo has everything before we start) and
+# validate_installed_matches_source() (installed copy actually matches, used
+# by --validate-only). These two checks previously kept independent,
+# hand-maintained arrays that were supposed to mirror each other but drifted:
+# the installed-copy check was missing policy/platform-policy.yaml,
+# scripts/generate-platform-eval.sh, scripts/validate-platform-rules.sh,
+# incidents/hermes-admin-failure.md, skills/handle-tenant-request.md,
+# skills/manage-agent-vault.md, and tenant-hermes/policy/tenant-policy.yaml.template
+# — meaning --validate-only could report success even if any of those files
+# failed to copy or silently drifted from source. scripts/aaas-watchdog.sh
+# was missing from BOTH lists, so neither check ever verified it at all.
+# Fixing this as one shared list, not two synced-by-hand ones, so a new
+# managed asset only ever needs to be added in a single place.
+MANAGED_ASSET_RELATIVE_PATHS=(
+  "AGENTS.md"
+  "PLATFORM-REFERENCE.md"
+  "VERSION"
+  "admin-hermes/SOUL.md.template"
+  "admin-hermes/USER.md.template"
+  "admin-hermes/MEMORY.md.template"
+  "admin-hermes/config.yaml.template"
+  "admin-hermes/env.template"
+  "docker/Dockerfile"
+  "harness/check-tenant.sh"
+  "harness/tenant-harness.yaml.template"
+  "harness/ACCEPTANCE.md.template"
+  "checklists/onboard-tenant.required.json"
+  "checklists/monitor-health.required.json"
+  "policy/platform-policy.yaml"
+  "tenant-hermes/evals/_fixed-safety-v1.yaml"
+  "tenant-hermes/evals/generated/.gitkeep"
+  "evals/meta-eval-generation-v1.yaml"
+  "scripts/preflight-check.sh"
+  "scripts/validate-tenant-config.sh"
+  "scripts/generate-platform-eval.sh"
+  "scripts/validate-platform-rules.sh"
+  "scripts/analyze-reports.sh"
+  "scripts/eval-runner.sh"
+  "scripts/eval-judge.sh"
+  "scripts/_eval-check-single.sh"
+  "scripts/aaas-watchdog.sh"
+  "tenant-hermes/scripts/skill-verify.sh"
+  "tenant-hermes/scripts/vault-init-tenant.sh"
+  "incidents/all-tenants-no-connectivity.md"
+  "incidents/docker-version-rollback.md"
+  "incidents/telegram-api-change.md"
+  "incidents/mnemosyne-seed-corruption.md"
+  "incidents/platform-backup-recovery.md"
+  "incidents/agent-vault-failure.md"
+  "incidents/hermes-admin-failure.md"
+  "skills/grill-me.md"
+  "skills/setup-admin-hermes.md"
+  "skills/query-knowledge-vault.md"
+  "skills/handle-tenant-request.md"
+  "skills/manage-agent-vault.md"
+  "sop/build-image.md"
+  "sop/upgrade-platform.md"
+  "sop/onboard-tenant.md"
+  "sop/suspend-tenant.md"
+  "sop/reactivate-tenant.md"
+  "sop/offboard-tenant.md"
+  "sop/update-tenant.md"
+  "sop/upgrade-tenants.md"
+  "sop/monitor-health.md"
+  "sop/monitor-logs.md"
+  "sop/troubleshoot-tenant.md"
+  "sop/write-report.md"
+  "sop/setup-agent-vault.md"
+  "sop/provision-tenant-vault.md"
+  "sop/deprovision-tenant-vault.md"
+  "sop/sync-knowledge-vault.md"
+  "sop/improve-sop.md"
+  "scripts/vault-init.sh"
+  "scripts/agent-vault-health.sh"
+  "tenant-hermes/config.yaml.template"
+  "tenant-hermes/env.template"
+  "tenant-hermes/SOUL.md.template"
+  "tenant-hermes/USER.md.template"
+  "tenant-hermes/MEMORY.md.template"
+  "tenant-hermes/policy/tenant-policy.yaml.template"
+)
+
 usage() {
   cat <<EOF
 Usage: $0 [options]
@@ -186,140 +270,19 @@ decide_install_strategy() {
 }
 
 validate_asset_source() {
-  local required=(
-    "$ASSET_ROOT/AGENTS.md"
-    "$ASSET_ROOT/PLATFORM-REFERENCE.md"
-    "$ASSET_ROOT/VERSION"
-    "$REPO_ROOT/CHANGELOG.md"
-    "$ASSET_ROOT/admin-hermes/SOUL.md.template"
-    "$ASSET_ROOT/admin-hermes/USER.md.template"
-    "$ASSET_ROOT/admin-hermes/MEMORY.md.template"
-    "$ASSET_ROOT/admin-hermes/config.yaml.template"
-    "$ASSET_ROOT/admin-hermes/env.template"
-    "$ASSET_ROOT/docker/Dockerfile"
-    "$ASSET_ROOT/harness/check-tenant.sh"
-    "$ASSET_ROOT/harness/tenant-harness.yaml.template"
-    "$ASSET_ROOT/harness/ACCEPTANCE.md.template"
-    "$ASSET_ROOT/checklists/onboard-tenant.required.json"
-    "$ASSET_ROOT/checklists/monitor-health.required.json"
-    "$ASSET_ROOT/policy/platform-policy.yaml"
-    "$ASSET_ROOT/tenant-hermes/evals/_fixed-safety-v1.yaml"
-    "$ASSET_ROOT/tenant-hermes/evals/generated/.gitkeep"
-    "$ASSET_ROOT/evals/meta-eval-generation-v1.yaml"
-    "$ASSET_ROOT/scripts/preflight-check.sh"
-    "$ASSET_ROOT/scripts/validate-tenant-config.sh"
-    "$ASSET_ROOT/scripts/generate-platform-eval.sh"
-    "$ASSET_ROOT/scripts/validate-platform-rules.sh"
-    "$ASSET_ROOT/scripts/analyze-reports.sh"
-    "$ASSET_ROOT/scripts/eval-runner.sh"
-    "$ASSET_ROOT/scripts/eval-judge.sh"
-    "$ASSET_ROOT/scripts/_eval-check-single.sh"
-    "$ASSET_ROOT/tenant-hermes/scripts/skill-verify.sh"
-    "$ASSET_ROOT/tenant-hermes/scripts/vault-init-tenant.sh"
-    "$ASSET_ROOT/incidents/all-tenants-no-connectivity.md"
-    "$ASSET_ROOT/incidents/docker-version-rollback.md"
-    "$ASSET_ROOT/incidents/telegram-api-change.md"
-    "$ASSET_ROOT/incidents/mnemosyne-seed-corruption.md"
-    "$ASSET_ROOT/incidents/platform-backup-recovery.md"
-    "$ASSET_ROOT/skills/grill-me.md"
-    "$ASSET_ROOT/skills/setup-admin-hermes.md"
-    "$ASSET_ROOT/sop/build-image.md"
-    "$ASSET_ROOT/sop/upgrade-platform.md"
-    "$ASSET_ROOT/sop/onboard-tenant.md"
-    "$ASSET_ROOT/sop/suspend-tenant.md"
-    "$ASSET_ROOT/sop/reactivate-tenant.md"
-    "$ASSET_ROOT/sop/offboard-tenant.md"
-    "$ASSET_ROOT/sop/update-tenant.md"
-    "$ASSET_ROOT/sop/upgrade-tenants.md"
-    "$ASSET_ROOT/sop/monitor-health.md"
-    "$ASSET_ROOT/sop/monitor-logs.md"
-    "$ASSET_ROOT/sop/troubleshoot-tenant.md"
-    "$ASSET_ROOT/sop/write-report.md"
-    "$ASSET_ROOT/sop/setup-agent-vault.md"
-    "$ASSET_ROOT/sop/provision-tenant-vault.md"
-    "$ASSET_ROOT/sop/deprovision-tenant-vault.md"
-    "$ASSET_ROOT/sop/sync-knowledge-vault.md"
-    "$ASSET_ROOT/skills/query-knowledge-vault.md"
-    "$ASSET_ROOT/scripts/vault-init.sh"
-    "$ASSET_ROOT/scripts/agent-vault-health.sh"
-    "$ASSET_ROOT/incidents/agent-vault-failure.md"
-    "$ASSET_ROOT/tenant-hermes/config.yaml.template"
-    "$ASSET_ROOT/tenant-hermes/env.template"
-    "$ASSET_ROOT/tenant-hermes/SOUL.md.template"
-    "$ASSET_ROOT/tenant-hermes/USER.md.template"
-    "$ASSET_ROOT/tenant-hermes/MEMORY.md.template"
-    "$ASSET_ROOT/tenant-hermes/policy/tenant-policy.yaml.template"
-  )
+  [ -f "$REPO_ROOT/CHANGELOG.md" ] || error "Repository asset missing: $REPO_ROOT/CHANGELOG.md"
 
-  for path in "${required[@]}"; do
-    [ -f "$path" ] || error "Repository asset missing: $path"
+  local relative_path=""
+  for relative_path in "${MANAGED_ASSET_RELATIVE_PATHS[@]}"; do
+    [ -f "$ASSET_ROOT/$relative_path" ] || error "Repository asset missing: $ASSET_ROOT/$relative_path"
   done
 }
 
 validate_installed_matches_source() {
   [ -n "$ASSET_ROOT" ] || return
 
-  local relative_paths=(
-    "AGENTS.md"
-    "PLATFORM-REFERENCE.md"
-    "VERSION"
-    "admin-hermes/SOUL.md.template"
-    "admin-hermes/USER.md.template"
-    "admin-hermes/MEMORY.md.template"
-    "admin-hermes/config.yaml.template"
-    "admin-hermes/env.template"
-    "docker/Dockerfile"
-    "harness/check-tenant.sh"
-    "harness/tenant-harness.yaml.template"
-    "harness/ACCEPTANCE.md.template"
-    "checklists/onboard-tenant.required.json"
-    "checklists/monitor-health.required.json"
-    "tenant-hermes/evals/_fixed-safety-v1.yaml"
-    "tenant-hermes/evals/generated/.gitkeep"
-    "evals/meta-eval-generation-v1.yaml"
-    "scripts/preflight-check.sh"
-    "scripts/validate-tenant-config.sh"
-    "scripts/analyze-reports.sh"
-    "scripts/eval-runner.sh"
-    "scripts/eval-judge.sh"
-    "scripts/_eval-check-single.sh"
-    "tenant-hermes/scripts/skill-verify.sh"
-    "tenant-hermes/scripts/vault-init-tenant.sh"
-    "incidents/all-tenants-no-connectivity.md"
-    "incidents/docker-version-rollback.md"
-    "incidents/telegram-api-change.md"
-    "incidents/mnemosyne-seed-corruption.md"
-    "incidents/platform-backup-recovery.md"
-    "skills/grill-me.md"
-    "skills/setup-admin-hermes.md"
-    "sop/build-image.md"
-    "sop/upgrade-platform.md"
-    "sop/onboard-tenant.md"
-    "sop/suspend-tenant.md"
-    "sop/reactivate-tenant.md"
-    "sop/offboard-tenant.md"
-    "sop/update-tenant.md"
-    "sop/upgrade-tenants.md"
-    "sop/monitor-health.md"
-    "sop/monitor-logs.md"
-    "sop/troubleshoot-tenant.md"
-    "sop/write-report.md"
-    "sop/setup-agent-vault.md"
-    "sop/provision-tenant-vault.md"
-    "sop/deprovision-tenant-vault.md"
-    "sop/sync-knowledge-vault.md"
-    "skills/query-knowledge-vault.md"
-    "scripts/vault-init.sh"
-    "scripts/agent-vault-health.sh"
-    "incidents/agent-vault-failure.md"
-    "tenant-hermes/config.yaml.template"
-    "tenant-hermes/env.template"
-    "tenant-hermes/SOUL.md.template"
-    "tenant-hermes/USER.md.template"
-    "tenant-hermes/MEMORY.md.template"
-  )
-
-  for relative_path in "${relative_paths[@]}"; do
+  local relative_path=""
+  for relative_path in "${MANAGED_ASSET_RELATIVE_PATHS[@]}"; do
     cmp -s "$ASSET_ROOT/$relative_path" "$PLATFORM_ROOT/$relative_path" \
       || error "Installed asset differs from repository asset: $relative_path"
   done

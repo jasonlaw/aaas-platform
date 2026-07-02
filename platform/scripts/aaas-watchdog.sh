@@ -120,7 +120,26 @@ Type=oneshot
 # user's \$HOME at every run via systemd itself, so ~/.local/bin/hermes
 # resolves correctly with no baked-in path.
 User=${OPERATOR_USER}
-Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# %h/.opencode/bin is required, not optional: setup-prerequisites.sh's
+# install_opencode() explicitly prepends both %h/.local/bin AND
+# %h/.opencode/bin because the upstream opencode installer does not
+# reliably place the binary in ~/.local/bin — it commonly lands in
+# ~/.opencode/bin instead, with only the interactive shell's ~/.bashrc
+# (sourced there, but never for this unit) putting it on PATH. Without
+# this entry, `command -v opencode` inside escalate() fails for every
+# unattended run, so no escalation can ever reach OpenCode — including
+# for admin Hermes, whose own recovery depends on this working.
+Environment=PATH=%h/.local/bin:%h/.opencode/bin:/usr/local/bin:/usr/bin:/bin
+# Need to tune this further (e.g. another bin dir)? Don't hand-edit this
+# file or maintain a side config for it — use systemd's own override
+# mechanism instead: `sudo systemctl edit aaas-watchdog.service`. That
+# creates /etc/systemd/system/aaas-watchdog.service.d/override.conf, which
+# systemd merges on top of this generated unit automatically. --install
+# only ever writes this file, never that directory, so a drop-in survives
+# both a plain platform upgrade and any future --install re-run with zero
+# extra code on our side — it's the standard, discoverable way any Linux
+# admin already knows to override one setting in a generated unit.
+# `systemctl cat aaas-watchdog.service` shows the merged result.
 # %U resolves to the UID of User= above (works for a system unit, not just
 # user units). Needed so systemctl --user (used to restart admin Hermes)
 # can reach that user's session bus — see the comment at the top of
@@ -358,8 +377,14 @@ if [[ -n "$vault_line" ]]; then
       log "${vault_name}: attempt ${attempt} failed."
     done
     if [[ "$recovered" -ne 0 ]]; then
+      # `|| true`: escalate() returns 1 when opencode isn't on PATH (see its
+      # own `command -v opencode` check). Under `set -e`, an unguarded
+      # nonzero here would abort the script immediately and skip the
+      # "Skipping remaining checks" log line below — the same failure mode
+      # fixed for the per-entity loop further down.
       escalate "$vault_name" "$vault_playbook" \
-        "Agent Vault is the priority-0 dependency — tenant and admin Hermes checks were skipped this cycle since they would only be downstream symptoms."
+        "Agent Vault is the priority-0 dependency — tenant and admin Hermes checks were skipped this cycle since they would only be downstream symptoms." \
+        || true
       log "Skipping remaining checks this cycle: ${vault_name} is down."
       exit 0
     fi
@@ -401,7 +426,19 @@ printf '%s\n' "$all_entities" | awk -F'\t' '$1 != 0' | while IFS=$'\t' read -r p
     log "${name}: attempt ${attempt} failed."
   done
   if [[ "$recovered" -ne 0 ]]; then
-    escalate "$name" "$playbook" ""
+    # `|| true` is required here, not cosmetic: this loop body runs inside
+    # the while-loop's own subshell (it's the tail of a pipe), and `set -e`
+    # is inherited into that subshell. escalate() returns 1 whenever
+    # `command -v opencode` fails. Without this guard, that nonzero status
+    # kills the subshell on the spot — with `pipefail` that failure then
+    # propagates out and kills the parent script too — so whichever entity
+    # is being processed when escalation first fails is the LAST entity
+    # checked that cycle. Every entity later in priority order (frequently
+    # admin-hermes, checked right after Agent Vault) then silently gets no
+    # health check, no restart attempt, and no log line at all until the
+    # next tick. This was very likely the actual cause of the "watchdog
+    # can't wake up admin Hermes" reports.
+    escalate "$name" "$playbook" "" || true
   fi
 done
 

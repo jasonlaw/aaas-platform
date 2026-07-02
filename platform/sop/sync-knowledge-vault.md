@@ -36,11 +36,25 @@ Run this SOP:
   "remember this for next time", or similar.
 - As the last step of `improve-sop.md`, to link the proposal/override to the
   evidence that justified it.
+- **Also the moment a durable, worth-remembering fact surfaces in ordinary
+  conversation with the operator — a decision, a workaround, a tenant-
+  specific quirk, a platform judgment call — even if it never produces a
+  formal task report.** This is the same trigger `write-report.md` now uses
+  for discovery-based reports, applied to the vault: judge by whether the
+  fact would be useful to find again later, not by whether the conversation
+  happened to be structured as a task or an SOP run. Casual back-and-forth
+  is where this is most often skipped in practice, precisely because
+  nothing formal prompts it — don't let the absence of a report be a reason
+  to also skip the vault note.
 
 Do not run this SOP for routine, no-news health checks or onboarding steps
 that produced no new operational insight - the vault is for durable
 knowledge, not a mirror of every report. If nothing would be worth reading
-six months from now, skip it.
+six months from now, skip it. This bar applies just as much to the casual-
+conversation trigger above — most small talk and routine status checks
+still won't clear it, and that's fine; the fix is not writing more notes,
+it's not systematically missing the ones that do clear it just because they
+came up mid-conversation instead of mid-SOP.
 
 ## Vault Layout
 ```

@@ -1,10 +1,18 @@
 ---
 name: query-knowledge-vault
-description: Search the Obsidian knowledge vault at /opt/aaas/platform/vault for prior incidents, tenant history, and SOP friction before troubleshooting, onboarding, or proposing a platform change. Use when the operator asks "have we seen this before", "check the vault", "what do we know about tenant X", or before starting troubleshoot-tenant.md or improve-sop.md.
+description: Search the Obsidian knowledge vault at /opt/aaas/platform/vault for prior incidents, tenant history, and SOP friction before troubleshooting, onboarding, or proposing a platform change — and before answering ANY operator question about a specific tenant, past incident, or recurring topic, even in casual conversation that never becomes a formal SOP run. Use when the operator asks "have we seen this before", "check the vault", "what do we know about tenant X", before starting troubleshoot-tenant.md or improve-sop.md, or any time you're about to answer from memory/assumption about something the vault might already have a documented answer to.
 ---
 
 Before treating an issue as new, check whether the second brain already has
 an answer.
+
+**This is not only a pre-SOP step.** A quick grep costs one tool call.
+Casual back-and-forth with the operator is exactly where this gets skipped
+in practice — "hey, has tenant X had this Telegram issue before?" asked in
+passing gets the same check as if the operator had formally started
+`troubleshoot-tenant.md`. If a message references a specific tenant, a past
+incident, or something that sounds like it might have come up before, check
+the vault before answering, not just before running a named SOP.
 
 **Scope: this skill is for the admin agent** (OpenCode or Hermes admin),
 searching the platform-level vault at `/opt/aaas/platform/vault` on the host.
