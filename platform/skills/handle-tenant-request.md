@@ -111,7 +111,9 @@ not the resolved one — that's expected, not a failure.
    sent you, since the tenant has no business holding or transmitting a
    real provider key. If the model name itself is changing (not just the
    key), update `model_provider`/`model_name` in the tenant's `config.yaml`
-   and restart the container:
+   and recreate the container so the change loads — this recreate is
+   covered by the operator's confirmation already obtained for this
+   `llm_key_change` request (do not proceed to this line without it):
    `docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`.
    Reply to the tenant confirming the change is live, and write a task
    report documenting the change (never include the key value).

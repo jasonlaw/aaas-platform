@@ -740,6 +740,10 @@ validate_install() {
     || error "Tenant env template must pin HERMES_HOME=/opt/data for runtime, matching the onboarding activation commands"
   grep -q "container_mnemosyne_active" "$PLATFORM_ROOT/harness/check-tenant.sh" \
     || error "Tenant harness check must verify Mnemosyne is functionally active, not just that config files reference it"
+  grep -qi "must never run" "$PLATFORM_ROOT/scripts/aaas-watchdog.sh" \
+    || error "Watchdog escalation prompt must explicitly forbid recreate/stop/rm commands in unattended sessions"
+  grep -q "Unattended.*run.*must never recreate" "$PLATFORM_ROOT/sop/troubleshoot-tenant.md" \
+    || error "troubleshoot-tenant.md must state the unattended no-recreate policy"
   grep -q "mnemosyne store" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must seed Mnemosyne with the store command"
   grep -q "chat not found" "$PLATFORM_ROOT/sop/onboard-tenant.md" \

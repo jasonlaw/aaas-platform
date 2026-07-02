@@ -61,6 +61,17 @@ Vault is healthy again.
 This requires re-entering all tenant credentials. Only proceed if the data
 directory confirms the database is truly absent.
 
+**Unattended (`trigger: watchdog`) runs must stop here, not proceed into
+Recovery B.** Re-entering credentials requires the operator to supply real
+API keys and this recovery ends in recreating every active tenant container
+— both are things an unattended session must never do on its own, no
+exception. Write the alert file and a task report stating the vault database
+is lost and Recovery B must be run by the operator, then end the session.
+
+**Attended (interactive) runs:** confirm with the operator before starting
+Recovery B (it touches every active tenant) and again before each
+tenant's `--force-recreate` below.
+
 1. Re-run the Agent Vault setup SOP:
    `/opt/aaas/platform/sop/setup-agent-vault.md`
    (start from step 3 — directory already exists)

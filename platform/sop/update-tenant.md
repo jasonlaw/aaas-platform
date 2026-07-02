@@ -41,7 +41,7 @@ tenant using the full onboard-tenant SOP.
    result.
 9. Validate the updated tenant config:
    `/opt/aaas/platform/scripts/validate-tenant-config.sh {tenant-id}`
-10. Recreate only this tenant's container to guarantee a clean config reload:
+10. Recreate only this tenant's container to guarantee a clean config reload. This is an unattended-forbidden, always-confirm action — `update-tenant` is only ever run interactively (an operator explicitly asked for a change), but the recreate is a distinct disruptive step from the edit itself, so confirm it separately before running it: state plainly that the container will be replaced (brief downtime) to load the `.env`/`config.yaml`/`SOUL.md` changes just made, and get an explicit y/n:
     `docker compose up --force-recreate --no-deps -d hermes_{tenant-id}`
     Never use `docker compose restart` for config, secret, or model provider changes - it preserves the running container and in-memory state, so changes may not take effect. Never use `docker compose down` without `--no-deps` and a specific service name - this affects all tenants.
 11. Verify running: `docker ps | grep hermes_{tenant-id}`.

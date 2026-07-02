@@ -122,11 +122,17 @@ Then verify no live key pattern remains:
 ### 2.5 Force-recreate the container (tenant only)
 
 The proxy token is baked into the running environment at container start.
-After a credential change, restart the tenant container so the new credential
-is picked up:
+After a credential change, recreate the tenant container so the new
+credential is picked up — `docker compose restart` reuses the existing
+container and does not reliably reload `env_file`, so it is not sufficient
+here. This recreate must be confirmed by the operator before it runs (the
+credential change itself may already have operator approval, but the
+recreate is a separate disruptive action — brief downtime, container
+replaced — and needs its own explicit y/n), and must never be run from an
+unattended/watchdog session:
 
-    docker compose -f /opt/aaas/tenants/{tenant-id}/docker-compose.yaml \
-      up -d --force-recreate hermes_{tenant-id}
+    docker compose -f /opt/aaas/platform/docker/docker-compose.yaml \
+      up -d --force-recreate --no-deps hermes_{tenant-id}
 
 For the admin agent's own credential, restart hermes directly so the new
 credential is picked up — the watchdog only restarts admin Hermes when it's
@@ -188,7 +194,8 @@ Confirm deletion:
     agent-vault agent list --vault {vault-name}
     # Expected: {agent-name} is absent
 
-Update `.env` to remove the revoked token, then force-recreate so the agent
+Update `.env` to remove the revoked token, then force-recreate (see step 2.5
+for the required operator confirmation and unattended restriction) so the agent
 is no longer started with a dead token.
 
 ---
