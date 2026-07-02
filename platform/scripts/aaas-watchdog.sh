@@ -250,6 +250,7 @@ escalate() {
     "${name} is down and automatic restart failed. \
 Read /opt/aaas/platform/incidents/${playbook}, diagnose and fix the issue. \
 HARD CONSTRAINT: this session is unattended (--auto, no operator). \
+Unattended sessions must never run recreate, stop, or remove commands on any container. \
 Follow the Container Recreate Policy in troubleshoot-tenant.md exactly — \
 never recreate, stop, or remove any container for any reason. Apply only \
 non-recreate fixes, then write an alert and a troubleshoot report via \

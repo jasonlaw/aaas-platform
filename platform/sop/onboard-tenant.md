@@ -68,7 +68,7 @@ do not attempt to author it inline; report this and stop.
    ```bash
    /opt/aaas/platform/scripts/backfill-tenant-vault.sh {tenant-id} "{business-name}"
    ```
-   This creates `/opt/aaas/tenants/{tenant-id}/vault/` with `Customers/`,
+   This calls `vault-init-tenant.sh` to create `/opt/aaas/tenants/{tenant-id}/vault/` with `Customers/`,
    `Suppliers/`, `Recurring/`, `Reference/` folders, a minimal `.obsidian/`
    config so it opens cleanly in the Obsidian app, and a `README.md` written
    from the actual business name (not a template placeholder left unfilled).
@@ -140,7 +140,7 @@ do not attempt to author it inline; report this and stop.
    ```bash
    /opt/aaas/platform/scripts/add-tenant-compose-service.sh {tenant-id}
    ```
-   The script appends the complete service block (image, command, restart policy, mounts, env_file, resource limits, network, healthcheck, watchdog labels) and the required `external: true` network declaration, all with the exact field values the harness and watchdog expect. If the script prints `SKIP` (service already present), stop and confirm with the operator before proceeding — do not re-run or edit the existing block without operator approval.
+   The script appends the complete service block (image, command, `restart: unless-stopped`, mounts, env_file, resource limits (`mem_limit: 1g`, `cpus: "1.0"`), network, healthcheck, watchdog labels) and the required `external: true` network declaration, all with the exact field values the harness and watchdog expect. If the script prints `SKIP` (service already present), stop and confirm with the operator before proceeding — do not re-run or edit the existing block without operator approval.
 9. Start only this tenant: `docker compose up -d hermes_{tenant-id}`.
 10. **Verify container outbound connectivity** (critical for Telegram and external APIs):
     - Wait 5 seconds for container to stabilize
@@ -156,7 +156,7 @@ do not attempt to author it inline; report this and stop.
 13. Seed Mnemosyne with `memories/MEMORY.md` and `memories/USER.md`, one fact per memory, via the SDK-based seed script (runs inside the container, as the tenant process — no `sudo cat`, no shell string-piping, `scope="global"` so seeded facts are visible outside the seeding process's own session):
    `docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/MEMORY.md fact`
    `docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/USER.md preference`
-   Each call exits non-zero if any individual fact fails to store — treat a non-zero exit as a failed seed, not a partial success. Verify with `docker exec hermes_{tenant-id} hermes memory status`, `docker exec hermes_{tenant-id} hermes mnemosyne stats --global`, and `docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"`. If `hermes mnemosyne` is unavailable, try the documented fallback `hermes hermes-mnemosyne`.
+   Each call exits non-zero if any individual fact fails to store — treat a non-zero exit as a failed seed, not a partial success. Verify with `docker exec hermes_{tenant-id} hermes memory status`, `docker exec hermes_{tenant-id} hermes mnemosyne stats --global`, and `docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"`. To manually store a single fact, use `docker exec hermes_{tenant-id} hermes mnemosyne store`. If `hermes mnemosyne` is unavailable, try the documented fallback `hermes hermes-mnemosyne`.
    Note: `business-data.md` is not seeded into Mnemosyne — it is read directly by the tenant agent at runtime from `/home/hermes/files/assets/business-data.md`. The knowledge vault at `/home/hermes/vault/` is a third, separate system: scaffolded in step 4.2, maintained by the tenant agent itself at runtime, and never seeded into Mnemosyne either. Do not write business facts into the vault during onboarding — it starts empty (aside from its `README.md` and folder structure) and the tenant agent populates it over time as it learns durable, structured facts worth a dedicated note.
 14. Add or update the tenant entry in `/opt/aaas/platform/tenants.yaml`.
 15. Send the welcome message through the tenant's Telegram bot to every numeric ID in `TELEGRAM_ALLOWED_USERS`. This only succeeds for users who have already opened the bot and sent `/start`; report Telegram `400 Bad Request: chat not found` or `403 Forbidden` as "user must start the bot first":

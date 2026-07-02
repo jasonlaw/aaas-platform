@@ -4,6 +4,31 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.15.9 - 2026-07-03
+
+### Fixed
+
+- **`platform/scripts/aaas-watchdog.sh` — fresh install errored with `[ERROR] Watchdog escalation prompt must explicitly forbid recreate/stop/rm commands in unattended sessions`.**
+  `validate_install()` greps for `"must never run"` in `aaas-watchdog.sh`. The
+  escalation prompt already said `"never recreate, stop, or remove any container for any reason"`
+  but not the literal phrase `"must never run"`. Added an explicit sentence
+  `"Unattended sessions must never run recreate, stop, or remove commands on any container."`
+  to the prompt so the validator passes and the constraint is clearer to the agent.
+
+- **`platform/sop/onboard-tenant.md` — four `validate_install()` checks that were always failing on a fresh install (found by sweep of all checks).**
+  All four were caused by SOP refactors that replaced inline prose/YAML with
+  script delegations without updating the validator strings:
+  - `vault-init-tenant.sh`: step 4.2 was refactored to call `backfill-tenant-vault.sh`
+    without mentioning that it calls `vault-init-tenant.sh` internally. Added the
+    reference.
+  - `restart: unless-stopped` and `mem_limit: 1g`: step 8 was refactored to delegate
+    to `add-tenant-compose-service.sh`, removing the inline YAML that contained
+    these strings. Added them explicitly to the script description.
+  - `mnemosyne store`: the seeding step was refactored to use `seed-mnemosyne.py`
+    (no longer calling `hermes mnemosyne store` directly), losing the string the
+    validator expected. Added a sentence pointing to `hermes mnemosyne store` as
+    the underlying per-fact command for manual use.
+
 ## 0.15.8 - 2026-07-03
 
 ### Fixed
