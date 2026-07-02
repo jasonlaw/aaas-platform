@@ -94,6 +94,29 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
   `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/MEMORY.md)" "tenant-memory" 0.8`
   `docker exec hermes_{tenant-id} mnemosyne store "$(sudo cat /opt/aaas/tenants/{tenant-id}/memories/USER.md)" "tenant-user" 0.8`
 
+### Tenant-Installed Plugin Missing Or Not Working
+- Check `docker exec hermes_{tenant-id} cat /opt/data/installed-plugins.yaml`
+  first — if the plugin isn't listed, it was never installed through
+  `tenant-install.sh` (e.g. baked into the image, or the tenant used a raw
+  `pip`/`uv` call directly into the container's writable layer, which does
+  not persist and is not this script's fault to reconcile).
+- If it is listed, `reconcile-plugins.sh` already runs automatically on
+  every container start via `tenant-entrypoint.sh` — check
+  `docker logs hermes_{tenant-id}` for `[reconcile-plugins]` lines to see
+  whether it detected the plugin missing/stale and what happened when it
+  tried to reinstall. A logged reinstall failure (network issue, package no
+  longer available, etc.) needs the same investigation as any other failed
+  install, not a recreate.
+- To force reconciliation without waiting for the next recreate:
+  `docker exec hermes_{tenant-id} /opt/data/scripts/reconcile-plugins.sh`
+- If a tenant's compose service still has the old `command: gateway run`
+  (onboarded before this feature existed), it never runs
+  `reconcile-plugins.sh` at all — back-fill it: copy the three scripts from
+  `/opt/aaas/platform/tenant-hermes/scripts/` per `onboard-tenant.md` step
+  6.2.1, update the `command:` line to
+  `/opt/data/scripts/tenant-entrypoint.sh`, then `--force-recreate` (subject
+  to the Container Recreate Policy above).
+
 ### Knowledge Vault Missing, Not Mounted, Or Not Owned
 - This is a different system from Mnemosyne and from business-data.md - do not
   treat a missing `vault/` directory as a Mnemosyne problem.

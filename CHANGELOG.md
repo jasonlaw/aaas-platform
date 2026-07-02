@@ -4,6 +4,18 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.15.0 - 2026-07-02
+
+### Added
+- **`platform/docker/Dockerfile` now bakes `faster-whisper` (speech-to-text) and `himalaya` (email CLI) into every tenant image.** Both are free, permissively licensed, and need no system-level (`apt`) dependencies: `faster-whisper` installs via `uv pip` into the tenant venv, `himalaya` installs as a self-contained binary to `/usr/local/bin` via its official installer script. Baked into the image rather than persisted at runtime, following the same precedent `hermes-agent` itself set for `hindsight-client` — "used constantly" capabilities belong in the image. This part alone is a tenant Docker image change only, no platform setup version implication (`docs/architecture.md#versioning`).
+- **Tenant agents can now install additional runtime plugins (pip packages, standalone binaries) that survive `docker compose up --force-recreate`.** Previously, anything a tenant agent installed for itself at runtime landed in the container's writable layer and was silently discarded on the next recreate — the platform's standard response to tenant config edits, credential rotation, image upgrades, and troubleshooting recovery — with no error pointing at the cause (see `tenant-plugin-persistence-issue.md`). Fixed with three pieces, all copied into each tenant's volume at onboarding (`onboard-tenant.md` step 6.2.1) and backfilled for existing tenants (`upgrade-tenants.md`):
+  - **`platform/docker/Dockerfile`** now sets `HERMES_DISABLE_LAZY_INSTALLS=0`, enabling the base image's own persisted-install target (`/opt/data/lazy-packages`, already on our mounted tenant volume but disabled by default upstream) and write-protects `/opt/hermes/.venv` from the `hermes` user (`chown root:root` + `chmod a-w`) — the venv was previously writable by the tenant agent, which upstream's own issue tracker documents as a way to crash the live gateway process, not just fail to persist (hermes-agent#7779).
+  - **`platform/tenant-hermes/scripts/tenant-install.sh`** is the tenant agent's only supported way to install a pip package or binary at runtime: installs to `/opt/data/lazy-packages` or `/opt/data/.local/bin`, refuses anything targeting `/opt/hermes/`, and records the install in `/opt/data/installed-plugins.yaml`.
+  - **`platform/tenant-hermes/scripts/reconcile-plugins.sh`** runs automatically on every container start (via the new **`tenant-entrypoint.sh`**, now the compose `command:` in place of the bare `gateway run`) and best-effort reinstalls anything the manifest lists that's missing or was built for a since-superseded Python interpreter; it never blocks container startup, only logs.
+  - **`platform/tenant-hermes/SOUL.md.template`** now tells the tenant agent to use `tenant-install.sh` and never write into `/opt/hermes/`.
+  - **`platform/sop/troubleshoot-tenant.md`** gains a "Tenant-Installed Plugin Missing Or Not Working" recovery path.
+  - Tenant-specific/occasional-use plugins go through this mechanism; capabilities common enough to want for every tenant should instead be baked into the image (see the `faster-whisper`/`himalaya` entry above).
+
 ## 0.14.9 - 2026-07-02
 
 ### Fixed

@@ -1,5 +1,14 @@
 FROM nousresearch/hermes-agent:latest
 
+# The base image ships HERMES_LAZY_INSTALL_TARGET=/opt/data/lazy-packages
+# (on our mounted, persistent tenant volume) but disables the mechanism by
+# default. Enable it so packages the tenant agent needs at runtime persist
+# across `docker compose up --force-recreate` instead of vanishing silently
+# — see tenant-plugin-persistence-issue.md. tenant-install.sh (copied into
+# every tenant volume at onboarding) is the supported way tenant agents use
+# this for capabilities outside the fixed set baked into the image below.
+ENV HERMES_DISABLE_LAZY_INSTALLS=0
+
 USER root
 
 # Install Agent Vault MITM CA so the proxy can intercept TLS.
@@ -9,7 +18,7 @@ USER root
 # involved. If Agent Vault is redeployed with a fresh database the CA regenerates;
 # re-fetch the file and rebuild this image before restarting tenant containers.
 COPY agent-vault-ca.pem /usr/local/share/ca-certificates/agent-vault-ca.crt
-RUN apt-get update -qq && apt-get install -y -qq ca-certificates \
+RUN apt-get update -qq && apt-get install -y -qq ca-certificates curl \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -17,6 +26,35 @@ RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir \
     "mnemosyne-memory[embeddings]" \
     mnemosyne-hermes && \
     chown -R hermes:hermes /opt/hermes/.venv
+
+# Bundled tenant-agent capabilities, baked into every tenant image rather than
+# left to runtime lazy-install: both are free/permissively licensed, need no
+# system-level (apt) dependencies beyond curl above, and are common enough
+# across tenants (email, speech-to-text) that upstream's own precedent for
+# "used constantly" capabilities applies (see hermes-agent's hindsight-client,
+# baked in the same way rather than persisted). Anything more tenant-specific
+# or occasional-use should go through runtime lazy-install
+# (/opt/data/lazy-packages, see tenant-plugin-persistence-issue.md), not here.
+
+# faster-whisper: pure pip, CPU-capable, no system deps.
+RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir \
+    faster-whisper && \
+    chown -R hermes:hermes /opt/hermes/.venv
+
+# himalaya: self-contained Rust binary, no runtime system deps. Installed to
+# /usr/local/bin (already on PATH, root-owned — never writable by the hermes
+# user, consistent with keeping install targets out of tenant-agent hands).
+RUN curl -sSL https://raw.githubusercontent.com/pimalaya/himalaya/master/install.sh \
+    | PREFIX=/usr/local sh
+
+# Write-protect the runtime venv from the hermes user (root retains write via
+# DAC_OVERRIDE, so this only blocks the tenant agent's own process). This is
+# a correctness fix, not a persistence one: even a successful write here is
+# discarded on the next recreate anyway, but a write attempt can also crash
+# the live gateway process (e.g. `uv venv` replacing the venv out from under
+# the running interpreter — see hermes-agent#7779). All installs above this
+# line have already completed, so nothing further needs write access here.
+RUN chown -R root:root /opt/hermes/.venv && chmod -R a-w /opt/hermes/.venv
 
 # Switch back to hermes user (required by official image)
 USER hermes
