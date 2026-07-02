@@ -13,10 +13,11 @@ Use this SOP even when the operator's request did not start from a named SOP, su
 If the finding is low-risk (doc/comment wording, an obvious typo, formatting, a stale example — nothing that can change runtime behavior, decision logic, or output) and outside the protected automation surface in PLATFORM-REFERENCE.md's Rules, it's fine to fix it on the spot rather than defer it — but write the report regardless. The report is what gets a live, one-off fix backported into the versioned source the operator actually maintains; note in the report that the fix was already applied live, and include the exact file and change so the operator can replicate it upstream.
 
 ## Trigger Field
-Every report's `trigger` field records what caused OpenCode to run this task, not which agent wrote the report — reports are always written by OpenCode itself; Hermes (admin or tenant) is never the author, only ever the subject of troubleshooting.
+Every report's `trigger` field records what caused this task to run. Reports are written by whichever admin-side agent actually did the work — the OpenCode admin agent or the Hermes admin agent. The tenant Hermes agent is never the author, only ever the subject of troubleshooting; it has no access to `platform/reports/` and no path to this SOP.
 
-- `operator` — a human operator started this session interactively (the normal case for onboarding, upgrades, and operator-initiated troubleshooting).
-- `watchdog` — `aaas-watchdog.sh` invoked OpenCode unattended after automatic restart attempts failed for Agent Vault, a tenant container, or admin Hermes. Set `operator_request` to the watchdog's actual invocation message in this case (do not paraphrase it as if a human typed it) — see `aaas-watchdog.sh`'s `escalate()` function for the exact text, which names the specific entity that failed.
+- `operator` — a human operator started this session interactively (the normal case for onboarding, upgrades, and operator-initiated troubleshooting). Written by the OpenCode admin agent.
+- `watchdog` — `aaas-watchdog.sh` invoked OpenCode unattended after automatic restart attempts failed for Agent Vault, a tenant container, or admin Hermes. Set `operator_request` to the watchdog's actual invocation message in this case (do not paraphrase it as if a human typed it) — see `aaas-watchdog.sh`'s `escalate()` function for the exact text, which names the specific entity that failed. Written by the OpenCode admin agent.
+- `tenant_request` — a tenant Hermes agent contacted admin Hermes via the API server channel (`support_request`, `operator_alert`, or `llm_key_change`; see `/opt/aaas/platform/skills/handle-tenant-request.md`) and, after investigating, admin Hermes confirmed the issue was valid (platform-side, not a tenant mistake) — whether or not admin Hermes was able to fix it itself. Set `operator_request` to the tenant's message verbatim (do not paraphrase), and set `tenant_id` to the reporting tenant. Written by the Hermes admin agent — this is the one case where Hermes, not OpenCode, is the report's author, since admin Hermes is the agent that actually ran the investigation and has no mechanism to hand the writing off to an OpenCode session. A `support_request` that turns out to be tenant-side (the tenant's own mistake, not a platform issue) does not meet this bar — see `handle-tenant-request.md` for that distinction — and does not require a report.
 
 If a task is unsure which value applies (rare — this should only happen for new automation, not regular operator sessions), default to `operator` rather than leaving the field blank; an unset `trigger` is harder to distinguish from a missed report than a possibly-wrong-but-present value.
 
@@ -37,7 +38,7 @@ platform_version: "{contents of /opt/aaas/platform/VERSION}"
 sop: "{sop-or-task-name}"
 status: "success|partial|failed|cancelled|validation-only"
 tenant_id: "{tenant-id-or-empty}"
-trigger: "operator|watchdog"
+trigger: "operator|watchdog|tenant_request"
 operator_request: "{brief request}"
 ---
 

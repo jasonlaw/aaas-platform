@@ -4,6 +4,11 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.14.7 - 2026-07-02
+
+### Fixed
+- **`write-report.md` contradicted admin Hermes's own instructions on who may author a task report.** `write-report.md`'s "Trigger Field" section stated reports "are always written by OpenCode itself; Hermes (admin or tenant) is never the author" — but `admin-hermes/SOUL.md.template` already directs admin Hermes to write task reports itself, and admin Hermes (not OpenCode) is the agent that actually handles tenant-originated contact via `skills/handle-tenant-request.md`. In practice this meant a tenant agent reporting a genuine platform-side issue (`support_request`) could be investigated and even fixed by admin Hermes, but the finding never entered the report/audit trail (`reports/`, `INDEX.jsonl`, `analyze-reports.sh`) — the SOP that was supposed to record it explicitly said the agent doing the work wasn't allowed to write it. Reworded the Trigger Field section so reports are written by whichever admin-side agent did the work (OpenCode or admin Hermes); the tenant Hermes agent remains excluded, correctly, since it has no access to `platform/reports/` or this SOP. Added a new `trigger: tenant_request` value, authored by admin Hermes, for when a tenant's `support_request`/`operator_alert`/`llm_key_change` is confirmed to be a valid platform-side issue. `skills/handle-tenant-request.md`'s `support_request` handling now explicitly requires writing this report once a complaint is confirmed valid, separately from (and in addition to) any knowledge-vault note for reusable patterns.
+
 ## 0.14.6 - 2026-07-01
 
 ### Added

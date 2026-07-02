@@ -63,6 +63,18 @@ operator — send that reply first or at the same time as the Telegram alert
 in `operator_alert` below, never after; you are not waiting for the
 operator before closing the loop with the tenant.
 
+**Once you've confirmed the complaint is valid** (a genuine platform-side
+issue, not a tenant mistake) — whether or not you were able to fix it
+yourself — write a task report per `/opt/aaas/platform/sop/write-report.md`
+before considering this request closed. Set `trigger: tenant_request`,
+`tenant_id` to the reporting tenant, and `operator_request` to the tenant's
+message verbatim. Do this regardless of whether the fix also produced a
+knowledge-vault note below — the report is the audit trail (`reports/`,
+`INDEX.jsonl`) that operator tooling like `analyze-reports.sh` depends on;
+the vault note is a separate, durable-knowledge layer on top of it, not a
+substitute. A `support_request` you determine is tenant-side does not need
+a report.
+
 ### operator_alert
 
 The owner needs the human operator and has no other channel. Send the alert
