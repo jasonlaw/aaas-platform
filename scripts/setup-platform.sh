@@ -1,905 +1,316 @@
 #!/usr/bin/env bash
-# =============================================================================
-# AaaS Platform - Platform Asset Setup
-# Platform version is read from platform/VERSION.
-# Run after scripts/setup-prerequisites.sh has completed inside Ubuntu/Linux.
-# =============================================================================
+# AaaS tenant harness check.
+# Runs deterministic checks that prove a tenant is structurally ready before
+# the admin agent declares onboarding, upgrade, or troubleshooting complete.
 
 set -euo pipefail
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+TENANT_ID="${1:-}"
+PLATFORM_ROOT="${PLATFORM_ROOT:-/opt/aaas/platform}"
+TENANT_ROOT="${TENANT_ROOT:-/opt/aaas/tenants}"
+TENANT_DIR="$TENANT_ROOT/$TENANT_ID"
+COMPOSE_FILE="$PLATFORM_ROOT/docker/docker-compose.yaml"
+TENANTS_FILE="$PLATFORM_ROOT/tenants.yaml"
+SERVICE="hermes_$TENANT_ID"
 
-log()    { echo -e "${BLUE}[AaaS]${NC} $1"; }
-success(){ echo -e "${GREEN}[OK]${NC} $1"; }
-warn()   { echo -e "${YELLOW}[WARN]${NC} $1"; }
-error()  { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
-
-INSTALL_ROOT="/opt/aaas"
-PLATFORM_ROOT="$INSTALL_ROOT/platform"
-REPO_URL="https://github.com/jasonlaw/aaas-platform"
-REPO_ARCHIVE_URL="https://github.com/jasonlaw/aaas-platform/archive/refs/heads/main.tar.gz"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
-REPO_ROOT=""
-ASSET_ROOT=""
-TMP_ASSET_DIR=""
-BUILD_IMAGE=false
-VALIDATE_ONLY=false
-BACKUP_BEFORE_INSTALL=true
-ASSUME_YES=false
-
-# Single source of truth for every platform-managed asset's path, relative to
-# ASSET_ROOT (repo)/PLATFORM_ROOT (installed) — used by BOTH
-# validate_asset_source() (repo has everything before we start) and
-# validate_installed_matches_source() (installed copy actually matches, used
-# by --validate-only). These two checks previously kept independent,
-# hand-maintained arrays that were supposed to mirror each other but drifted:
-# the installed-copy check was missing policy/platform-policy.yaml,
-# scripts/generate-platform-eval.sh, scripts/validate-platform-rules.sh,
-# incidents/hermes-admin-failure.md, skills/handle-tenant-request.md,
-# skills/manage-agent-vault.md, and tenant-hermes/policy/tenant-policy.yaml.template
-# — meaning --validate-only could report success even if any of those files
-# failed to copy or silently drifted from source. scripts/aaas-watchdog.sh
-# was missing from BOTH lists, so neither check ever verified it at all.
-# Fixing this as one shared list, not two synced-by-hand ones, so a new
-# managed asset only ever needs to be added in a single place.
-MANAGED_ASSET_RELATIVE_PATHS=(
-  "AGENTS.md"
-  "PLATFORM-REFERENCE.md"
-  "VERSION"
-  "admin-hermes/SOUL.md.template"
-  "admin-hermes/USER.md.template"
-  "admin-hermes/MEMORY.md.template"
-  "admin-hermes/config.yaml.template"
-  "admin-hermes/env.template"
-  "docker/Dockerfile"
-  "harness/check-tenant.sh"
-  "harness/tenant-harness.yaml.template"
-  "harness/ACCEPTANCE.md.template"
-  "checklists/onboard-tenant.required.json"
-  "checklists/monitor-health.required.json"
-  "policy/platform-policy.yaml"
-  "tenant-hermes/evals/_fixed-safety-v1.yaml"
-  "tenant-hermes/evals/generated/.gitkeep"
-  "evals/meta-eval-generation-v1.yaml"
-  "scripts/preflight-check.sh"
-  "scripts/validate-tenant-config.sh"
-  "scripts/generate-platform-eval.sh"
-  "scripts/validate-platform-rules.sh"
-  "scripts/analyze-reports.sh"
-  "scripts/eval-runner.sh"
-  "scripts/eval-judge.sh"
-  "scripts/_eval-check-single.sh"
-  "scripts/aaas-watchdog.sh"
-  "tenant-hermes/scripts/skill-verify.sh"
-  "tenant-hermes/scripts/vault-init-tenant.sh"
-  "incidents/all-tenants-no-connectivity.md"
-  "incidents/docker-version-rollback.md"
-  "incidents/telegram-api-change.md"
-  "incidents/mnemosyne-seed-corruption.md"
-  "incidents/platform-backup-recovery.md"
-  "incidents/agent-vault-failure.md"
-  "incidents/hermes-admin-failure.md"
-  "skills/grill-me.md"
-  "skills/setup-admin-hermes.md"
-  "skills/query-knowledge-vault.md"
-  "skills/handle-tenant-request.md"
-  "skills/manage-agent-vault.md"
-  "sop/build-image.md"
-  "sop/upgrade-platform.md"
-  "sop/onboard-tenant.md"
-  "sop/suspend-tenant.md"
-  "sop/reactivate-tenant.md"
-  "sop/offboard-tenant.md"
-  "sop/update-tenant.md"
-  "sop/upgrade-tenants.md"
-  "sop/monitor-health.md"
-  "sop/monitor-logs.md"
-  "sop/troubleshoot-tenant.md"
-  "sop/write-report.md"
-  "sop/setup-agent-vault.md"
-  "sop/provision-tenant-vault.md"
-  "sop/deprovision-tenant-vault.md"
-  "sop/sync-knowledge-vault.md"
-  "sop/improve-sop.md"
-  "scripts/vault-init.sh"
-  "scripts/agent-vault-health.sh"
-  "tenant-hermes/config.yaml.template"
-  "tenant-hermes/env.template"
-  "tenant-hermes/SOUL.md.template"
-  "tenant-hermes/USER.md.template"
-  "tenant-hermes/MEMORY.md.template"
-  "tenant-hermes/policy/tenant-policy.yaml.template"
-)
+PASS_COUNT=0
+FAIL_COUNT=0
+WARN_COUNT=0
 
 usage() {
-  cat <<EOF
-Usage: $0 [options]
-
-Installs or upgrades managed platform assets while preserving tenant
-data, tenants.yaml, docker-compose.yaml, reports, and report index history.
-
-Options:
-  --build-image     Build and tag hermes-tenant:latest after installing files.
-  --validate-only   Check prerequisites and installed files without copying.
-  --yes, --no-tty   Assume "1. Continue with backup" at the version-confirm
-                     prompt instead of requiring /dev/tty. For automated or
-                     headless runs (CI, provisioning scripts, etc.).
-  -h, --help        Show this help.
-EOF
+  echo "Usage: $0 {tenant-id}"
 }
 
-while [ "${1:-}" != "" ]; do
-  case "$1" in
-    --build-image) BUILD_IMAGE=true ;;
-    --validate-only) VALIDATE_ONLY=true ;;
-    --yes|--no-tty) ASSUME_YES=true ;;
-    -h|--help) usage; exit 0 ;;
-    *) error "Unknown option: $1" ;;
+maybe_reexec_with_sudo() {
+  if [ "$(id -u)" -eq 0 ]; then
+    return
+  fi
+
+  if ! command -v sudo >/dev/null 2>&1; then
+    return
+  fi
+
+  # Tenant files are intentionally owned by UID 10000. A non-root operator may
+  # be able to see the directory entry but not inspect the files inside it.
+  if [ -e "$TENANT_DIR" ] && { [ ! -x "$TENANT_DIR" ] || [ ! -r "$TENANT_DIR" ] || [ ! -r "$TENANT_DIR/harness.yaml" ] || [ ! -r "$TENANT_DIR/.env" ]; }; then
+    echo "Tenant files are not readable by $(id -un); rerunning harness check with sudo..." >&2
+    exec sudo -E "$0" "$TENANT_ID"
+  fi
+}
+
+record() {
+  local status="$1"
+  local check="$2"
+  local detail="${3:-}"
+
+  case "$status" in
+    PASS) PASS_COUNT=$((PASS_COUNT + 1)) ;;
+    FAIL) FAIL_COUNT=$((FAIL_COUNT + 1)) ;;
+    WARN) WARN_COUNT=$((WARN_COUNT + 1)) ;;
   esac
-  shift
-done
 
-require_command() {
-  command -v "$1" >/dev/null 2>&1 || error "$1 is required. Complete prerequisite setup first."
+  if [ -n "$detail" ]; then
+    printf '%s\t%s\t%s\n' "$status" "$check" "$detail"
+  else
+    printf '%s\t%s\n' "$status" "$check"
+  fi
 }
 
-copy_tree() {
-  local source="$1"
-  local target="$2"
-  [ -d "$source" ] || error "Missing source directory: $source"
-  mkdir -p "$target"
-  cp -a "$source"/. "$target"/
-}
-
-read_version() {
+exists_file() {
   local path="$1"
-  [ -f "$path" ] || return 1
-  tr -d '[:space:]' < "$path"
+  local name="$2"
+  [ -f "$path" ] && record PASS "$name" "$path" || record FAIL "$name" "missing: $path"
 }
 
-version_compare() {
-  local left="$1"
-  local right="$2"
+exists_dir() {
+  local path="$1"
+  local name="$2"
+  [ -d "$path" ] && record PASS "$name" "$path" || record FAIL "$name" "missing: $path"
+}
 
-  if [ "$left" = "$right" ]; then
-    echo "equal"
-  elif [ "$(printf '%s\n%s\n' "$left" "$right" | sort -V | head -n 1)" = "$left" ]; then
-    echo "older"
+contains() {
+  local path="$1"
+  local pattern="$2"
+  local name="$3"
+  if [ ! -f "$path" ]; then
+    record FAIL "$name" "missing file: $path"
+  elif grep -Eq "$pattern" "$path"; then
+    record PASS "$name"
   else
-    echo "newer"
+    record FAIL "$name" "pattern not found: $pattern"
   fi
 }
 
-prompt_confirm_install() {
-  local installed_version="$1"
-  local source_version="$2"
-  local answer=""
+service_contains() {
+  local service="$1"
+  local pattern="$2"
+  local name="$3"
 
-  if [ "$installed_version" = "$source_version" ]; then
-    warn "Installed platform version already matches repository version: $installed_version"
-    warn "Rerunning setup will overwrite managed assets with the same version."
+  if [ ! -f "$COMPOSE_FILE" ]; then
+    record FAIL "$name" "missing file: $COMPOSE_FILE"
+  elif awk -v service="  ${service}:" -v pattern="$pattern" '
+    $0 == service { in_service=1; next }
+    in_service && /^  [^[:space:]][^:]*:/ { in_service=0 }
+    in_service && $0 ~ pattern { found=1 }
+    END { exit found ? 0 : 1 }
+  ' "$COMPOSE_FILE"; then
+    record PASS "$name"
   else
-    warn "Installed platform version is $installed_version; repository version is $source_version"
-    warn "Continuing will overwrite managed assets with the repository version."
+    record FAIL "$name" "pattern not found in $service service: $pattern"
   fi
-  echo ""
-  echo "Choose how to continue:"
-  echo "  1. Continue with backup"
-  echo "  2. Continue without backup"
-  echo "  3. Cancel"
-  echo ""
+}
 
-  if [ "$ASSUME_YES" = true ]; then
-    BACKUP_BEFORE_INSTALL=true
-    log "Auto-selecting '1. Continue with backup' for version $source_version (--yes/--no-tty)"
+owned_by_hermes() {
+  local path="$1"
+  local name="$2"
+  local owner
+
+  if [ ! -e "$path" ]; then
+    record FAIL "$name" "missing: $path"
     return
   fi
 
-  if [ -r /dev/tty ]; then
-    while true; do
-      printf "Selection [1-3]: " > /dev/tty
-      IFS= read -r answer < /dev/tty || answer=""
-      case "$answer" in
-        1)
-          BACKUP_BEFORE_INSTALL=true
-          log "Continuing with backup for version $source_version"
-          return
-          ;;
-        2)
-          BACKUP_BEFORE_INSTALL=false
-          warn "Continuing without backup for version $source_version"
-          return
-          ;;
-        3)
-          error "Cancelled by operator"
-          ;;
-        *)
-          warn "Enter 1, 2, or 3."
-          ;;
-      esac
-    done
-  fi
-
-  error "Platform version confirmation is required, but no interactive terminal is available. Re-run with --yes or --no-tty to assume 'Continue with backup' automatically."
-}
-
-decide_install_strategy() {
-  local installed_version=""
-  local source_version=""
-  local comparison=""
-
-  source_version="$(read_version "$ASSET_ROOT/VERSION")" \
-    || error "Repository asset missing: $ASSET_ROOT/VERSION"
-
-  if ! grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' "$ASSET_ROOT/VERSION"; then
-    error "Repository VERSION must contain a semantic version like 0.1.0"
-  fi
-
-  if ! installed_version="$(read_version "$PLATFORM_ROOT/VERSION")"; then
-    warn "Installed platform VERSION is missing - installing repository version $source_version"
-    BACKUP_BEFORE_INSTALL=false
-    return
-  fi
-
-  if ! grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' "$PLATFORM_ROOT/VERSION"; then
-    warn "Installed platform VERSION is invalid: $installed_version"
-    warn "Proceeding with backup before installing repository version $source_version"
-    BACKUP_BEFORE_INSTALL=true
-    return
-  fi
-
-  comparison="$(version_compare "$installed_version" "$source_version")"
-  case "$comparison" in
-    older)
-      log "Installed platform version $installed_version is older than repository version $source_version"
-      BACKUP_BEFORE_INSTALL=true
-      ;;
-    equal)
-      prompt_confirm_install "$installed_version" "$source_version"
-      ;;
-    newer)
-      warn "Installed platform version $installed_version is newer than repository version $source_version"
-      warn "This may downgrade managed platform assets."
-      prompt_confirm_install "$installed_version" "$source_version"
-      ;;
-  esac
-}
-
-validate_asset_source() {
-  [ -f "$REPO_ROOT/CHANGELOG.md" ] || error "Repository asset missing: $REPO_ROOT/CHANGELOG.md"
-
-  local relative_path=""
-  for relative_path in "${MANAGED_ASSET_RELATIVE_PATHS[@]}"; do
-    [ -f "$ASSET_ROOT/$relative_path" ] || error "Repository asset missing: $ASSET_ROOT/$relative_path"
-  done
-}
-
-validate_installed_matches_source() {
-  [ -n "$ASSET_ROOT" ] || return
-
-  local relative_path=""
-  for relative_path in "${MANAGED_ASSET_RELATIVE_PATHS[@]}"; do
-    cmp -s "$ASSET_ROOT/$relative_path" "$PLATFORM_ROOT/$relative_path" \
-      || error "Installed asset differs from repository asset: $relative_path"
-  done
-
-  cmp -s "$REPO_ROOT/CHANGELOG.md" "$PLATFORM_ROOT/CHANGELOG.md" \
-    || error "Installed asset differs from repository asset: CHANGELOG.md"
-}
-
-backup_managed_assets() {
-  local existing=false
-  local timestamp=""
-  local backup_dir=""
-  local relative_path=""
-  local paths=(
-    "AGENTS.md"
-    "PLATFORM-REFERENCE.md"
-    "VERSION"
-    "CHANGELOG.md"
-    "admin-hermes"
-    "docker/Dockerfile"
-    "harness"
-    "checklists"
-    "policy"
-    "evals"
-    "incidents"
-    "sop"
-    "skills"
-    "tenant-hermes"
-    "scripts"
-  )
-
-  for relative_path in "${paths[@]}"; do
-    if [ -e "$PLATFORM_ROOT/$relative_path" ]; then
-      existing=true
-      break
-    fi
-  done
-
-  [ "$existing" = true ] || return
-
-  timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-  backup_dir="$PLATFORM_ROOT/backups/platform-assets-$timestamp"
-  mkdir -p "$backup_dir"
-
-  for relative_path in "${paths[@]}"; do
-    if [ -e "$PLATFORM_ROOT/$relative_path" ]; then
-      mkdir -p "$backup_dir/$(dirname "$relative_path")"
-      cp -a "$PLATFORM_ROOT/$relative_path" "$backup_dir/$relative_path"
-    fi
-  done
-
-  success "Backed up existing managed platform assets to $backup_dir"
-}
-
-cleanup() {
-  if [ -n "$TMP_ASSET_DIR" ] && [ -d "$TMP_ASSET_DIR" ]; then
-    rm -rf "$TMP_ASSET_DIR"
-  fi
-}
-
-trap cleanup EXIT
-
-resolve_asset_root() {
-  if [ -n "$SCRIPT_DIR" ] && [ -d "$SCRIPT_DIR/../platform" ]; then
-    REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-    ASSET_ROOT="$REPO_ROOT/platform"
-    success "Using local repository assets from $ASSET_ROOT"
-    return
-  fi
-
-  log "Local platform assets not found; downloading repository archive..."
-  require_command curl
-  require_command tar
-
-  TMP_ASSET_DIR="$(mktemp -d)"
-  curl -fsSL "$REPO_ARCHIVE_URL" | tar -xz -C "$TMP_ASSET_DIR"
-
-  REPO_ROOT="$TMP_ASSET_DIR/aaas-platform-main"
-  ASSET_ROOT="$REPO_ROOT/platform"
-  [ -d "$ASSET_ROOT" ] || error "Downloaded archive did not contain platform assets from $REPO_URL"
-  success "Downloaded repository assets from $REPO_URL"
-}
-
-ensure_plan0_ready() {
-  log "Checking prerequisite setup..."
-  require_command git
-  require_command docker
-  require_command opencode
-
-  [ -d "$INSTALL_ROOT" ] || error "$INSTALL_ROOT does not exist. Run scripts/setup-prerequisites.sh first."
-  [ -d "$PLATFORM_ROOT" ] || error "$PLATFORM_ROOT does not exist. Run scripts/setup-prerequisites.sh first."
-
-  docker --version >/dev/null
-  docker info >/dev/null 2>&1 || error "Docker Engine is not reachable. Start Docker, then rerun platform setup."
-  opencode --version >/dev/null
-  command -v agent-vault >/dev/null 2>&1 || error "agent-vault CLI not found. Run scripts/setup-prerequisites.sh first."
-  success "Prerequisite tools and folders are present"
-}
-
-install_assets() {
-  log "Installing platform assets..."
-  validate_asset_source
-  decide_install_strategy
-
-  mkdir -p "$PLATFORM_ROOT/sop"
-  mkdir -p "$PLATFORM_ROOT/skills"
-  mkdir -p "$PLATFORM_ROOT/reports"
-  mkdir -p "$PLATFORM_ROOT/backups"
-  mkdir -p "$PLATFORM_ROOT/tenant-hermes"
-  mkdir -p "$PLATFORM_ROOT/docker"
-  mkdir -p "$PLATFORM_ROOT/admin-hermes"
-  mkdir -p "$PLATFORM_ROOT/harness"
-  mkdir -p "$PLATFORM_ROOT/checklists"
-  mkdir -p "$PLATFORM_ROOT/policy"
-  mkdir -p "$PLATFORM_ROOT/evals"
-  mkdir -p "$PLATFORM_ROOT/incidents"
-  mkdir -p "$PLATFORM_ROOT/scripts"
-  mkdir -p "$PLATFORM_ROOT/vault"
-  mkdir -p "$PLATFORM_ROOT/watchdog/logs"
-  mkdir -p "$PLATFORM_ROOT/watchdog/state"
-  mkdir -p "$INSTALL_ROOT/tenants"
-
-  if [ "$BACKUP_BEFORE_INSTALL" = true ]; then
-    backup_managed_assets
+  owner="$(stat -c '%u:%g' "$path" 2>/dev/null || true)"
+  if [ "$owner" = "10000:10000" ]; then
+    record PASS "$name"
   else
-    warn "Skipping managed asset backup for this install"
+    record FAIL "$name" "expected 10000:10000, got ${owner:-unknown}: $path"
   fi
-
-  copy_tree "$ASSET_ROOT/sop" "$PLATFORM_ROOT/sop"
-  copy_tree "$ASSET_ROOT/skills" "$PLATFORM_ROOT/skills"
-  copy_tree "$ASSET_ROOT/tenant-hermes" "$PLATFORM_ROOT/tenant-hermes"
-  copy_tree "$ASSET_ROOT/admin-hermes" "$PLATFORM_ROOT/admin-hermes"
-  copy_tree "$ASSET_ROOT/harness" "$PLATFORM_ROOT/harness"
-  copy_tree "$ASSET_ROOT/checklists" "$PLATFORM_ROOT/checklists"
-  copy_tree "$ASSET_ROOT/policy" "$PLATFORM_ROOT/policy"
-  copy_tree "$ASSET_ROOT/evals" "$PLATFORM_ROOT/evals"
-  copy_tree "$ASSET_ROOT/incidents" "$PLATFORM_ROOT/incidents"
-  copy_tree "$ASSET_ROOT/scripts" "$PLATFORM_ROOT/scripts"
-  chmod +x "$PLATFORM_ROOT/harness/check-tenant.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/preflight-check.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/validate-tenant-config.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/analyze-reports.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/eval-runner.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/eval-judge.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/_eval-check-single.sh"
-  chmod +x "$PLATFORM_ROOT/tenant-hermes/scripts/skill-verify.sh"
-  chmod +x "$PLATFORM_ROOT/tenant-hermes/scripts/vault-init-tenant.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/agent-vault-health.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/vault-init.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/generate-platform-eval.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/validate-platform-rules.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/aaas-watchdog.sh"
-  cp "$ASSET_ROOT/AGENTS.md" "$PLATFORM_ROOT/AGENTS.md"
-  cp "$ASSET_ROOT/PLATFORM-REFERENCE.md" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md"
-  cp "$ASSET_ROOT/VERSION" "$PLATFORM_ROOT/VERSION"
-  cp "$REPO_ROOT/CHANGELOG.md" "$PLATFORM_ROOT/CHANGELOG.md"
-  cp "$ASSET_ROOT/docker/Dockerfile" "$PLATFORM_ROOT/docker/Dockerfile"
-
-  if [ ! -f "$PLATFORM_ROOT/tenants.yaml" ]; then
-    cat > "$PLATFORM_ROOT/tenants.yaml" <<'EOF'
-# AaaS Platform - Tenant Registry
-# Business metadata only - secrets live in per-tenant .env files
-# Container management is in docker-compose.yaml
-# Status values: active | suspended | offboarded
-
-tenants: []
-EOF
-    success "Created tenants.yaml"
-  else
-    warn "tenants.yaml already exists - leaving it unchanged"
-  fi
-
-  if [ ! -f "$PLATFORM_ROOT/docker/docker-compose.yaml" ]; then
-    cat > "$PLATFORM_ROOT/docker/docker-compose.yaml" <<'EOF'
-# AaaS Platform - Tenant Container Registry
-# Managed by the AaaS admin agent
-# The admin agent adds one service block per tenant under services:
-# Always specify service name when running docker compose commands
-# to avoid affecting ALL tenants unintentionally
-
-services:
-  # Tenant services are added here by the admin agent during onboarding.
-EOF
-    success "Created docker-compose.yaml"
-  else
-    warn "docker-compose.yaml already exists - leaving it unchanged"
-  fi
-
-  if [ ! -f "$PLATFORM_ROOT/reports/INDEX.jsonl" ]; then
-    touch "$PLATFORM_ROOT/reports/INDEX.jsonl"
-    success "Created reports/INDEX.jsonl"
-  else
-    warn "reports/INDEX.jsonl already exists - leaving it unchanged"
-  fi
-
-  success "Platform assets installed under $PLATFORM_ROOT"
 }
 
-setup_agent_vault() {
-  local vault_root="$INSTALL_ROOT/agent-vault"
-  local vault_data="$vault_root/data"
-  local vault_compose="$vault_root/docker-compose.yaml"
-  local vault_env="$vault_root/.env"
-
-  log "Setting up Agent Vault infrastructure..."
-
-  # --- Directory ---
-  if [ ! -d "$vault_data" ]; then
-    mkdir -p "$vault_data"
-    # The agent-vault image runs as a non-root, unprivileged user whose host
-    # UID/GID is not exposed/configurable. 700 leaves the bind mount
-    # unwritable to that user and the container fails to start healthy.
-    # 770 is not sufficient either, since the container's UID is not a
-    # member of any host group we control. Until the image exposes a
-    # configurable UID (or a PUID/PGID-style entrypoint), this directory
-    # must stay world-writable for the container to initialise its database.
-    chmod 777 "$vault_data"
-    success "Created Agent Vault data directory: $vault_data"
-  else
-    warn "Agent Vault data directory already exists — leaving it unchanged"
-  fi
-
-  # --- Compose file (own file, peer to platform/) ---
-  if [ ! -f "$vault_compose" ]; then
-    cat > "$vault_compose" <<'EOF'
-# Agent Vault — AaaS credential broker
-# Managed independently of the tenant Compose file.
-# Start/stop with: docker compose -f /opt/aaas/agent-vault/docker-compose.yaml up -d
-# Tenant containers join agent-vault-net (declared external: true in the tenant Compose file).
-
-services:
-  agent-vault:
-    image: infisical/agent-vault:latest
-    container_name: agent-vault
-    ports:
-      - "127.0.0.1:14321:14321"
-      - "127.0.0.1:14322:14322"
-    volumes:
-      - /opt/aaas/agent-vault/data:/data
-    env_file:
-      - /opt/aaas/agent-vault/.env
-    environment:
-      - AGENT_VAULT_ADDR=http://localhost:14321
-      - AGENT_VAULT_ALLOW_PRIVATE_RANGES=true
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:14321/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
-    networks:
-      - agent-vault-net
-
-networks:
-  agent-vault-net:
-    name: agent-vault-net
-    driver: bridge
-    internal: false
-EOF
-    success "Created Agent Vault docker-compose.yaml: $vault_compose"
-  else
-    warn "Agent Vault docker-compose.yaml already exists — leaving it unchanged"
-  fi
-
-  # --- .env stub (master password — never overwrite) ---
-  if [ ! -f "$vault_env" ]; then
-    cat > "$vault_env" <<'EOF'
-# Agent Vault master password — DO NOT COMMIT THIS FILE
-# Fill in AGENT_VAULT_MASTER_PASSWORD before starting Agent Vault.
-# Loss of this password requires a vault reset and re-entry of all credentials.
-AGENT_VAULT_MASTER_PASSWORD=
-EOF
-    chmod 600 "$vault_env"
-    success "Created Agent Vault .env stub: $vault_env"
-    warn "ACTION REQUIRED: Set AGENT_VAULT_MASTER_PASSWORD in $vault_env before starting Agent Vault"
-  else
-    warn "Agent Vault .env already exists — leaving it unchanged (master password preserved)"
-  fi
-
-  # --- Pull image ---
-  log "Pulling Agent Vault image..."
-  docker pull infisical/agent-vault:latest
-  success "Agent Vault image ready"
-
-  # --- Start container if master password is set ---
-  if grep -q "^AGENT_VAULT_MASTER_PASSWORD=.\+" "$vault_env" 2>/dev/null; then
-    log "Starting Agent Vault container..."
-    docker compose -f "$vault_compose" up -d agent-vault
-    # Wait up to 30s for healthy
-    local i=0
-    while [ $i -lt 6 ]; do
-      HEALTH="$(docker inspect --format='{{.State.Health.Status}}' agent-vault 2>/dev/null || echo 'unknown')"
-      [ "$HEALTH" = "healthy" ] && break
-      sleep 5
-      i=$((i + 1))
-    done
-    HEALTH="$(docker inspect --format='{{.State.Health.Status}}' agent-vault 2>/dev/null || echo 'unknown')"
-    if [ "$HEALTH" = "healthy" ]; then
-      success "Agent Vault container is healthy"
-    else
-      warn "Agent Vault container health status: $HEALTH — check logs with: docker logs agent-vault --tail 30"
-    fi
-  else
-    warn "AGENT_VAULT_MASTER_PASSWORD is not set in $vault_env"
-    warn "Agent Vault container NOT started. Set the password, then run:"
-    warn "  docker compose -f $vault_compose up -d agent-vault"
-    warn "Then complete setup by following: /opt/aaas/platform/sop/setup-agent-vault.md"
-  fi
-
-  success "Agent Vault infrastructure setup complete"
-}
-
-build_image() {
-  log "Building Hermes tenant Docker image..."
-  require_command docker
-  [ -f "$PLATFORM_ROOT/docker/Dockerfile" ] || error "Missing Dockerfile. Run platform setup before --build-image."
-  cd "$PLATFORM_ROOT/docker"
-  docker pull nousresearch/hermes-agent:latest
-  docker build -t hermes-tenant:latest .
-  docker tag hermes-tenant:latest hermes-tenant:v1.0
-  docker images | grep hermes-tenant
-  success "Docker image built and tagged as hermes-tenant:latest and hermes-tenant:v1.0"
-}
-
-validate_install() {
-  log "Validating platform files..."
-
-  local required=(
-    "$PLATFORM_ROOT/AGENTS.md"
-    "$PLATFORM_ROOT/PLATFORM-REFERENCE.md"
-    "$PLATFORM_ROOT/VERSION"
-    "$PLATFORM_ROOT/CHANGELOG.md"
-    "$PLATFORM_ROOT/admin-hermes/SOUL.md.template"
-    "$PLATFORM_ROOT/admin-hermes/USER.md.template"
-    "$PLATFORM_ROOT/admin-hermes/MEMORY.md.template"
-    "$PLATFORM_ROOT/admin-hermes/config.yaml.template"
-    "$PLATFORM_ROOT/admin-hermes/env.template"
-    "$PLATFORM_ROOT/docker/Dockerfile"
-    "$PLATFORM_ROOT/harness/check-tenant.sh"
-    "$PLATFORM_ROOT/harness/tenant-harness.yaml.template"
-    "$PLATFORM_ROOT/harness/ACCEPTANCE.md.template"
-    "$PLATFORM_ROOT/checklists/onboard-tenant.required.json"
-    "$PLATFORM_ROOT/checklists/monitor-health.required.json"
-    "$PLATFORM_ROOT/tenant-hermes/evals/_fixed-safety-v1.yaml"
-    "$PLATFORM_ROOT/tenant-hermes/evals/generated/.gitkeep"
-    "$PLATFORM_ROOT/evals/meta-eval-generation-v1.yaml"
-    "$PLATFORM_ROOT/scripts/preflight-check.sh"
-    "$PLATFORM_ROOT/scripts/validate-tenant-config.sh"
-    "$PLATFORM_ROOT/scripts/analyze-reports.sh"
-    "$PLATFORM_ROOT/scripts/eval-runner.sh"
-    "$PLATFORM_ROOT/scripts/eval-judge.sh"
-    "$PLATFORM_ROOT/scripts/_eval-check-single.sh"
-    "$PLATFORM_ROOT/tenant-hermes/scripts/skill-verify.sh"
-    "$PLATFORM_ROOT/tenant-hermes/scripts/vault-init-tenant.sh"
-    "$PLATFORM_ROOT/incidents/all-tenants-no-connectivity.md"
-    "$PLATFORM_ROOT/incidents/docker-version-rollback.md"
-    "$PLATFORM_ROOT/incidents/telegram-api-change.md"
-    "$PLATFORM_ROOT/incidents/mnemosyne-seed-corruption.md"
-    "$PLATFORM_ROOT/incidents/platform-backup-recovery.md"
-    "$PLATFORM_ROOT/skills/grill-me.md"
-    "$PLATFORM_ROOT/skills/setup-admin-hermes.md"
-    "$PLATFORM_ROOT/sop/build-image.md"
-    "$PLATFORM_ROOT/sop/upgrade-platform.md"
-    "$PLATFORM_ROOT/sop/onboard-tenant.md"
-    "$PLATFORM_ROOT/sop/suspend-tenant.md"
-    "$PLATFORM_ROOT/sop/reactivate-tenant.md"
-    "$PLATFORM_ROOT/sop/offboard-tenant.md"
-    "$PLATFORM_ROOT/sop/update-tenant.md"
-    "$PLATFORM_ROOT/sop/upgrade-tenants.md"
-    "$PLATFORM_ROOT/sop/monitor-health.md"
-    "$PLATFORM_ROOT/sop/monitor-logs.md"
-    "$PLATFORM_ROOT/sop/troubleshoot-tenant.md"
-    "$PLATFORM_ROOT/sop/write-report.md"
-    "$PLATFORM_ROOT/sop/setup-agent-vault.md"
-    "$PLATFORM_ROOT/sop/provision-tenant-vault.md"
-    "$PLATFORM_ROOT/sop/deprovision-tenant-vault.md"
-    "$PLATFORM_ROOT/sop/sync-knowledge-vault.md"
-    "$PLATFORM_ROOT/skills/query-knowledge-vault.md"
-    "$PLATFORM_ROOT/scripts/vault-init.sh"
-    "$PLATFORM_ROOT/scripts/agent-vault-health.sh"
-    "$PLATFORM_ROOT/incidents/agent-vault-failure.md"
-    "$PLATFORM_ROOT/tenant-hermes/config.yaml.template"
-    "$PLATFORM_ROOT/tenant-hermes/env.template"
-    "$PLATFORM_ROOT/tenant-hermes/SOUL.md.template"
-    "$PLATFORM_ROOT/tenant-hermes/USER.md.template"
-    "$PLATFORM_ROOT/tenant-hermes/MEMORY.md.template"
-    "$PLATFORM_ROOT/tenants.yaml"
-    "$PLATFORM_ROOT/docker/docker-compose.yaml"
-    "$PLATFORM_ROOT/reports/INDEX.jsonl"
-  )
-
-  for path in "${required[@]}"; do
-    [ -f "$path" ] || error "Missing required file: $path"
-  done
-
-  grep -q "memory_enabled: false" "$PLATFORM_ROOT/tenant-hermes/config.yaml.template" \
-    || error "Base config template must disable native Hermes memory"
-  grep -q "provider: mnemosyne" "$PLATFORM_ROOT/tenant-hermes/config.yaml.template" \
-    || error "Base config template must set memory.provider to mnemosyne"
-  grep -q "home_chat_id: \"\"" "$PLATFORM_ROOT/tenant-hermes/config.yaml.template" \
-    || error "Base config template must leave Telegram home_chat_id empty"
-  grep -q "memory_enabled: false" "$PLATFORM_ROOT/admin-hermes/config.yaml.template" \
-    || error "Hermes admin config template must disable native Hermes memory"
-  grep -q "provider: mnemosyne" "$PLATFORM_ROOT/admin-hermes/config.yaml.template" \
-    || error "Hermes admin config template must set memory.provider to mnemosyne"
-  grep -q "MNEMOSYNE_DATA_DIR=/opt/aaas/platform/admin/mnemosyne/data" "$PLATFORM_ROOT/admin-hermes/env.template" \
-    || error "Hermes admin env template must keep Mnemosyne data inside the admin profile"
-  grep -q "TELEGRAM_ALLOWED_USERS=" "$PLATFORM_ROOT/tenant-hermes/env.template" \
-    || error "Base env template must document TELEGRAM_ALLOWED_USERS"
-  grep -q "MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data" "$PLATFORM_ROOT/tenant-hermes/env.template" \
-    || error "Base env template must keep Mnemosyne data inside /opt/data"
-  grep -q "FROM nousresearch/hermes-agent:latest" "$PLATFORM_ROOT/docker/Dockerfile" \
-    || error "Dockerfile must extend nousresearch/hermes-agent:latest"
-  grep -q "mnemosyne-memory\[embeddings\]" "$PLATFORM_ROOT/docker/Dockerfile" \
-    || error "Dockerfile must install mnemosyne-memory with embeddings"
-  grep -q "mnemosyne-hermes" "$PLATFORM_ROOT/docker/Dockerfile" \
-    || error "Dockerfile must install mnemosyne-hermes"
-  grep -q "agent-vault-ca.crt" "$PLATFORM_ROOT/docker/Dockerfile" \
-    || error "Dockerfile must include the Agent Vault MITM CA trust block (COPY agent-vault-ca.pem + update-ca-certificates)"
-  [ -f "$PLATFORM_ROOT/docker/agent-vault-ca.pem" ] \
-    || error "Agent Vault CA certificate missing: $PLATFORM_ROOT/docker/agent-vault-ca.pem — run the setup-agent-vault SOP step 3 to fetch it from the running Agent Vault container"
-  grep -q "^services:" "$PLATFORM_ROOT/docker/docker-compose.yaml" \
-    || error "docker-compose.yaml must contain a top-level services mapping"
-  grep -q "docker compose up -d {service-name}" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    || error "PLATFORM-REFERENCE.md must include the service-specific docker compose safety rule"
-  grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' "$PLATFORM_ROOT/VERSION" \
-    || error "VERSION must contain a semantic version like 0.1.0"
-  grep -q "sudo chown -R 10000:10000" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
-    || error "Onboarding SOP must set tenant volume ownership for Hermes UID 10000"
-  grep -q "sudo chown -R 10000:10000" "$PLATFORM_ROOT/sop/update-tenant.md" \
-    || error "Update tenant SOP must repair tenant volume ownership after edits"
-  grep -q "sudo chown -R 10000:10000" "$PLATFORM_ROOT/sop/upgrade-tenants.md" \
-    || error "Upgrade tenants SOP must repair tenant volume ownership after edits"
-  grep -q "tenant_harness_owner_is_10000" "$PLATFORM_ROOT/harness/check-tenant.sh" \
-    || error "Tenant harness check must verify harness.yaml ownership"
-  grep -q "compose_has_restart_policy" "$PLATFORM_ROOT/harness/check-tenant.sh" \
-    || error "Tenant harness check must verify tenant compose restart policy"
-  grep -q "compose_has_memory_limit" "$PLATFORM_ROOT/harness/check-tenant.sh" \
-    || error "Tenant harness check must verify tenant compose memory limit"
-  grep -q "compose_has_cpu_limit" "$PLATFORM_ROOT/harness/check-tenant.sh" \
-    || error "Tenant harness check must verify tenant compose CPU limit"
-  grep -q "tenant_knowledge_vault_directory" "$PLATFORM_ROOT/harness/check-tenant.sh" \
-    || error "Tenant harness check must verify the tenant knowledge vault directory exists"
-  grep -q "compose_mounts_tenant_vault" "$PLATFORM_ROOT/harness/check-tenant.sh" \
-    || error "Tenant harness check must verify the tenant knowledge vault compose mount"
-  grep -q "acceptance_owner_is_10000" "$PLATFORM_ROOT/scripts/validate-tenant-config.sh" \
-    || error "Tenant config validator must verify ACCEPTANCE.md ownership"
-  grep -q "knowledge_vault_owner_is_10000" "$PLATFORM_ROOT/scripts/validate-tenant-config.sh" \
-    || error "Tenant config validator must verify the tenant knowledge vault ownership"
-  grep -q "HERMES_HOME=/opt/data" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
-    || error "Onboarding SOP must install mnemosyne-hermes via HERMES_HOME env var"
-  [ "$(grep -c -- '-e HERMES_HOME=/opt/data' "$PLATFORM_ROOT/sop/onboard-tenant.md")" -ge 3 ] \
-    || error "Onboarding SOP step 12 must pin HERMES_HOME=/opt/data on all three mnemosyne activation commands, not just the install call"
-  grep -q "HERMES_HOME=/opt/data" "$PLATFORM_ROOT/tenant-hermes/env.template" \
-    || error "Tenant env template must pin HERMES_HOME=/opt/data for runtime, matching the onboarding activation commands"
-  grep -q "container_mnemosyne_active" "$PLATFORM_ROOT/harness/check-tenant.sh" \
-    || error "Tenant harness check must verify Mnemosyne is functionally active, not just that config files reference it"
-  grep -qi "must never run" "$PLATFORM_ROOT/scripts/aaas-watchdog.sh" \
-    || error "Watchdog escalation prompt must explicitly forbid recreate/stop/rm commands in unattended sessions"
-  grep -q "Unattended.*run.*must never recreate" "$PLATFORM_ROOT/sop/troubleshoot-tenant.md" \
-    || error "troubleshoot-tenant.md must state the unattended no-recreate policy"
-  grep -q "mnemosyne store" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
-    || error "Onboarding SOP must seed Mnemosyne with the store command"
-  grep -q "chat not found" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
-    || error "Onboarding SOP must document Telegram chat-not-found handling"
-  grep -q "Always write a task report" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    || error "PLATFORM-REFERENCE.md must require task reports after SOP execution"
-  # The deployed admin/SOUL.md, admin/config.yaml, and admin/.env (not the
-  # templates) are only created by the separate setup-admin-hermes skill, not
-  # by this script — so they may legitimately not exist yet on a fresh
-  # platform install. But once they exist, nothing else in this codebase ever
-  # re-syncs or content-checks them (see upgrade-platform.md steps 9.3-9.4),
-  # so re-running --validate-only against an already-configured admin
-  # instance is the only automated backstop against silent drift behind the
-  # shipped templates. This already happened for real with config.yaml: it
-  # gained a Telegram gateway block in 0.13.1 and had a wrong comment fixed
-  # in 0.13.2, and nothing flagged admin instances set up before either.
-  if [ -f "$PLATFORM_ROOT/admin/SOUL.md" ]; then
-    grep -q "Always write a task report" "$PLATFORM_ROOT/admin/SOUL.md" \
-      || error "Deployed admin/SOUL.md is missing the task report rule — it has drifted from admin-hermes/SOUL.md.template. Run upgrade-platform.md step 9.3 to diff and refresh it."
-    grep -q "Agent Vault is for LLM API keys only" "$PLATFORM_ROOT/admin/SOUL.md" \
-      || error "Deployed admin/SOUL.md is missing the credential/secret rules — it has drifted from admin-hermes/SOUL.md.template. Run upgrade-platform.md step 9.3 to diff and refresh it."
-  fi
-  if [ -f "$PLATFORM_ROOT/admin/config.yaml" ]; then
-    grep -q "provider: mnemosyne" "$PLATFORM_ROOT/admin/config.yaml" \
-      || error "Deployed admin/config.yaml no longer specifies the mnemosyne memory provider — it has drifted from admin-hermes/config.yaml.template. Run upgrade-platform.md step 9.3 to diff and refresh it."
-    grep -q "memory_enabled: false" "$PLATFORM_ROOT/admin/config.yaml" \
-      || error "Deployed admin/config.yaml no longer disables native Hermes memory — it has drifted from admin-hermes/config.yaml.template. Run upgrade-platform.md step 9.3 to diff and refresh it."
-    grep -q "user_profile_enabled: false" "$PLATFORM_ROOT/admin/config.yaml" \
-      || error "Deployed admin/config.yaml no longer disables native Hermes user profile — it has drifted from admin-hermes/config.yaml.template. Run upgrade-platform.md step 9.3 to diff and refresh it."
-  fi
-  if [ -f "$PLATFORM_ROOT/admin/.env" ]; then
-    for key in $(grep -oE '^#?\s*[A-Za-z_]+=' "$PLATFORM_ROOT/admin-hermes/env.template" | sed -E 's/^#\s*//; s/=$//' | sort -u); do
-      grep -q "^${key}=\|^# ${key}=" "$PLATFORM_ROOT/admin/.env" \
-        || error "Deployed admin/.env is missing the '${key}' key present in admin-hermes/env.template. Run upgrade-platform.md step 9.4 to add it (never wholesale-overwrite .env, it holds real secrets)."
-    done
-  fi
-  grep -q "check-tenant.sh" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    || error "PLATFORM-REFERENCE.md must advertise tenant harness checks"
-  grep -q "vault/" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    || error "PLATFORM-REFERENCE.md must document the knowledge vault path"
-  grep -q "sync-knowledge-vault.md" "$PLATFORM_ROOT/sop/write-report.md" \
-    || error "write-report SOP must point to the knowledge vault sync step"
-  grep -q "vault-init-tenant.sh" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
-    || error "Onboarding SOP must scaffold the tenant knowledge vault"
-  grep -q "/home/hermes/vault" "$PLATFORM_ROOT/tenant-hermes/SOUL.md.template" \
-    || error "Tenant SOUL template must document the tenant knowledge vault path"
-  grep -q "business-data.md" "$PLATFORM_ROOT/tenant-hermes/SOUL.md.template" \
-    || error "Tenant SOUL template must distinguish the knowledge vault from business-data.md"
-  grep -q "tenant-harness.yaml.template" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
-    || error "Onboarding SOP must create tenant harness manifests"
-  grep -q "_fixed-safety-v1.yaml" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
-    || error "Onboarding SOP must reference the fixed tenant eval profile"
-  grep -q "tenant_harness_version: 1" "$PLATFORM_ROOT/harness/tenant-harness.yaml.template" \
-    || error "Tenant harness manifest template must declare version 1"
-  grep -q "verified_at_utc" "$PLATFORM_ROOT/harness/ACCEPTANCE.md.template" \
-    || error "Tenant acceptance template must include verification timestamp"
-  grep -q "confirms_before_posting" "$PLATFORM_ROOT/tenant-hermes/evals/_fixed-safety-v1.yaml" \
-    || error "Fixed tenant eval profile must verify confirmation-before-posting"
-  grep -q "preflight-check.sh" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    || error "PLATFORM-REFERENCE.md must advertise platform pre-flight checks"
-  grep -q "validate-tenant-config.sh" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
-    || error "Onboarding SOP must validate tenant config"
-  grep -q "restart: unless-stopped" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
-    || error "Onboarding SOP must require tenant compose restart policy"
-  grep -q "mem_limit: 1g" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
-    || error "Onboarding SOP must document tenant compose resource limits"
-  grep -q "troubleshoot-tenant" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    || error "PLATFORM-REFERENCE.md must advertise tenant troubleshooting SOP"
-  # Guard against the identity-claim leaking back together: PLATFORM-REFERENCE.md
-  # is read by both agents and must never claim to BE either one, and Hermes's
-  # SOUL.md.template must read PLATFORM-REFERENCE.md rather than AGENTS.md, or
-  # it would be told at session start "you are the OpenCode admin agent."
-  grep -qi "you are the .*admin agent" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    && error "PLATFORM-REFERENCE.md must not assert an agent identity — that regresses the AGENTS.md/Hermes identity confusion this file exists to fix"
-  grep -q "PLATFORM-REFERENCE.md" "$PLATFORM_ROOT/admin-hermes/SOUL.md.template" \
-    || error "admin-hermes/SOUL.md.template must read PLATFORM-REFERENCE.md, not AGENTS.md, for shared platform knowledge"
-  grep -q "AaaS pre-flight check" "$PLATFORM_ROOT/scripts/preflight-check.sh" \
-    || error "Pre-flight script must contain expected banner"
-  # Agent Vault infrastructure (runtime, not managed assets — existence checks only)
-  [ -d "$INSTALL_ROOT/agent-vault/data" ] \
-    || error "Agent Vault data directory missing: $INSTALL_ROOT/agent-vault/data — run setup-prerequisites.sh"
-  [ -f "$INSTALL_ROOT/agent-vault/docker-compose.yaml" ] \
-    || error "Agent Vault docker-compose.yaml missing: $INSTALL_ROOT/agent-vault/docker-compose.yaml"
-  grep -q "^    name: agent-vault-net$" "$INSTALL_ROOT/agent-vault/docker-compose.yaml" 2>/dev/null \
-    || error "Agent Vault docker-compose.yaml must pin the network to 'name: agent-vault-net' (otherwise Compose project-prefixes it and tenant containers fail to find it as an external network)"
-  [ -f "$INSTALL_ROOT/agent-vault/.env" ] \
-    || error "Agent Vault .env missing: $INSTALL_ROOT/agent-vault/.env"
-  grep -q "INDEX.jsonl" "$PLATFORM_ROOT/sop/write-report.md" \
-    || error "Report SOP must document AI-readable INDEX.jsonl"
-  grep -q "directly under /opt/aaas/platform/reports" "$PLATFORM_ROOT/sop/write-report.md" \
-    || error "Report SOP must forbid nested report category folders"
-  grep -q "What This Must Preserve" "$PLATFORM_ROOT/sop/upgrade-platform.md" \
-    || error "Platform upgrade SOP must document preserved files"
-  validate_installed_matches_source
-
-  success "Platform validation passed"
-}
-
-echo ""
-echo "=============================================="
-echo "  AaaS Platform - Platform Setup"
-echo "=============================================="
-echo ""
-
-ensure_plan0_ready
-
-if [ "$VALIDATE_ONLY" = false ]; then
-  resolve_asset_root
-  install_assets
-  setup_agent_vault
-  bash "$PLATFORM_ROOT/scripts/vault-init.sh" "$PLATFORM_ROOT/vault" \
-    || warn "Knowledge vault scaffold step failed - run /opt/aaas/platform/scripts/vault-init.sh manually later"
-else
-  warn "Validate-only mode - no files will be copied"
+if [ -z "$TENANT_ID" ]; then
+  usage
+  exit 2
 fi
 
-validate_install
+maybe_reexec_with_sudo
 
-if [ "$BUILD_IMAGE" = true ]; then
-  build_image
+echo "AaaS tenant harness check"
+echo "tenant_id=$TENANT_ID"
+echo "platform_root=$PLATFORM_ROOT"
+echo ""
+
+exists_file "$PLATFORM_ROOT/tenant-hermes/evals/_skill-verification-primitives-v1.yaml" "platform_skill_verification_primitives"
+
+exists_dir "$TENANT_DIR" "tenant_directory"
+exists_dir "$TENANT_DIR/memories" "tenant_memories_directory"
+exists_dir "$TENANT_DIR/files/assets" "tenant_assets_directory"
+exists_dir "$TENANT_DIR/files/uploads" "tenant_uploads_directory"
+exists_dir "$TENANT_DIR/files/generated" "tenant_generated_directory"
+exists_dir "$TENANT_DIR/vault" "tenant_knowledge_vault_directory"
+exists_file "$TENANT_DIR/vault/README.md" "tenant_knowledge_vault_readme"
+
+exists_file "$TENANT_DIR/config.yaml" "tenant_config"
+exists_file "$TENANT_DIR/.env" "tenant_env"
+exists_file "$TENANT_DIR/.env.template" "tenant_env_template"
+exists_file "$TENANT_DIR/SOUL.md" "tenant_soul"
+exists_file "$TENANT_DIR/files/assets/business-data.md" "tenant_business_data_file"
+exists_file "$TENANT_DIR/memories/MEMORY.md" "tenant_brand_memory_seed"
+exists_file "$TENANT_DIR/memories/USER.md" "tenant_owner_memory_seed"
+exists_file "$TENANT_DIR/harness.yaml" "tenant_harness_manifest"
+exists_file "$TENANT_DIR/ACCEPTANCE.md" "tenant_acceptance_record"
+
+# Plugin-persistence scripts (onboard-tenant.md step 6.2.1 / upgrade-tenants.md
+# backfill). Without these, tenant-installed pip packages/binaries silently
+# vanish on the next --force-recreate with no error pointing at the cause
+# (see tenant-plugin-persistence-issue.md) — this is a functional gap, not
+# just a missing file, so it gets its own named check rather than folding
+# into the generic skill-verify.sh checks above.
+if [ -x "$TENANT_DIR/scripts/tenant-install.sh" ] \
+  && [ -x "$TENANT_DIR/scripts/reconcile-plugins.sh" ] \
+  && [ -x "$TENANT_DIR/scripts/tenant-entrypoint.sh" ]; then
+  record PASS "tenant_scripts_present"
 else
-  warn "Skipping Docker image build. Run with --build-image when ready."
+  record FAIL "tenant_scripts_present" "missing or not executable: one or more of scripts/{tenant-install,reconcile-plugins,tenant-entrypoint}.sh under $TENANT_DIR — back-fill per onboard-tenant.md step 6.2.1 / upgrade-tenants.md"
+fi
+
+contains "$TENANT_DIR/config.yaml" 'provider:[[:space:]]*mnemosyne' "config_uses_mnemosyne"
+contains "$TENANT_DIR/config.yaml" 'memory_enabled:[[:space:]]*false' "config_disables_native_memory"
+contains "$TENANT_DIR/config.yaml" 'user_profile_enabled:[[:space:]]*false' "config_disables_native_user_profile"
+contains "$TENANT_DIR/.env" '^TELEGRAM_ALLOWED_USERS=[0-9, ]+$' "env_has_allowed_telegram_users"
+contains "$TENANT_DIR/.env" '^MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data$' "env_pins_mnemosyne_data"
+contains "$TENANT_DIR/SOUL.md" 'BEGIN PLATFORM RULES' "soul_has_platform_rules_begin_marker"
+contains "$TENANT_DIR/SOUL.md" 'END PLATFORM RULES' "soul_has_platform_rules_end_marker"
+contains "$TENANT_DIR/SOUL.md" 'BEGIN TENANT RULES' "soul_has_tenant_rules_begin_marker"
+contains "$TENANT_DIR/SOUL.md" 'END TENANT RULES' "soul_has_tenant_rules_end_marker"
+contains "$TENANT_DIR/SOUL.md" 'try to work it out yourself' "soul_has_self_improvement_conduct"
+contains "$TENANT_DIR/SOUL.md" 'short progress update' "soul_has_progress_reporting_conduct"
+contains "$TENANT_DIR/SOUL.md" '/home/hermes/files/generated' "soul_directs_generated_files"
+contains "$TENANT_DIR/SOUL.md" '/home/hermes/files/uploads' "soul_directs_uploaded_files"
+contains "$TENANT_DIR/SOUL.md" '/home/hermes/vault' "soul_documents_knowledge_vault"
+contains "$TENANT_DIR/SOUL.md" 'business-data.md' "soul_documents_business_data_file"
+contains "$TENANT_DIR/harness.yaml" '^tenant_harness_version:[[:space:]]*1' "manifest_has_harness_version"
+contains "$TENANT_DIR/harness.yaml" '^verification_profile:' "manifest_has_verification_profile"
+contains "$TENANT_DIR/harness.yaml" '^fixed_safety_profile:[[:space:]]*"?_fixed-safety-v1"?' "manifest_has_fixed_safety_profile"
+# Spot-check that at least one platform rule's agent_instruction text actually
+# landed inside the rendered BEGIN/END PLATFORM RULES block (not just that the
+# markers exist). This is a representative phrase, not full per-rule coverage -
+# the admin agent itself spot-checks every rule from platform-policy.yaml
+# during onboarding/update per provision-tenant-vault's rendering instruction.
+contains "$TENANT_DIR/SOUL.md" '[Nn]ever perform irreversible actions' "soul_has_fixed_safety_language"
+exists_file "$PLATFORM_ROOT/tenant-hermes/evals/generated/$TENANT_ID-v1.yaml" "tenant_generated_eval_file"
+
+if [ -f "$TENANT_DIR/skills/PROVENANCE.jsonl" ]; then
+  record PASS "skills_provenance_present"
+else
+  record WARN "skills_provenance_present" "no self-written skills yet; expected for a freshly onboarded tenant"
+fi
+owned_by_hermes "$TENANT_DIR" "tenant_directory_owner_is_10000"
+owned_by_hermes "$TENANT_DIR/harness.yaml" "tenant_harness_owner_is_10000"
+owned_by_hermes "$TENANT_DIR/ACCEPTANCE.md" "tenant_acceptance_owner_is_10000"
+owned_by_hermes "$TENANT_DIR/vault" "tenant_knowledge_vault_owner_is_10000"
+
+if [ -f "$TENANT_DIR/.env" ] && grep -Eq '(sk-[A-Za-z0-9_-]{12,}|xox[baprs]-|[0-9]{8,}:[A-Za-z0-9_-]{20,})' "$TENANT_DIR/.env.template" 2>/dev/null; then
+  record FAIL "env_template_has_secret_like_value" ".env.template must contain keys only"
+else
+  record PASS "env_template_has_no_obvious_secrets"
+fi
+
+# Ownership (chown -R 10000:10000) doesn't grant the host operator/automation
+# user read access, and a one-time top-level chmod misses subdirectories the
+# tenant container creates later at runtime (mnemosyne data, logs, etc.),
+# which inherit the container's restrictive default umask. Check recursively,
+# not just the top-level directory, or this regresses silently between runs.
+if [ -d "$TENANT_DIR" ]; then
+  unreadable="$(find "$TENANT_DIR" \( -type d -not -perm -005 \) -o \( -type f -not -perm -004 \) 2>/dev/null | head -5)"
+  if [ -z "$unreadable" ]; then
+    record PASS "tenant_volume_host_readable"
+  else
+    record FAIL "tenant_volume_host_readable" "not group/other-readable: $(echo "$unreadable" | tr '\n' ' ')"
+  fi
+else
+  record WARN "tenant_volume_host_readable" "tenant dir not found: $TENANT_DIR"
+fi
+
+contains "$COMPOSE_FILE" "^  $SERVICE:" "compose_has_tenant_service"
+service_contains "$SERVICE" "restart:[[:space:]]*unless-stopped" "compose_has_restart_policy"
+service_contains "$SERVICE" "mem_limit:[[:space:]]*1g" "compose_has_memory_limit"
+service_contains "$SERVICE" "cpus:[[:space:]]*[\"']?1[.]0[\"']?" "compose_has_cpu_limit"
+contains "$COMPOSE_FILE" "$TENANT_DIR:/opt/data" "compose_mounts_tenant_data"
+contains "$COMPOSE_FILE" "$TENANT_DIR/files:/home/hermes/files" "compose_mounts_tenant_files"
+contains "$COMPOSE_FILE" "$TENANT_DIR/vault:/home/hermes/vault" "compose_mounts_tenant_vault"
+contains "$COMPOSE_FILE" "$TENANT_DIR/.env" "compose_uses_tenant_env"
+service_contains "$SERVICE" "hermes-${TENANT_ID}-net" "compose_uses_isolated_tenant_network"
+# A tenant service left on the bare `gateway run` command (pre-0.15.0, or a
+# missed step 8 during onboarding/upgrade) never runs reconcile-plugins.sh on
+# container start, so tenant-installed plugins silently never get
+# reconciled after a recreate even though tenant_scripts_present above
+# passes — the scripts existing on disk proves nothing if they're never
+# invoked. Check the wiring, not just the files.
+service_contains "$SERVICE" "/opt/data/scripts/tenant-entrypoint.sh" "compose_uses_tenant_entrypoint"
+contains "$TENANTS_FILE" "id:[[:space:]]*$TENANT_ID|tenant_id:[[:space:]]*$TENANT_ID|$TENANT_ID" "tenant_registry_mentions_tenant"
+
+if command -v docker >/dev/null 2>&1; then
+  if docker network inspect "hermes-${TENANT_ID}-net" >/dev/null 2>&1; then
+    record PASS "tenant_isolated_network_exists" "hermes-${TENANT_ID}-net"
+  else
+    record FAIL "tenant_isolated_network_exists" "missing: hermes-${TENANT_ID}-net"
+  fi
+
+  if docker ps --filter "name=^/${SERVICE}$" --format '{{.Names}}' 2>/dev/null | grep -qx "$SERVICE"; then
+    record PASS "container_running" "$SERVICE"
+  else
+    record FAIL "container_running" "$SERVICE not running"
+  fi
+
+  if docker exec "$SERVICE" sh -lc 'test -d /opt/data && test -d /home/hermes/files' >/dev/null 2>&1; then
+    record PASS "container_mounts_visible"
+  else
+    record WARN "container_mounts_visible" "container unavailable or mounts not visible"
+  fi
+
+  if docker exec "$SERVICE" sh -lc 'test -n "$MNEMOSYNE_DATA_DIR" && test "$MNEMOSYNE_DATA_DIR" = "/opt/data/mnemosyne/data"' >/dev/null 2>&1; then
+    record PASS "container_mnemosyne_env"
+  else
+    record WARN "container_mnemosyne_env" "MNEMOSYNE_DATA_DIR not visible inside running container"
+  fi
+
+  # Static config/env checks above only prove the tenant's files *say* it
+  # should use Mnemosyne; they don't prove the plugin is actually active in
+  # the running container. A HERMES_HOME mismatch between the one-time
+  # activation commands (onboard-tenant.md step 12) and the container's own
+  # runtime env, or a recreate that dropped activation state, would pass
+  # every check above while memory is silently non-functional. Check the
+  # live provider directly.
+  mnemosyne_status="$(docker exec "$SERVICE" sh -lc 'hermes memory status 2>/dev/null || hermes hermes-mnemosyne status 2>/dev/null' 2>/dev/null || true)"
+  if echo "$mnemosyne_status" | grep -qi 'mnemosyne'; then
+    record PASS "container_mnemosyne_active"
+  else
+    record WARN "container_mnemosyne_active" "hermes memory status did not report an active mnemosyne provider; container unavailable or plugin not activated - see mnemosyne-seed-corruption.md"
+  fi
+
+  if docker exec "$SERVICE" sh -lc 'curl -s -o /dev/null -w "%{http_code}" --connect-timeout 5 https://api.telegram.org' 2>/dev/null | grep -Eq '^(200|301|302|404)$'; then
+    record PASS "container_outbound_https"
+  else
+    record WARN "container_outbound_https" "Telegram API HTTPS check did not return expected code"
+  fi
+
+  # Proves isolation, not just network existence: Agent Vault's management
+  # port must be unreachable from inside this tenant container. Agent Vault
+  # itself is never joined to a tenant network — only a forwarding-only
+  # sidecar (agent-vault-proxy-{tenant-id}) is, and that sidecar has no route
+  # to :14321 to forward in the first place, so this should fail to resolve
+  # or connect by construction, not because of an access-control rule that
+  # could later be misconfigured. The proxy port (:14322), reached via the
+  # sidecar hostname, is what tenants actually use and is checked separately.
+  if docker exec "$SERVICE" sh -lc 'curl -s --connect-timeout 2 http://agent-vault:14321/health' >/dev/null 2>&1; then
+    record FAIL "agent_vault_mgmt_port_not_reachable_from_tenant" "tenant container could reach :14321"
+  else
+    record PASS "agent_vault_mgmt_port_not_reachable_from_tenant"
+  fi
+
+  # The sidecar itself must also never expose :14321 — confirm only :14322 is
+  # reachable from the tenant container via the sidecar hostname.
+  if docker exec "$SERVICE" sh -lc "curl -s --connect-timeout 2 http://agent-vault-proxy-${TENANT_ID}:14321/health" >/dev/null 2>&1; then
+    record FAIL "agent_vault_sidecar_mgmt_port_not_reachable" "tenant container could reach sidecar :14321"
+  else
+    record PASS "agent_vault_sidecar_mgmt_port_not_reachable"
+  fi
+else
+  record WARN "docker_available" "docker command not found; skipped runtime checks"
 fi
 
 echo ""
-echo "=============================================="
-echo -e "  ${GREEN}Platform setup complete${NC}"
-echo "=============================================="
-echo ""
-echo "Installed platform version: $(cat "$PLATFORM_ROOT/VERSION")"
-echo ""
+echo "summary pass=$PASS_COUNT warn=$WARN_COUNT fail=$FAIL_COUNT"
 
-VAULT_ENV="$INSTALL_ROOT/agent-vault/.env"
-if grep -q "^AGENT_VAULT_MASTER_PASSWORD=.\+" "$VAULT_ENV" 2>/dev/null; then
-  echo "Agent Vault: running (master password already set)"
-  echo ""
-  echo "Next steps:"
-  echo "  1. cd /opt/aaas/platform && opencode"
-  echo "  2. Ask the admin agent: \'Complete the Agent Vault setup\'"
-  echo "     This registers the account, fetches the MITM CA, patches"
-  echo "     the Dockerfile, and rebuilds the tenant image."
-  echo "  3. Onboard your first tenant."
-else
-  echo "Agent Vault: NOT started — master password required"
-  echo ""
-  echo "Next steps:"
-  echo "  1. Set the master password:"
-  echo "       nano $VAULT_ENV"
-  echo "     Fill in: AGENT_VAULT_MASTER_PASSWORD=<your-password>"
-  echo ""
-  echo "  2. Start Agent Vault:"
-  echo "       docker compose -f $INSTALL_ROOT/agent-vault/docker-compose.yaml up -d agent-vault"
-  echo ""
-  echo "  3. cd /opt/aaas/platform && opencode"
-  echo "  4. Ask the admin agent: \'Complete the Agent Vault setup\'"
-  echo "     This registers the account, fetches the MITM CA, patches"
-  echo "     the Dockerfile, and rebuilds the tenant image."
-fi
-echo ""
+[ "$FAIL_COUNT" -eq 0 ]

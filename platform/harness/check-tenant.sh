@@ -150,6 +150,20 @@ exists_file "$TENANT_DIR/memories/USER.md" "tenant_owner_memory_seed"
 exists_file "$TENANT_DIR/harness.yaml" "tenant_harness_manifest"
 exists_file "$TENANT_DIR/ACCEPTANCE.md" "tenant_acceptance_record"
 
+# Plugin-persistence scripts (onboard-tenant.md step 6.2.1 / upgrade-tenants.md
+# backfill). Without these, tenant-installed pip packages/binaries silently
+# vanish on the next --force-recreate with no error pointing at the cause
+# (see tenant-plugin-persistence-issue.md) — this is a functional gap, not
+# just a missing file, so it gets its own named check rather than folding
+# into the generic skill-verify.sh checks above.
+if [ -x "$TENANT_DIR/scripts/tenant-install.sh" ] \
+  && [ -x "$TENANT_DIR/scripts/reconcile-plugins.sh" ] \
+  && [ -x "$TENANT_DIR/scripts/tenant-entrypoint.sh" ]; then
+  record PASS "tenant_scripts_present"
+else
+  record FAIL "tenant_scripts_present" "missing or not executable: one or more of scripts/{tenant-install,reconcile-plugins,tenant-entrypoint}.sh under $TENANT_DIR — back-fill per onboard-tenant.md step 6.2.1 / upgrade-tenants.md"
+fi
+
 contains "$TENANT_DIR/config.yaml" 'provider:[[:space:]]*mnemosyne' "config_uses_mnemosyne"
 contains "$TENANT_DIR/config.yaml" 'memory_enabled:[[:space:]]*false' "config_disables_native_memory"
 contains "$TENANT_DIR/config.yaml" 'user_profile_enabled:[[:space:]]*false' "config_disables_native_user_profile"
@@ -217,6 +231,13 @@ contains "$COMPOSE_FILE" "$TENANT_DIR/files:/home/hermes/files" "compose_mounts_
 contains "$COMPOSE_FILE" "$TENANT_DIR/vault:/home/hermes/vault" "compose_mounts_tenant_vault"
 contains "$COMPOSE_FILE" "$TENANT_DIR/.env" "compose_uses_tenant_env"
 service_contains "$SERVICE" "hermes-${TENANT_ID}-net" "compose_uses_isolated_tenant_network"
+# A tenant service left on the bare `gateway run` command (pre-0.15.0, or a
+# missed step 8 during onboarding/upgrade) never runs reconcile-plugins.sh on
+# container start, so tenant-installed plugins silently never get
+# reconciled after a recreate even though tenant_scripts_present above
+# passes — the scripts existing on disk proves nothing if they're never
+# invoked. Check the wiring, not just the files.
+service_contains "$SERVICE" "/opt/data/scripts/tenant-entrypoint.sh" "compose_uses_tenant_entrypoint"
 contains "$TENANTS_FILE" "id:[[:space:]]*$TENANT_ID|tenant_id:[[:space:]]*$TENANT_ID|$TENANT_ID" "tenant_registry_mentions_tenant"
 
 if command -v docker >/dev/null 2>&1; then
