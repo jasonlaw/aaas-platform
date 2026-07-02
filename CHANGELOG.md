@@ -4,6 +4,20 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.15.8 - 2026-07-03
+
+### Fixed
+
+- **`platform/sop/upgrade-tenants.md` — fresh install errored with `[ERROR] Upgrade tenants SOP must repair tenant volume ownership after edits`.**
+  The `validate_install()` check in `setup-platform.sh` greps for the string
+  `repair-tenant-ownership.sh` in `upgrade-tenants.md`. Since 0.15.4 the SOP
+  delegates all per-tenant sub-steps (including ownership repair) to
+  `upgrade-tenant.sh`, which calls `repair-tenant-ownership.sh` internally, but
+  the SOP prose only said "ownership repair" without naming the script. The
+  grep therefore always failed on a fresh install, printing an ERROR and
+  aborting setup. The step 3 description now explicitly names
+  `repair-tenant-ownership.sh` so the validator passes.
+
 ## 0.15.7 - 2026-07-03
 
 ### Fixed

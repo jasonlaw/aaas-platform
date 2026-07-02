@@ -12,7 +12,7 @@ Upgrade all active tenants to the latest Docker image after build-image.md compl
    ```
    The script runs all backfill sub-steps idempotently (harness.yaml, ACCEPTANCE.md,
    knowledge vault, tenant-policy.yaml, runtime scripts, isolated network and
-   forwarding sidecar, ownership repair, config validation), tracks a
+   forwarding sidecar, ownership repair via `repair-tenant-ownership.sh`, config validation), tracks a
    `NEEDS_RECREATE` flag internally, compares running image ID against the target
    (ID vs ID, not tag vs tag), and prints `RECREATED`, `SKIPPED`, or `FAIL` per
    tenant. It also re-renders the BEGIN/END policy blocks in `SOUL.md` from the
