@@ -6,6 +6,21 @@
 set -euo pipefail
 
 TENANT_ID="${1:-}"
+
+usage() {
+  echo "Usage: $0 {tenant-id}"
+}
+
+# Guard against the id being an accidental flag (e.g. a caller forwarding
+# "--build-image" or another CLI option instead of a real tenant id). Every
+# check below derives its path from TENANT_ID, so a bad value here silently
+# fans out into dozens of unrelated-looking FAILs instead of one clear error.
+if [ -z "$TENANT_ID" ] || [[ "$TENANT_ID" == -* ]]; then
+  echo "Error: missing or invalid tenant id: '${TENANT_ID}'" >&2
+  usage >&2
+  exit 1
+fi
+
 PLATFORM_ROOT="${PLATFORM_ROOT:-/opt/aaas/platform}"
 TENANT_ROOT="${TENANT_ROOT:-/opt/aaas/tenants}"
 TENANT_DIR="$TENANT_ROOT/$TENANT_ID"
@@ -16,10 +31,6 @@ SERVICE="hermes_$TENANT_ID"
 PASS_COUNT=0
 FAIL_COUNT=0
 WARN_COUNT=0
-
-usage() {
-  echo "Usage: $0 {tenant-id}"
-}
 
 maybe_reexec_with_sudo() {
   if [ "$(id -u)" -eq 0 ]; then
@@ -117,11 +128,6 @@ owned_by_hermes() {
     record FAIL "$name" "expected 10000:10000, got ${owner:-unknown}: $path"
   fi
 }
-
-if [ -z "$TENANT_ID" ]; then
-  usage
-  exit 2
-fi
 
 maybe_reexec_with_sudo
 
