@@ -67,6 +67,32 @@ if command -v docker >/dev/null 2>&1; then
   fi
 fi
 
+# Admin Hermes SOUL.md/config.yaml drift against their shipped templates —
+# see check-admin-drift.sh's own header for why this can't just be a plain
+# diff. Warn-only here (not fail): a stale admin config is a real problem
+# an operator should see and act on, but it shouldn't block every other
+# pre-flight use of this script (e.g. before a routine tenant onboard) the
+# way a hard FAIL would. SKIP output from the script (admin not set up
+# yet) is expected and not surfaced as a warning.
+if [ -x "$PLATFORM_ROOT/scripts/check-admin-drift.sh" ]; then
+  # Assigning a failing command substitution directly (DRIFT_OUTPUT="$(...)")
+  # would trip this script's own `set -e` and exit immediately, before
+  # DRIFT_STATUS=$? ever ran — wrapping the assignment in the `if` condition
+  # itself is what keeps `set -e` from firing on a non-zero exit here.
+  if DRIFT_OUTPUT="$(PLATFORM_ROOT="$PLATFORM_ROOT" "$PLATFORM_ROOT/scripts/check-admin-drift.sh" 2>&1)"; then
+    DRIFT_STATUS=0
+  else
+    DRIFT_STATUS=$?
+  fi
+  if [ "$DRIFT_STATUS" -ne 0 ]; then
+    warn "admin_hermes_config_drift_detected:run $PLATFORM_ROOT/scripts/check-admin-drift.sh for details"
+  elif printf '%s\n' "$DRIFT_OUTPUT" | grep -q '^WARN\t'; then
+    warn "admin_hermes_config_differs_from_template:run $PLATFORM_ROOT/scripts/check-admin-drift.sh for details"
+  else
+    pass "admin_hermes_config_matches_template_or_not_yet_set_up"
+  fi
+fi
+
 echo ""
 echo "summary warn=$WARNINGS fail=$ERRORS"
 [ "$ERRORS" -eq 0 ]

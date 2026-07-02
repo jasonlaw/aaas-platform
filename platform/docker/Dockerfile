@@ -1,4 +1,27 @@
-FROM nousresearch/hermes-agent:latest
+# --- himalaya builder stage ---
+# Built from crates.io (cargo install --locked, exact version pin) rather
+# than curl-ing a prebuilt GitHub release binary. Kept as its own stage so
+# the Rust toolchain never lands in the final tenant image (COPY --from=
+# below only takes the compiled binary).
+#
+# Feature set trimmed to imap,smtp,sendmail,maildir — the ones tenants
+# actually need — to drop the default `notmuch` feature, which otherwise
+# pulls in libnotmuch-dev as a native build dependency. If a tenant needs
+# notmuch or PGP support later, add the feature here and (for notmuch)
+# install libnotmuch-dev in this stage's apt-get line — never in the final
+# image, which should stay dependency-free for this binary.
+# https://github.com/pimalaya/himalaya/tags
+FROM rust:1-slim AS himalaya-builder
+RUN cargo install himalaya --version 1.2.0 --locked \
+    --no-default-features --features imap,smtp,sendmail,maildir \
+    --root /usr/local
+
+# Pinned to an exact release tag rather than :latest so a rebuild (--build-image,
+# or a forced upgrade) can't silently pull a different, unvetted base image.
+# Bump deliberately, verify against platform/evals + harness/check-tenant.sh on
+# a test tenant first, then update this line — see docs/architecture.md.
+# https://github.com/NousResearch/hermes-agent/tags
+FROM nousresearch/hermes-agent:v2026.7.1
 
 # The base image ships HERMES_LAZY_INSTALL_TARGET=/opt/data/lazy-packages
 # (on our mounted, persistent tenant volume) but disables the mechanism by
@@ -44,8 +67,11 @@ RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir \
 # himalaya: self-contained Rust binary, no runtime system deps. Installed to
 # /usr/local/bin (already on PATH, root-owned — never writable by the hermes
 # user, consistent with keeping install targets out of tenant-agent hands).
-RUN curl -sSL https://raw.githubusercontent.com/pimalaya/himalaya/master/install.sh \
-    | PREFIX=/usr/local sh
+#
+# Built from crates.io via a dedicated builder stage (see top of file) rather
+# than downloading a release binary — avoids trusting a prebuilt GitHub asset
+# and keeps the Rust toolchain out of this final image entirely.
+COPY --from=himalaya-builder /usr/local/bin/himalaya /usr/local/bin/himalaya
 
 # Write-protect the runtime venv from the hermes user (root retains write via
 # DAC_OVERRIDE, so this only blocks the tenant agent's own process). This is

