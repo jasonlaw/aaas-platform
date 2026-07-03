@@ -52,6 +52,15 @@ else
   warn "jq_not_found:report analysis will use fallback summaries"
 fi
 
+# Tenant image — fail if not built; every onboard depends on it
+if command -v docker >/dev/null 2>&1; then
+  if docker image inspect hermes-tenant:latest >/dev/null 2>&1; then
+    pass "hermes_tenant_image_exists"
+  else
+    fail "hermes_tenant_image_missing:run setup-platform.sh --build-image before onboarding tenants"
+  fi
+fi
+
 # Agent Vault — warn only; setup may not have been run yet
 if command -v docker >/dev/null 2>&1; then
   if docker ps --filter name=agent-vault --filter status=running --format '{{.Names}}' \

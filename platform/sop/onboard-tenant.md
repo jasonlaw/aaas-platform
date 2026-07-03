@@ -4,7 +4,6 @@
 Provision a new Hermes tenant agent as a Docker container.
 
 ## Pre-requisites
-- hermes-tenant:latest Docker image built
 - Telegram bot token ready
 - Tenant LLM API key ready
 - Host system has iptables in legacy mode (verify with `iptables --version` - must not show `nf_tables`)
@@ -16,7 +15,14 @@ Provision a new Hermes tenant agent as a Docker container.
    - `docker ps` must succeed without errors
    If checks fail, abort and report the issue before proceeding.
 0.1. Read `/opt/aaas/platform/checklists/onboard-tenant.required.json`. Treat every item as a completion gate; unresolved items must appear in the final task report.
-0.2. Run `/opt/aaas/platform/scripts/preflight-check.sh`. If it fails, fix host/platform readiness before creating tenant files.
+0.2. Run `/opt/aaas/platform/scripts/preflight-check.sh`. Inspect the output:
+   - If it fails on `hermes_tenant_image_missing`: the tenant image has not been built yet. Build it now before doing anything else:
+     ```
+     /opt/aaas/platform/scripts/setup-platform.sh --build-image
+     ```
+     Re-run `preflight-check.sh` after the build completes and confirm `hermes_tenant_image_exists` passes before continuing.
+   - If it fails on any other check: fix the reported host/platform issue before creating any tenant files.
+   - If it only has warnings (no failures): continue — warnings are informational.
 0.3. Confirm `/opt/aaas/platform/tenant-hermes/evals/_skill-verification-primitives-v1.yaml`
 exists (platform-level asset, not generated per tenant). If missing, the platform
 setup is out of date - do not attempt to author it inline; report this and stop.
