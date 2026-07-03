@@ -4,6 +4,30 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.15.10 - 2026-07-03
+
+### Fixed
+
+- **`scripts/setup-platform.sh` — `--build-image` crashed with a cryptic Docker COPY checksum error on fresh installations.**
+  `build_image()` called `docker build` directly without first checking that
+  `agent-vault-ca.pem` was present in the Docker build context. On a fresh
+  install the Agent Vault container has not been started yet, so the file
+  legitimately does not exist, causing Docker to abort with
+  `"/agent-vault-ca.pem": not found`. Added an explicit pre-build guard that
+  detects the missing file, prints a clear error explaining which SOP step
+  must run first (`setup-agent-vault.md` step 3:
+  `curl -o … http://localhost:14321/v1/mitm/ca.pem`), and exits before Docker
+  is invoked. `validate_install()` already warned about the missing file; this
+  fix adds the same gate in the build path so `--build-image` fails fast with
+  an actionable message instead of an opaque Docker error.
+
+- **`platform/sop/build-image.md` — no pre-build CA certificate check.**
+  Added step 3 to the SOP requiring operators to verify `agent-vault-ca.pem`
+  is present (and fetch it if not) before running `docker build`. Previously
+  the SOP went straight from `preflight-check.sh` to `docker pull` / `docker
+  build`, giving no guidance when the build failed on a fresh server. Step
+  numbers from the old step 3 onward shifted by one.
+
 ## 0.15.9 - 2026-07-03
 
 ### Fixed
