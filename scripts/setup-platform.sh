@@ -616,32 +616,79 @@ EOF
   docker pull infisical/agent-vault:latest
   success "Agent Vault image ready"
 
-  # --- Start container if master password is set ---
-  if grep -q "^AGENT_VAULT_MASTER_PASSWORD=.\+" "$vault_env" 2>/dev/null; then
-    log "Starting Agent Vault container..."
-    docker compose -f "$vault_compose" up -d agent-vault
-    # Wait up to 30s for healthy
-    local i=0
-    while [ $i -lt 6 ]; do
-      HEALTH="$(docker inspect --format='{{.State.Health.Status}}' agent-vault 2>/dev/null || echo 'unknown')"
-      [ "$HEALTH" = "healthy" ] && break
-      sleep 5
-      i=$((i + 1))
-    done
-    HEALTH="$(docker inspect --format='{{.State.Health.Status}}' agent-vault 2>/dev/null || echo 'unknown')"
-    if [ "$HEALTH" = "healthy" ]; then
-      success "Agent Vault container is healthy"
+  # --- Ensure master password is set before starting ---
+  # Auto-generate a strong random password if one isn't already set. The
+  # password is stored in plaintext in $vault_env (chmod 600, operator-owned)
+  # so it can always be retrieved with: grep AGENT_VAULT_MASTER_PASSWORD $vault_env
+  # We never overwrite an existing password — re-runs and upgrades are safe.
+  if ! grep -q "^AGENT_VAULT_MASTER_PASSWORD=.\+" "$vault_env" 2>/dev/null; then
+    local pw
+    pw="$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)" \
+      || error "Failed to generate master password — is openssl installed?"
+    if grep -q "^AGENT_VAULT_MASTER_PASSWORD=" "$vault_env"; then
+      sed -i "s|^AGENT_VAULT_MASTER_PASSWORD=.*|AGENT_VAULT_MASTER_PASSWORD=${pw}|" "$vault_env"
     else
-      warn "Agent Vault container health status: $HEALTH — check logs with: docker logs agent-vault --tail 30"
+      echo "AGENT_VAULT_MASTER_PASSWORD=${pw}" >> "$vault_env"
     fi
+    success "Agent Vault master password auto-generated and saved to $vault_env"
+    log "  Retrieve it any time with: grep AGENT_VAULT_MASTER_PASSWORD $vault_env"
   else
-    warn "AGENT_VAULT_MASTER_PASSWORD is not set in $vault_env"
-    warn "Agent Vault container NOT started. Set the password, then run:"
-    warn "  docker compose -f $vault_compose up -d agent-vault"
-    warn "Then complete setup by following: /opt/aaas/platform/sop/setup-agent-vault.md"
+    warn "Agent Vault master password already set in $vault_env — leaving it unchanged"
+  fi
+
+  # --- Start container and wait until healthy ---
+  # 120s window (24 x 5s): the container downloads its initial DB schema on
+  # first boot which takes longer than the 30s previously allowed. An unhealthy
+  # result after this window is a hard error — the watchdog cannot protect
+  # Agent Vault if it never came up in the first place.
+  log "Starting Agent Vault container..."
+  docker compose -f "$vault_compose" up -d agent-vault
+
+  log "Waiting for Agent Vault to become healthy (up to 120s)..."
+  local i=0
+  while [ $i -lt 24 ]; do
+    HEALTH="$(docker inspect --format='{{.State.Health.Status}}' agent-vault 2>/dev/null || echo 'unknown')"
+    [ "$HEALTH" = "healthy" ] && break
+    sleep 5
+    i=$((i + 1))
+  done
+  HEALTH="$(docker inspect --format='{{.State.Health.Status}}' agent-vault 2>/dev/null || echo 'unknown')"
+  if [ "$HEALTH" = "healthy" ]; then
+    success "Agent Vault container is healthy"
+  else
+    error "Agent Vault container is not healthy after 120s (status: $HEALTH). Check logs: docker logs agent-vault --tail 50 — fix the issue and re-run setup."
   fi
 
   success "Agent Vault infrastructure setup complete"
+}
+
+setup_watchdog() {
+  log "Installing AaaS watchdog systemd timer..."
+
+  local watchdog_script="$PLATFORM_ROOT/scripts/aaas-watchdog.sh"
+
+  [ -x "$watchdog_script" ] \
+    || error "Watchdog script not found or not executable: $watchdog_script — install_assets must run first"
+
+  # Enable systemd user linger for the operator so aaas-admin-hermes.service
+  # (a --user unit) can be reached by the watchdog's `systemctl --user`
+  # calls even when no interactive session is open. Without linger the user
+  # session bus is torn down on logout, which makes every `systemctl --user`
+  # inside the watchdog fail silently and forces the nohup fallback path
+  # even when the unit is properly installed.
+  if command -v loginctl &>/dev/null; then
+    loginctl enable-linger "$USER" 2>/dev/null \
+      && success "systemd user linger enabled for $USER" \
+      || warn "loginctl enable-linger failed — 'systemctl --user' inside the watchdog may not reach the session bus after logout"
+  else
+    warn "loginctl not available — skipping linger setup"
+  fi
+
+  # --install writes the system unit files and runs systemctl enable --now.
+  # The script requires root for this one step.
+  sudo "$watchdog_script" --install \
+    && success "Watchdog systemd timer installed and enabled (aaas-watchdog.timer)" \
+    || error "Watchdog install failed — check output above. You can retry manually: sudo $watchdog_script --install"
 }
 
 build_image() {
@@ -935,6 +982,7 @@ ensure_plan0_ready
 if [ "$VALIDATE_ONLY" = false ]; then
   resolve_asset_root
   install_assets
+  setup_watchdog
   setup_agent_vault
   bash "$PLATFORM_ROOT/scripts/vault-init.sh" "$PLATFORM_ROOT/vault" \
     || warn "Knowledge vault scaffold step failed - run /opt/aaas/platform/scripts/vault-init.sh manually later"
