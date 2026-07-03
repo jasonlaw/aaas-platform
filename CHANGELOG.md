@@ -8,25 +8,36 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ### Fixed
 
-- **`scripts/setup-platform.sh` — `--build-image` crashed with a cryptic Docker COPY checksum error on fresh installations.**
-  `build_image()` called `docker build` directly without first checking that
-  `agent-vault-ca.pem` was present in the Docker build context. On a fresh
-  install the Agent Vault container has not been started yet, so the file
-  legitimately does not exist, causing Docker to abort with
-  `"/agent-vault-ca.pem": not found`. Added an explicit pre-build guard that
-  detects the missing file, prints a clear error explaining which SOP step
-  must run first (`setup-agent-vault.md` step 3:
-  `curl -o … http://localhost:14321/v1/mitm/ca.pem`), and exits before Docker
-  is invoked. `validate_install()` already warned about the missing file; this
-  fix adds the same gate in the build path so `--build-image` fails fast with
-  an actionable message instead of an opaque Docker error.
+- **`scripts/setup.sh` — fresh installs unconditionally forced `--build-image`, and explicitly passing `--build-image` on a fresh install was silently accepted then failed late.**
+  Two related problems in `setup.sh`:
+  1. `BUILD_IMAGE=true` was set automatically whenever `MODE=fresh`, causing
+     every fresh install to attempt a Docker build before Agent Vault had
+     been started. The auto-set has been removed; fresh installs now skip the
+     image build by default.
+  2. Explicitly passing `--build-image` on a fresh install (e.g.
+     `bash <(curl …/setup.sh) --build-image`) was accepted without complaint,
+     then failed after running the entire prerequisite bootstrap (which can
+     take several minutes). Added an early rejection immediately after mode
+     detection — before any prerequisites run — that prints a clear error
+     explaining why `--build-image` is not valid on a fresh install and what
+     to do instead. Updated `usage()` to document the same constraint.
+  In both cases the underlying reason is the same: building the tenant image
+  requires `agent-vault-ca.pem`, which can only be fetched from Agent Vault
+  after it has been started and set up (setup-agent-vault SOP step 3), which
+  cannot happen until after the fresh install completes.
+
+- **`scripts/setup-platform.sh` — `build_image()` did not check for `agent-vault-ca.pem` before calling `docker build`.**
+  Added an explicit pre-build guard: if `agent-vault-ca.pem` is absent,
+  `build_image()` now exits with a clear message naming the exact `curl`
+  command needed (setup-agent-vault SOP step 3) rather than letting Docker
+  emit the cryptic `"/agent-vault-ca.pem": not found` COPY checksum error.
+  `validate_install()` already warned about the missing file; this closes
+  the same gap specifically in the build path.
 
 - **`platform/sop/build-image.md` — no pre-build CA certificate check.**
-  Added step 3 to the SOP requiring operators to verify `agent-vault-ca.pem`
-  is present (and fetch it if not) before running `docker build`. Previously
-  the SOP went straight from `preflight-check.sh` to `docker pull` / `docker
-  build`, giving no guidance when the build failed on a fresh server. Step
-  numbers from the old step 3 onward shifted by one.
+  Added step 3 requiring operators to verify `agent-vault-ca.pem` is present
+  (and fetch it if not) before running `docker build`. Step numbers from the
+  old step 3 onward shifted by one.
 
 ## 0.15.9 - 2026-07-03
 

@@ -31,6 +31,9 @@ Options:
   --fresh           Force fresh install mode; fail if /opt/aaas/platform exists.
   --upgrade         Force upgrade mode; fail if /opt/aaas/platform is missing.
   --build-image     Build and tag hermes-tenant:latest after platform setup.
+                    Not valid on fresh installs: requires agent-vault-ca.pem,
+                    which is only available after Agent Vault is running.
+                    Use on upgrades, or after completing setup-agent-vault SOP.
   --validate-only   Validate installed platform files without copying assets.
   --yes, --no-tty   Assume "1. Continue with backup" at setup-platform.sh's
                      version-confirm prompt instead of requiring /dev/tty.
@@ -41,7 +44,8 @@ Without --fresh or --upgrade, the installer auto-detects:
   - Fresh mode when /opt/aaas/platform is missing.
   - Upgrade mode when /opt/aaas/platform exists.
 
-Fresh mode runs prerequisite setup and builds hermes-tenant:latest by default.
+Fresh mode runs prerequisite setup. Image build is intentionally skipped —
+  Agent Vault must be configured and started first (setup-agent-vault SOP).
 Upgrade mode refreshes managed platform assets and skips image build by default.
 EOF
 }
@@ -135,6 +139,27 @@ if [ "$MODE" = "upgrade" ] && [ ! -d /opt/aaas/platform ]; then
   error "/opt/aaas/platform is missing. Use --fresh or omit mode for auto-detection."
 fi
 
+# --build-image on a fresh install is always premature: the image requires
+# agent-vault-ca.pem, which only exists after Agent Vault has been started
+# and the MITM CA fetched (setup-agent-vault SOP step 3). On a fresh server
+# Agent Vault hasn't been configured yet (master password not set, container
+# not running), so the build would fail regardless. Reject early — before
+# running prerequisites, which take significant time — so the operator
+# doesn't wait through a full install only to hit an error at the very end.
+if [ "$MODE" = "fresh" ] && [ "$BUILD_IMAGE" = true ] && [ "$VALIDATE_ONLY" = false ]; then
+  error "--build-image cannot be used on a fresh install.
+  The tenant Docker image requires the Agent Vault MITM CA certificate
+  (agent-vault-ca.pem), which is only available after Agent Vault has been
+  started and set up (setup-agent-vault SOP step 3).
+
+  Run the installer without --build-image first:
+    bash <(curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh)
+
+  Then follow the post-install next steps to start Agent Vault, and build
+  the image afterwards via the admin agent or:
+    /opt/aaas/platform/scripts/setup-platform.sh --build-image"
+fi
+
 if [ "$VALIDATE_ONLY" = true ]; then
   log "Validate-only mode selected"
 elif [ "$MODE" = "fresh" ]; then
@@ -153,9 +178,14 @@ if [ "$ASSUME_YES" = true ]; then
   PLAN_A_ARGS+=(--yes)
 fi
 
-if [ "$MODE" = "fresh" ] && [ "$VALIDATE_ONLY" = false ]; then
-  BUILD_IMAGE=true
-fi
+# NOTE: Fresh installs do NOT auto-enable --build-image here.
+# Building the tenant image requires agent-vault-ca.pem, which is fetched
+# from Agent Vault only after the container is running (setup-agent-vault
+# SOP step 3). On a fresh install Agent Vault has not been started yet
+# (master password not set), so forcing an image build here always fails.
+# The image is built later via the admin agent ("Complete the Agent Vault
+# setup") or by passing --build-image to setup-platform.sh after finishing
+# the setup-agent-vault SOP.
 
 if [ "$BUILD_IMAGE" = true ] && [ "$VALIDATE_ONLY" = false ]; then
   PLAN_A_ARGS+=(--build-image)
