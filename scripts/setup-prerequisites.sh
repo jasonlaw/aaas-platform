@@ -135,6 +135,25 @@ else
   warn "SSH agent auto-start already in ~/.bashrc — skipping"
 fi
 
+# Ensure ~/.bash_profile sources ~/.bashrc so nvm/opencode are available
+# in login shells and new terminal sessions (Ubuntu/WSL often read
+# ~/.bash_profile on login but skip ~/.bashrc unless explicitly sourced).
+# This is the root cause of "opencode not found" after a fresh install when
+# the installer was run via 'curl | bash' or when a new terminal is opened.
+if [ ! -f "$HOME/.bash_profile" ] || ! grep -q 'source.*\.bashrc\|\. .*\.bashrc' "$HOME/.bash_profile"; then
+  cat >> "$HOME/.bash_profile" << 'EOF'
+
+# Source .bashrc for interactive login shells (AaaS)
+if [ -f "$HOME/.bashrc" ]; then
+  # shellcheck disable=SC1091
+  source "$HOME/.bashrc"
+fi
+EOF
+  success "~/.bash_profile now sources ~/.bashrc — nvm/opencode will be available in all new terminals"
+else
+  warn "~/.bash_profile already sources ~/.bashrc — skipping"
+fi
+
 echo ""
 echo "======================================================"
 echo -e "  ${GREEN}Your SSH PUBLIC KEY (add this to GitHub/GitLab):${NC}"
