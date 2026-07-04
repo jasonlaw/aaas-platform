@@ -4,6 +4,82 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.16.6 - 2026-07-04
+
+### Fixed
+
+- **`docs/architecture.md` had no section on tenant plugin persistence, and four
+  places in the codebase (`tenant-install.sh`, `harness/check-tenant.sh`,
+  `docker/Dockerfile` twice) pointed to `tenant-plugin-persistence-issue.md` as
+  "the" explanation for the mechanism — a file that does not exist anywhere in
+  the repository.** Added a real "Tenant Plugin Persistence" section to
+  `docs/architecture.md` covering how `tenant-install.sh`/`reconcile-plugins.sh`
+  work, the `remove`/`list`/`installed_paths` behavior added in 0.16.4, the
+  lifecycle-ownership split added in 0.16.5 (tenant decides what to
+  install/remove, admin owns the mechanism and troubleshoots but doesn't act
+  unilaterally), and an explicit note that image-baked packages (`faster-whisper`,
+  `himalaya`) are correctly never tracked in `installed-plugins.yaml`. Redirected
+  all four dangling references to this new section instead of introducing a
+  second doc to maintain.
+
+## 0.16.5 - 2026-07-04
+
+### Added
+
+- **Plugin lifecycle ownership was undocumented.** `tenant-install.sh remove`/`list`
+  (added in 0.16.4) had no attached policy for who should use them or when, on either
+  side:
+  - `SOUL.md.template` now tells the tenant agent to `remove` a package it installed
+    once it knows the package is no longer needed (superseded, or the skill that
+    required it was abandoned), and states plainly that nobody else reviews this —
+    the tenant agent is the only one with the context to know whether something it
+    installed is still in use.
+  - `monitor-health.md` gets a new opportunistic, explicitly non-blocking step
+    (8.5) where the admin agent may glance at `tenant-install.sh list` output for a
+    flagged tenant and note anything unusually large or stale in the report — but
+    is told not to run `remove` itself, since it lacks the tenant-side context to
+    know if something is still backing a scheduled skill. Deliberately not added
+    to `checklists/monitor-health.required.json`, so it never becomes a completion
+    gate, matching the existing opportunistic-review pattern already used for
+    self-written skill provenance review in `PLATFORM-REFERENCE.md`.
+
+## 0.16.4 - 2026-07-04
+
+### Fixed
+
+- **`tenant-install.sh` had no way to uninstall a tenant-installed plugin.**
+  The script only ever supported `pip`/`binary` install, and `record_manifest`
+  only appended to `installed-plugins.yaml` — there was no `remove` or `list`
+  subcommand, so a broken or unwanted plugin required manual, off-script
+  filesystem and manifest edits with no documented procedure (`troubleshoot-tenant.md`
+  had no removal guidance either). Added `tenant-install.sh remove <name>` and
+  `tenant-install.sh list`. Because `pip`/`uv` have no supported way to uninstall a
+  single package from a shared `--target` install, pip installs now snapshot the
+  target directory before/after install and record exactly which top-level
+  entries that install added (`installed_paths` in the manifest), so `remove`
+  can delete precisely one package's files without touching any other package
+  installed into the same directory. Plugins installed by a pre-`installed_paths`
+  `tenant-install.sh` are refused by `remove` with a manual-cleanup message
+  rather than risking a shared-directory wipe. `troubleshoot-tenant.md` and
+  `PLATFORM-REFERENCE.md` updated to document and recommend `remove`/`list`.
+
+- **`tenant-install.sh` validated manifest metadata only after the install/download
+  had already run.** The double-quote/newline check on `name`/`target`/`reason`
+  lived inside `record_manifest`, called after `uv pip install` or `curl` had
+  already succeeded. A rejected name or reason left the package or binary live
+  on disk with no manifest entry — an installed-but-untracked artifact that
+  `reconcile-plugins.sh` doesn't know about, and that `troubleshoot-tenant.md`'s
+  "not listed means never installed through this script" guidance would then
+  describe incorrectly. The same check now runs before the install/download
+  step in both the `pip` and `binary` branches.
+
+- **`tenant-install.sh` created duplicate manifest entries when reinstalling the
+  same package or binary name.** `record_manifest` only ever appended a new
+  YAML block; installing the same name twice left two blocks in
+  `installed-plugins.yaml`, both processed redundantly by `reconcile-plugins.sh`
+  on every container start. `record_manifest` now drops any existing block for
+  the same name before appending the new one.
+
 ## 0.16.3 - 2026-07-04
 
 ### Fixed

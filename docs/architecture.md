@@ -229,6 +229,68 @@ The tenant agent has no `platform/skills/`-style loader the way the admin agent 
 
 `check-tenant.sh` and `validate-tenant-config.sh` verify the vault exists, is owned by UID 10000, and is mounted into the container; these are part of the standard tenant harness, not a separate check the operator has to remember.
 
+## Tenant Plugin Persistence
+
+The base `nousresearch/hermes-agent` image supports installing a pip package
+or standalone binary at runtime, but disables it by default
+(`HERMES_DISABLE_LAZY_INSTALLS=1`) because its default install locations sit
+outside any mounted volume — anything installed that way vanishes silently on
+the next `docker compose up --force-recreate`, with no error pointing at the
+cause. `platform/docker/Dockerfile` re-enables the mechanism
+(`HERMES_DISABLE_LAZY_INSTALLS=0`) and this platform supplies the piece the
+base image doesn't: a supported way to install to the one location that does
+persist — the tenant's mounted `/opt/data` volume — and to recover that state
+after a recreate.
+
+**How it works:**
+
+1. **`tenant-hermes/scripts/tenant-install.sh`** (copied into every tenant volume
+   at onboarding, `onboard-tenant.md` step 6.2.1) is the only supported way for
+   the tenant agent to add a pip package or binary at runtime — `SOUL.md.template`
+   tells it never to call `pip`/`uv`/`apt` directly or write into `/opt/hermes/`
+   (root-owned, read-only, and a live write there can crash the running gateway
+   process). It installs pip packages to `/opt/data/lazy-packages` and binaries
+   to `/opt/data/.local/bin` — both on the persistent volume — and records every
+   install in `/opt/data/installed-plugins.yaml`.
+2. **`tenant-hermes/scripts/reconcile-plugins.sh`**, run automatically by
+   `tenant-hermes/scripts/tenant-entrypoint.sh` on every container start (before
+   `exec gateway run`), reads that manifest and reinstalls anything missing or
+   built for a since-superseded Python ABI (tracked per entry as `python_abi`).
+   It never blocks startup on failure — a failed reconciliation is logged and
+   startup continues, since a missing plugin should degrade one capability, not
+   take the tenant offline.
+3. `tenant-install.sh` also supports `remove <name>` and `list`. Removing a pip
+   package deletes only the specific files that install added under the shared
+   `lazy-packages` directory (tracked per-package as `installed_paths`, since
+   `pip`/`uv` have no built-in way to uninstall a single package from a
+   `--target` install) — never the whole directory, so removing one tenant's
+   package can never delete another package installed alongside it.
+4. **`harness/check-tenant.sh`** has a dedicated `tenant_scripts_present` check
+   (separate from the generic `skill-verify.sh` checks) confirming all three
+   scripts — `tenant-install.sh`, `reconcile-plugins.sh`, `tenant-entrypoint.sh`
+   — are present and executable, precisely because a missing script here is a
+   silent-data-loss risk on the next recreate, not just a missing file.
+
+**Lifecycle ownership:** the tenant agent owns the decision of what to
+install and when to remove it — `SOUL.md.template` tells it to `remove` a
+package once it knows the package is no longer needed, since it's the only
+party with the context to know that. The admin agent owns the mechanism
+(deploying the scripts, understanding the persistence/reconciliation
+contract for troubleshooting) but not the cleanup decision: `monitor-health.md`
+includes an explicitly opportunistic, non-blocking check where the admin agent
+may note an unusually large or stale manifest for a flagged tenant, but is
+told not to run `remove` itself, since it lacks the tenant-side context to
+know if something still backs a scheduled skill.
+
+**What is never in the manifest:** packages baked into the tenant image at
+build time (e.g. `faster-whisper`, `himalaya` — see `platform/docker/Dockerfile`)
+are not, and should not be, tracked in `installed-plugins.yaml`. That manifest
+exists solely for what the tenant agent chose to add at runtime; image-baked
+capabilities are identical across every tenant and versioned by the image tag,
+not per-tenant state. If a tenant reports a missing capability after a
+recreate, `troubleshoot-tenant.md`'s "Tenant-Installed Plugin Missing Or Not
+Working" section is the diagnostic entry point.
+
 ## Tenant Harness
 
 The platform installs tenant harness assets under `/opt/aaas/platform/harness`,

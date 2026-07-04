@@ -23,6 +23,14 @@
 # consequence is a harmless extra reinstall on every subsequent boot until
 # the tenant is re-onboarded or the entry is corrected by hand; it never
 # causes incorrect or missing state, only a few extra seconds at startup.
+#
+# Manifest entries may also carry an `installed_paths` field (a space-
+# separated, %q-quoted list of top-level entries a pip install added under
+# the target directory). This script intentionally does not read it —
+# reconciliation only cares whether the package works, not which files it
+# owns. `installed_paths` exists purely so `tenant-install.sh remove` can
+# delete exactly one package's files out of a shared --target directory
+# without touching any other package installed alongside it.
 
 set -uo pipefail  # no -e: a single plugin failure must not abort the script
 

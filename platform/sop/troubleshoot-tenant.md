@@ -105,11 +105,18 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
   `docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/USER.md preference`
 
 ### Tenant-Installed Plugin Missing Or Not Working
-- Check `docker exec hermes_{tenant-id} cat /opt/data/installed-plugins.yaml`
-  first — if the plugin isn't listed, it was never installed through
-  `tenant-install.sh` (e.g. baked into the image, or the tenant used a raw
-  `pip`/`uv` call directly into the container's writable layer, which does
-  not persist and is not this script's fault to reconcile).
+- Check `docker exec hermes_{tenant-id} /opt/data/scripts/tenant-install.sh list`
+  (or `cat /opt/data/installed-plugins.yaml` directly) first — if the plugin
+  isn't listed, it was never installed through `tenant-install.sh` (e.g.
+  baked into the image, or the tenant used a raw `pip`/`uv` call directly
+  into the container's writable layer, which does not persist and is not
+  this script's fault to reconcile).
+- To remove a plugin that is broken or no longer wanted, use
+  `docker exec hermes_{tenant-id} /opt/data/scripts/tenant-install.sh remove {name}`
+  rather than deleting files under `lazy-packages`/`.local/bin` by hand —
+  it removes only that package's own files (never a sibling package sharing
+  the same `--target` directory) and drops the manifest entry so
+  `reconcile-plugins.sh` stops trying to restore it on the next start.
 - If it is listed, `reconcile-plugins.sh` already runs automatically on
   every container start via `tenant-entrypoint.sh` — check
   `docker logs hermes_{tenant-id}` for `[reconcile-plugins]` lines to see

@@ -159,9 +159,9 @@ exists_file "$TENANT_DIR/ACCEPTANCE.md" "tenant_acceptance_record"
 # Plugin-persistence scripts (onboard-tenant.md step 6.2.1 / upgrade-tenants.md
 # backfill). Without these, tenant-installed pip packages/binaries silently
 # vanish on the next --force-recreate with no error pointing at the cause
-# (see tenant-plugin-persistence-issue.md) — this is a functional gap, not
-# just a missing file, so it gets its own named check rather than folding
-# into the generic skill-verify.sh checks above.
+# (see docs/architecture.md's "Tenant Plugin Persistence" section) — this is
+# a functional gap, not just a missing file, so it gets its own named check
+# rather than folding into the generic skill-verify.sh checks above.
 if [ -x "$TENANT_DIR/scripts/tenant-install.sh" ] \
   && [ -x "$TENANT_DIR/scripts/reconcile-plugins.sh" ] \
   && [ -x "$TENANT_DIR/scripts/tenant-entrypoint.sh" ]; then
