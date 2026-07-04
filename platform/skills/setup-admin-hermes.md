@@ -115,17 +115,30 @@ folder name (installer versions have used both `venv/` and `.venv/`):
     uv pip install --python "$HERMES_VENV_PY" --upgrade \
       'mnemosyne-memory[embeddings]' mnemosyne-hermes
 
+Then activate the Mnemosyne plugin into the admin Hermes profile. This is
+a separate step from the pip install — the pip package only places the
+plugin code on disk; the `install` subcommand creates the symlink under
+`~/.hermes/plugins/mnemosyne` that Hermes's plugin loader requires.
+`HERMES_HOME` must be exported so both commands target the admin profile,
+not the default `~/.hermes` location. `memory_enabled: false` in
+`config.yaml` disables native Hermes memory (intentional — Mnemosyne
+replaces it); it does not affect this plugin activation path:
+
+    HERMES_HOME=/opt/aaas/platform/admin mnemosyne-hermes install
+    HERMES_HOME=/opt/aaas/platform/admin hermes memory setup
+
 ## Step 2 — Create Admin Profile
 
     mkdir -p /opt/aaas/platform/admin
 
 Copy only missing files (never overwrite without operator confirmation):
 - admin-hermes/SOUL.md.template  -> admin/SOUL.md
-- admin-hermes/USER.md.template  -> admin/USER.md
-- admin-hermes/MEMORY.md.template -> admin/MEMORY.md
+- admin-hermes/MEMORY.md.template -> admin/memories/MEMORY.md
+- admin-hermes/USER.md.template  -> admin/memories/USER.md
 - admin-hermes/config.yaml.template -> admin/config.yaml
 - admin-hermes/env.template -> admin/.env
 
+    mkdir -p /opt/aaas/platform/admin/memories
     mkdir -p /opt/aaas/platform/admin/mnemosyne/data
     chmod 700 /opt/aaas/platform/admin
     chmod 600 /opt/aaas/platform/admin/.env
@@ -136,7 +149,7 @@ above still matter: they keep `.env` and mnemosyne data unreadable by
 other local accounts on a shared box, same intent as before, just without
 a dedicated identity to own it.
 
-**Seed Mnemosyne with `admin/MEMORY.md` and `admin/USER.md`.** These are
+**Seed Mnemosyne with `admin/memories/MEMORY.md` and `admin/memories/USER.md`.** These are
 intentionally one-time seeds (see CHANGELOG.md's Step 2 file audit) — do
 this now, once, right after they're copied above; nothing else in this repo
 re-seeds them later. Uses the same SDK-based script tenant onboarding uses,
@@ -146,9 +159,9 @@ path just set in `.env`:
     HERMES_VENV_PY="$(find ~/.hermes/hermes-agent -maxdepth 2 -type f -path '*/bin/python*' ! -path '*-config*' | head -1)"
     test -n "$HERMES_VENV_PY" || { echo "FAIL: could not locate the Hermes venv python under ~/.hermes/hermes-agent"; exit 1; }
     MNEMOSYNE_DATA_DIR=/opt/aaas/platform/admin/mnemosyne/data \
-      "$HERMES_VENV_PY" /opt/aaas/platform/tenant-hermes/scripts/seed-mnemosyne.py /opt/aaas/platform/admin/MEMORY.md fact
+      "$HERMES_VENV_PY" /opt/aaas/platform/tenant-hermes/scripts/seed-mnemosyne.py /opt/aaas/platform/admin/memories/MEMORY.md fact
     MNEMOSYNE_DATA_DIR=/opt/aaas/platform/admin/mnemosyne/data \
-      "$HERMES_VENV_PY" /opt/aaas/platform/tenant-hermes/scripts/seed-mnemosyne.py /opt/aaas/platform/admin/USER.md preference
+      "$HERMES_VENV_PY" /opt/aaas/platform/tenant-hermes/scripts/seed-mnemosyne.py /opt/aaas/platform/admin/memories/USER.md preference
 
 Each call exits non-zero if any individual fact fails to store — treat a
 non-zero exit as a failed seed, not a partial success.
@@ -177,7 +190,9 @@ in `admin-hermes/env.template`. If a `providers:` block or any non-template
 env var is already present from a prior session, that is prior drift to be
 removed, not a pattern to extend — flag it under Issues and revert to the
 single supported `model:` field and the exact env var name from the Step
-5.2 table.
+5.2 table. If source code or external docs suggest a different env var name
+than what Step 5.2 lists, escalate to the operator — do not write any
+credential under an undocumented name.
 
 ## Step 3.1 — Configure Telegram (optional)
 
@@ -284,16 +299,17 @@ placeholder. Same policy as every tenant — no exceptions for the admin agent.
 | OpenAI       | api.openai.com        | OPENAI_API_KEY        |
 | Anthropic    | api.anthropic.com     | ANTHROPIC_API_KEY     |
 | Nous         | api.nous.ai           | NOUS_API_KEY          |
-| OpenCode Zen | opencode.ai           | OPENCODE_API_KEY      |
+| OpenCode Zen | opencode.ai           | OPENCODE_ZEN_API_KEY  |
 
 The **Env var** column is exact and non-negotiable — it is the only name
 `{PROVIDER_VAR}` may take throughout Step 5, and it is the only name that
-may appear (commented or not) in `admin/.env`. Do not rename, suffix, or
-invent a variant (e.g. `OPENCODE_ZEN_API_KEY`) even if it seems more
-descriptive of the specific model or sub-provider in use — Agent Vault's
+may appear (commented or not) in `admin/.env`. Do not rename, abbreviate,
+or invent a variant even if it seems more descriptive — Agent Vault's
 service registration in 5.3 and the proxy injection in 5.5 are keyed to
 this exact string, and `admin-hermes/env.template` only ships the five
-names above.
+names above. If runtime source code or provider docs appear to contradict
+this table, **stop and escalate to the operator** before writing any
+credential — do not self-resolve the conflict.
 
 ### 5.3 Store the credential and register the service
 
@@ -382,8 +398,8 @@ time:
 
     command -v hermes && hermes --version
     test -f /opt/aaas/platform/admin/SOUL.md     && echo "OK: SOUL.md"
-    test -f /opt/aaas/platform/admin/USER.md     && echo "OK: USER.md"
-    test -f /opt/aaas/platform/admin/MEMORY.md   && echo "OK: MEMORY.md"
+    test -f /opt/aaas/platform/admin/memories/USER.md     && echo "OK: USER.md"
+    test -f /opt/aaas/platform/admin/memories/MEMORY.md   && echo "OK: MEMORY.md"
     HERMES_VENV_PY="$(find ~/.hermes/hermes-agent -maxdepth 2 -type f -path '*/bin/python*' ! -path '*-config*' | head -1)"
     MNEMOSYNE_DATA_DIR=/opt/aaas/platform/admin/mnemosyne/data \
       "$HERMES_VENV_PY" -c "from mnemosyne import get_stats; s=get_stats(); assert s.get('working',0)+s.get('episodic',0) > 0, s; print('OK: mnemosyne has seeded facts')"
@@ -391,6 +407,9 @@ time:
     test -f /opt/aaas/platform/admin/.env        && echo "OK: .env"
     grep -q "provider: mnemosyne"       /opt/aaas/platform/admin/config.yaml && echo "OK: mnemosyne"
     grep -q "memory_enabled: false"     /opt/aaas/platform/admin/config.yaml && echo "OK: memory disabled"
+    test -L ~/.hermes/plugins/mnemosyne \
+      && echo "OK: mnemosyne plugin symlink present" \
+      || echo "FAIL: mnemosyne plugin symlink missing — re-run: HERMES_HOME=/opt/aaas/platform/admin mnemosyne-hermes install && HERMES_HOME=/opt/aaas/platform/admin hermes memory setup"
     grep -q "user_profile_enabled: false" /opt/aaas/platform/admin/config.yaml && echo "OK: user profile disabled"
     grep -q "routed-via-agent-vault" /opt/aaas/platform/admin/.env        && echo "OK: placeholder"
     grep -q "HTTP_PROXY"             /opt/aaas/platform/admin/.env        && echo "OK: proxy config"
@@ -408,7 +427,7 @@ block/line and re-derive from the Step 5.2 table before continuing:
       && echo "FAIL: unsupported top-level providers: block present — remove, use model.provider only" \
       || echo "OK: no custom providers block"
     grep -E "^[A-Z_]+_API_KEY=" /opt/aaas/platform/admin/.env \
-      | grep -vE "^(OPENROUTER|OPENAI|ANTHROPIC|NOUS|OPENCODE)_API_KEY=" \
+      | grep -vE "^(OPENROUTER_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|NOUS_API_KEY|OPENCODE_ZEN_API_KEY)=" \
       && echo "FAIL: unrecognized *_API_KEY variable — must be one of the five Step 5.2 names, exactly" \
       || echo "OK: only documented provider env var names present"
 
