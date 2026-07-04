@@ -158,6 +158,11 @@ check_file_exists_at() {
   pattern="$(spec_value .params.path_pattern)"
   [ -n "$pattern" ] || { record FAIL file_exists_at "missing params.path_pattern"; return 1; }
   resolved="$(path_pattern "$pattern")"
+  case "$resolved" in
+    ERROR:unresolvable-tilde-path:*)
+      record FAIL file_exists_at "unsupported tilde path — use /home/hermes/... or /opt/data/... instead: $pattern"
+      return 1 ;;
+  esac
   if compgen -G "$resolved" >/dev/null; then
     record PASS file_exists_at "$pattern"
     return 0
@@ -171,6 +176,11 @@ check_file_does_not_exist_at() {
   pattern="$(spec_value .params.path_pattern)"
   [ -n "$pattern" ] || { record FAIL file_does_not_exist_at "missing params.path_pattern"; return 1; }
   resolved="$(path_pattern "$pattern")"
+  case "$resolved" in
+    ERROR:unresolvable-tilde-path:*)
+      record FAIL file_does_not_exist_at "unsupported tilde path — use /home/hermes/... or /opt/data/... instead: $pattern"
+      return 1 ;;
+  esac
   if compgen -G "$resolved" >/dev/null; then
     record FAIL file_does_not_exist_at "unexpected match: $pattern"
     return 1
@@ -186,6 +196,11 @@ check_content_includes() {
   [ -n "$target" ] || { record FAIL content_includes "missing params.target"; return 1; }
   [ -n "$must_include" ] || { record FAIL content_includes "missing params.must_include"; return 1; }
   resolved="$(path_pattern "$target")"
+  case "$resolved" in
+    ERROR:unresolvable-tilde-path:*)
+      record FAIL content_includes "unsupported tilde path — use /home/hermes/... or /opt/data/... instead: $target"
+      return 1 ;;
+  esac
   if [ -f "$resolved" ]; then
     if grep -Fq "$must_include" "$resolved"; then
       record PASS content_includes "$target includes required text"

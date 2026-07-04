@@ -4,6 +4,18 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.16.3 - 2026-07-04
+
+### Fixed
+
+- **`skill-verify.sh` tilde-path sentinel not surfaced distinctly by callers.**
+  The 0.16.2 fix returned an `ERROR:unresolvable-tilde-path:...` sentinel from
+  `path_pattern()` but neither `check_file_exists_at`, `check_file_does_not_exist_at`,
+  nor `check_content_includes` inspected it — the sentinel fell through to ordinary
+  FAIL paths, making a bad `~/` spec in a skill file indistinguishable in output from
+  a genuinely missing file. All three callers now detect the sentinel and emit a
+  descriptive FAIL naming the unsupported path form and the correct alternative.
+
 ## 0.16.2 - 2026-07-04
 
 ### Fixed
