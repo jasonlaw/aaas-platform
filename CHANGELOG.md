@@ -4,6 +4,71 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.16.1 - 2026-07-04
+
+### Fixed
+
+- **`skill-verify.sh` credential scan was silently a no-op inside the tenant container.**
+  The default `PRIMITIVES_FILE` path pointed to a host-only location never mounted
+  into any tenant container, so `run_credential_scan()` always read a missing file
+  and passed every skill unconditionally. Fixed on two fronts: (1) default path
+  changed to `/opt/data/evals/_skill-verification-primitives-v1.yaml` (container-local);
+  (2) `install-tenant-scripts.sh` now copies `_skill-verification-primitives-v1.yaml`
+  from `tenant-hermes/evals/` into `{tenant-dir}/evals/` during onboarding and
+  upgrades, so the file is actually there. A missing-file guard now fails loudly
+  with a descriptive error rather than silently passing.
+
+- **`upgrade-tenants.md` falsely claimed `upgrade-tenant.sh` re-renders `SOUL.md` policy blocks.**
+  The script has no SOUL.md logic. Corrected the SOP: step 3 description no longer
+  makes this claim; new step 3.1 makes the admin-agent SOUL.md re-render explicit
+  and documents when a manual `--force-recreate` is needed if it was the only change.
+
+- **`provision-tenant-vault.md` step 9 told operators to expect `agent-vault` on the tenant network.**
+  Agent Vault never joins a tenant network — only the forwarding sidecar does.
+  Comment corrected to `agent-vault-proxy-{tenant-id}`.
+
+- **`manage-agent-vault.md` listed `OPENCODE_API_KEY` for OpenCode Zen** instead of
+  `OPENCODE_ZEN_API_KEY` (the name used by `setup-admin-hermes.md`, `env.template`,
+  and the allowlist grep). An agent rotating this key would register it under the
+  wrong name, causing silent proxy injection failure.
+
+- **`PLATFORM-REFERENCE.md` chmod rule conflicted with `repair-tenant-ownership.sh`.**
+  The doc prescribed specific non-recursive `chmod 755`/`chmod 644` on two paths;
+  the script (correctly) does recursive `chmod -R go+rX`. Doc updated to match the
+  script and explain why recursive is required.
+
+- **`PLATFORM-REFERENCE.md` "Gateway command: gateway run" was stale** — the
+  container command has been `tenant-entrypoint.sh` since plugin persistence was
+  added. Updated to reflect the actual compose `command:`.
+
+- **`handle-watchdog-alert.md` was not tracked as a managed asset.** Added to
+  `MANAGED_ASSET_RELATIVE_PATHS`, `validate_install()` required[], and the General
+  Skills index in `PLATFORM-REFERENCE.md`.
+
+- **`_skill-verification-primitives-v1.yaml` was not in `MANAGED_ASSET_RELATIVE_PATHS`.**
+  Added alongside `_fixed-safety-v1.yaml`. Also added to `validate_install()` required[].
+
+- **`validate_install()` required[] was missing 10 files present in `MANAGED_ASSET_RELATIVE_PATHS`.**
+  Added: `policy/platform-policy.yaml`, `scripts/aaas-watchdog.sh`,
+  `scripts/generate-platform-eval.sh`, `scripts/validate-platform-rules.sh`,
+  `scripts/run-business-research-subagent.py`, `incidents/hermes-admin-failure.md`,
+  `skills/handle-tenant-request.md`, `skills/manage-agent-vault.md`,
+  `skills/research-tenant-business.md`, `tenant-hermes/scripts/seed-vault-context.py`.
+
+- **`setup-agent-vault.md` / `setup-admin-hermes.md` had ambiguous watchdog install ownership.**
+  `setup-agent-vault.md` step 6 is now the unconditional canonical install point.
+  `setup-admin-hermes.md` step 8 is now a confirm-active step with a fallback install
+  only for hosts that skipped agent vault setup.
+
+- **`research-tenant-business.md` was absent from PLATFORM-REFERENCE.md General Skills index.**
+  Added alongside `handle-watchdog-alert.md`.
+
+- **`setup-platform.sh` did not `chmod +x` `seed-mnemosyne.py`** (the other two `.py`
+  scripts already had it). Added.
+
+- **Dockerfile had a stale `# [ERROR]` comment** left over from a `validate_install()`
+  error message template. Changed to a `# NOTE:` comment.
+
 ## 0.16.0 - 2026-07-04
 
 ### Added

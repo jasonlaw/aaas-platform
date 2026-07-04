@@ -560,28 +560,31 @@ is running as, the same one that owns `/opt/aaas/platform/admin`.
 Expected: a response containing PROXY_OK. If the call fails with a proxy or
 SSL error, re-check Step 4 (CA trust) and Step 5 (proxy vars in .env).
 
-## Step 8 — Install Watchdog
+## Step 8 — Confirm Watchdog Active
 
-Admin Hermes is covered by the platform-wide watchdog, not a dedicated
-script — it also covers Agent Vault and every tenant container, with Agent
-Vault checked first as the priority-0 dependency. If it's already installed
-(e.g. from setting up Agent Vault or onboarding a tenant), skip this step.
+Admin Hermes is covered by the platform-wide watchdog, which was installed
+during `setup-agent-vault.md` step 6 (the canonical installation point).
+Confirm it is active before proceeding:
 
-This is a second, independent layer on top of the systemd `--user` service
-installed in Step 7. systemd already restarts admin Hermes if the process
-itself dies (`Restart=on-failure`) or on reboot — the watchdog instead
-polls whether the dashboard is actually *responding* every 5 minutes and
-escalates to OpenCode with the recovery playbook when it isn't (e.g. the
-process is alive but the Agent Vault proxy is failing, which systemd alone
-would never detect). When the watchdog does need to restart admin Hermes,
-it now does so via `systemctl --user restart aaas-admin-hermes.service`
-rather than a raw `nohup`, so both layers manage the same single process.
-
-    sudo /opt/aaas/platform/scripts/aaas-watchdog.sh --install
-
-Verify:
     systemctl status aaas-watchdog.timer
     # Expected: active (waiting)
+
+If the timer is not active (e.g. this host skipped `setup-agent-vault.md`),
+install it now:
+
+    sudo /opt/aaas/platform/scripts/aaas-watchdog.sh --install
+    systemctl status aaas-watchdog.timer
+    # Expected: active (waiting)
+
+The watchdog is a second, independent layer on top of the systemd `--user`
+service installed in Step 7. systemd already restarts admin Hermes if the
+process itself dies (`Restart=on-failure`) or on reboot — the watchdog
+instead polls whether the dashboard is actually *responding* every 5 minutes
+and escalates to OpenCode with the recovery playbook when it isn't (e.g. the
+process is alive but the Agent Vault proxy is failing, which systemd alone
+would never detect). When the watchdog does need to restart admin Hermes,
+it does so via `systemctl --user restart aaas-admin-hermes.service` rather
+than a raw `nohup`, so both layers manage the same single process.
 
 See /opt/aaas/platform/incidents/hermes-admin-failure.md for the recovery
 playbook OpenCode uses when the watchdog detects Hermes admin is down.

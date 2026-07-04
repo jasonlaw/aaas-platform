@@ -314,11 +314,17 @@ run_judge_fallback() {
   update_provenance "provisional" "judge-not-available-in-container" 0
 }
 
-PRIMITIVES_FILE="${PRIMITIVES_FILE:-/opt/aaas/platform/tenant-hermes/evals/_skill-verification-primitives-v1.yaml}"
+PRIMITIVES_FILE="${PRIMITIVES_FILE:-/opt/data/evals/_skill-verification-primitives-v1.yaml}"
 SKILL_FILE="$TENANT_DIR/skills/${SKILL_NAME}.md"
 
 run_credential_scan() {
   [ -f "$SKILL_FILE" ] || return 0   # no file to scan yet; spec check handles missing
+
+  if [ ! -f "$PRIMITIVES_FILE" ]; then
+    echo "FAIL  credential_scan: primitives file not found: $PRIMITIVES_FILE" >&2
+    echo "      Deploy _skill-verification-primitives-v1.yaml to /opt/data/evals/ via install-tenant-scripts.sh" >&2
+    exit 1
+  fi
 
   local patterns_file="$PRIMITIVES_FILE"
   local failed=0

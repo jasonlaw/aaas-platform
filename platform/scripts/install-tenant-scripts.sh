@@ -6,13 +6,18 @@
 #   upgrade-tenants.md step 3 (tenant-install.sh/reconcile-plugins.sh backfill sub-step)
 #   troubleshoot-tenant.md "Tenant-Installed Plugin Missing" recovery path
 #
-# Scripts installed:
+# Scripts installed (to /opt/data/scripts/):
 #   skill-verify.sh       — tenant agent calls from /opt/data/scripts/ at runtime
 #   tenant-install.sh     — tenant agent calls to install pip/binary plugins
 #   reconcile-plugins.sh  — runs automatically via tenant-entrypoint.sh on start
 #   tenant-entrypoint.sh  — compose service command (replaces bare `gateway run`)
 #   seed-mnemosyne.py     — called by onboard-tenant step 13 and update-tenant step 5
 #   seed-vault-context.py — called by onboard-tenant step 4.2 to write sub-agent vault notes
+#
+# Evals installed (to /opt/data/evals/):
+#   _skill-verification-primitives-v1.yaml — credential-scan patterns read by skill-verify.sh
+#     inside the container at /opt/data/evals/. Must be here because the platform's
+#     tenant-hermes/evals/ path is a host path, never mounted into any tenant container.
 #
 # Idempotent: no-op for each file that is already present and identical to the source.
 # Non-identical files are overwritten (forward-upgrade semantics — the platform copy
@@ -49,6 +54,8 @@ fi
 TENANT_DIR="$TENANT_ROOT/$TENANT_ID"
 SCRIPTS_SRC="$PLATFORM_ROOT/tenant-hermes/scripts"
 SCRIPTS_DST="$TENANT_DIR/scripts"
+EVALS_SRC="$PLATFORM_ROOT/tenant-hermes/evals"
+EVALS_DST="$TENANT_DIR/evals"
 
 [ -d "$TENANT_DIR" ] \
   || fail "tenant directory not found: $TENANT_DIR"
@@ -57,6 +64,7 @@ SCRIPTS_DST="$TENANT_DIR/scripts"
   || fail "platform scripts directory not found: $SCRIPTS_SRC — is the platform up to date?"
 
 mkdir -p "$SCRIPTS_DST"
+mkdir -p "$EVALS_DST"
 
 INSTALLED=0
 SKIPPED=0
@@ -79,12 +87,39 @@ install_script() {
   fi
 }
 
+install_file() {
+  local name="$1"
+  local src="$2"
+  local dst="$3"
+  local executable="${4:-false}"
+
+  [ -f "$src" ] || { echo "WARN  $name not found at $src — skipping"; return; }
+
+  if [ -f "$dst" ] && cmp -s "$src" "$dst"; then
+    echo "SKIP  $name (already up to date)"
+    SKIPPED=$((SKIPPED + 1))
+  else
+    cp "$src" "$dst"
+    [ "$executable" = "true" ] && chmod +x "$dst"
+    echo "PASS  $name installed"
+    INSTALLED=$((INSTALLED + 1))
+  fi
+}
+
 install_script "skill-verify.sh"
 install_script "tenant-install.sh"
 install_script "reconcile-plugins.sh"
 install_script "tenant-entrypoint.sh"
 install_script "seed-mnemosyne.py"
 install_script "seed-vault-context.py"
+
+# Evals: primitives YAML must be present inside the tenant volume so that
+# skill-verify.sh (which runs inside the container) can read it. The default
+# PRIMITIVES_FILE path in skill-verify.sh is /opt/data/evals/... — this is
+# what puts it there.
+install_file "_skill-verification-primitives-v1.yaml" \
+  "$EVALS_SRC/_skill-verification-primitives-v1.yaml" \
+  "$EVALS_DST/_skill-verification-primitives-v1.yaml"
 
 echo ""
 echo "PASS  $INSTALLED installed, $SKIPPED already up to date — scripts at $SCRIPTS_DST"

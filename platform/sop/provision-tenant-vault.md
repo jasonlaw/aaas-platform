@@ -300,8 +300,10 @@ agent-vault agent list --vault {tenant-id}-vault
 
 # Verify the tenant's isolated network exists and Agent Vault has joined it
 docker network inspect hermes-{tenant-id}-net --format '{{range .Containers}}{{.Name}} {{end}}'
-# Expected: agent-vault listed (the tenant container itself joins when its
-# compose service starts in onboard-tenant step 9 / update-tenant step 10)
+# Expected: agent-vault-proxy-{tenant-id} listed (the forwarding sidecar joins
+# the tenant network here; Agent Vault itself never joins a tenant network directly.
+# The tenant container itself joins when its compose service starts in
+# onboard-tenant step 9 / update-tenant step 10)
 ```
 
 Return control to the calling SOP (onboard-tenant step 9 or update-tenant step 10).

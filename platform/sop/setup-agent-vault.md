@@ -107,9 +107,7 @@ labels:
 The container already ships its own `HEALTHCHECK` (that's what step 1's
 `Health.Status` reads), so no separate healthcheck needs adding here.
 
-If `aaas-watchdog.sh` isn't installed yet, install it now — it's the same
-script `setup-admin-hermes.md` Step 8 installs, so skip that step there if
-this runs first:
+Install the watchdog now (this is the canonical installation point — `setup-admin-hermes.md` Step 8 only confirms it is active):
 ```bash
 sudo /opt/aaas/platform/scripts/aaas-watchdog.sh --install
 ```

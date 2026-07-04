@@ -71,7 +71,7 @@ credential must be rotated (key compromised or expired).
 | OpenAI       | api.openai.com        | OPENAI_API_KEY        |
 | Anthropic    | api.anthropic.com     | ANTHROPIC_API_KEY     |
 | Nous         | api.nous.ai           | NOUS_API_KEY          |
-| OpenCode Zen | opencode.ai           | OPENCODE_API_KEY      |
+| OpenCode Zen | opencode.ai           | OPENCODE_ZEN_API_KEY  |
 
 ### 2.2 Store or update the credential
 
