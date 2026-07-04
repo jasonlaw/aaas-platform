@@ -144,7 +144,8 @@ require_setup() {
 path_pattern() {
   local raw="$1"
   case "$raw" in
-    '~/'*) printf '%s/%s' "$FILES_DIR" "${raw#\~/files/}" ;;
+    '~/files/'*) printf '%s/%s' "$FILES_DIR" "${raw#\~/files/}" ;;
+    '~/'*) printf 'ERROR:unresolvable-tilde-path:%s' "$raw" ;;
     /home/hermes/files/*) printf '%s/%s' "$FILES_DIR" "${raw#/home/hermes/files/}" ;;
     /opt/data/*) printf '%s/%s' "$TENANT_DIR" "${raw#/opt/data/}" ;;
     /*) printf '%s' "$raw" ;;

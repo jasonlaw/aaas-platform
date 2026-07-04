@@ -4,6 +4,26 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.16.2 - 2026-07-04
+
+### Fixed
+
+- **`skill-verify.sh` tilde path-handling matched too broadly.** The `~/*` case arm
+  stripped only the `~/files/` prefix, so any path beginning with `~/` but not
+  `~/files/` (e.g. `~/vault/note.md`) had the tilde left in place and resolved to
+  a bogus `$FILES_DIR/~/vault/...` path with no error. Narrowed the matching arm to
+  `~/files/*` only; added an explicit error arm for any other `~/` path so failures
+  surface clearly instead of silently.
+
+- **`aaas-watchdog.sh` had an unused `REPORT_DIR` variable** (shellcheck SC2034).
+  Reports are written by the admin agent (via `write-report.md`) after the watchdog
+  hands off to OpenCode — the watchdog itself never writes to `reports/`. Removed.
+
+- **`preflight-check.sh` had a redundant `PLATFORM_ROOT="$PLATFORM_ROOT"` env-prefix**
+  on the `check-admin-drift.sh` invocation (shellcheck SC2097/SC2098). The path used
+  to locate the script is already expanded from the parent shell's `$PLATFORM_ROOT`
+  before the fork; the prefix was a no-op. Removed.
+
 ## 0.16.1 - 2026-07-04
 
 ### Fixed

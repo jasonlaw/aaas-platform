@@ -88,7 +88,7 @@ if [ -x "$PLATFORM_ROOT/scripts/check-admin-drift.sh" ]; then
   # would trip this script's own `set -e` and exit immediately, before
   # DRIFT_STATUS=$? ever ran — wrapping the assignment in the `if` condition
   # itself is what keeps `set -e` from firing on a non-zero exit here.
-  if DRIFT_OUTPUT="$(PLATFORM_ROOT="$PLATFORM_ROOT" "$PLATFORM_ROOT/scripts/check-admin-drift.sh" 2>&1)"; then
+  if DRIFT_OUTPUT="$("$PLATFORM_ROOT/scripts/check-admin-drift.sh" 2>&1)"; then
     DRIFT_STATUS=0
   else
     DRIFT_STATUS=$?

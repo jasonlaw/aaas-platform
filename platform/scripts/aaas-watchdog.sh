@@ -52,7 +52,6 @@ export XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS
 
 PLATFORM_DIR="/opt/aaas/platform"
 ADMIN_DIR="${PLATFORM_DIR}/admin"
-REPORT_DIR="${PLATFORM_DIR}/reports"
 # Everything this script itself owns (its own log, its own lock) lives under
 # a dedicated watchdog/ folder, split into logs/ and state/ so the two kinds
 # of file are never mixed: logs/ is human-readable, append-only history;
