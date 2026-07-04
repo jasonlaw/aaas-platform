@@ -209,18 +209,33 @@ log() {
 
 write_alert() {
   local name="$1" detail="$2"
-  mkdir -p "$REPORT_DIR"
-  cat > "${REPORT_DIR}/${name}-ALERT.txt" <<EOF
+  local ts alert_file
+  ts="$(date '+%Y%m%d-%H%M%S')"
+  alert_file="${WATCHDOG_DIR}/${name}-ALERT-${ts}.txt"
+  mkdir -p "$WATCHDOG_DIR"
+  cat > "$alert_file" <<EOF
 ${name} was unhealthy and did not recover after ${MAX_RESTART_ATTEMPTS} restart
 attempts as of $(date '+%Y-%m-%d %H:%M:%S').
 ${detail}
 OpenCode was invoked automatically; see reports/ for the troubleshoot report.
+Alert file: ${alert_file}
 Remove this file once the issue is resolved and verified.
 EOF
+  echo "$alert_file"
 }
 
 clear_alert() {
-  rm -f "${REPORT_DIR}/${1}-ALERT.txt"
+  # Accepts either:
+  #   - The exact alert file path returned by write_alert (after escalation), or
+  #   - An entity name, in which case it globs all timestamped alert files for
+  #     that entity (used on recovery paths where no escalation happened and
+  #     therefore no specific path was captured).
+  local arg="$1"
+  if [[ "$arg" == *-ALERT-*.txt ]]; then
+    rm -f "$arg"
+  else
+    rm -f "${WATCHDOG_DIR}/${arg}"-ALERT-*.txt
+  fi
 }
 
 # Generic escalation: hand off to OpenCode with the entity's own incident
@@ -228,9 +243,10 @@ clear_alert() {
 # the name and playbook differ.
 escalate() {
   local name="$1" playbook="$2" extra="${3:-}"
+  local alert_file
 
   log "${name}: restart failed. Invoking OpenCode with ${playbook}."
-  write_alert "$name" "$extra"
+  alert_file="$(write_alert "$name" "$extra")"
 
   if ! command -v opencode &>/dev/null; then
     log "${name}: opencode not in PATH. Manual intervention required."
@@ -248,13 +264,12 @@ escalate() {
     --dir "${PLATFORM_DIR}" \
     --auto \
     "${name} is down and automatic restart failed. \
-Read /opt/aaas/platform/incidents/${playbook}, diagnose and fix the issue. \
+Follow /opt/aaas/platform/skills/handle-watchdog-alert.md. \
+Your alert file is ${alert_file} — read it and remove it when done. \
+The incident playbook for this entity is /opt/aaas/platform/incidents/${playbook}. \
 HARD CONSTRAINT: this session is unattended (--auto, no operator). \
-Unattended sessions must never run recreate, stop, or remove commands on any container. \
-Follow the Container Recreate Policy in troubleshoot-tenant.md exactly — \
-never recreate, stop, or remove any container for any reason. Apply only \
-non-recreate fixes, then write an alert and a troubleshoot report via \
-/opt/aaas/platform/sop/write-report.md. Set trigger to watchdog and \
+Never recreate, stop, or remove any container for any reason. \
+Apply only non-recreate fixes. Set trigger to watchdog and \
 operator_request to this message verbatim." \
     >> "$WATCHDOG_LOG" 2>&1 || log "${name}: OpenCode exited with error or timed out."
 
