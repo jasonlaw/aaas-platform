@@ -1,7 +1,7 @@
 # Incident: Hermes Admin Agent Failure
 
 ## Symptoms
-- Watchdog alert file present at `/opt/aaas/platform/reports/admin-hermes-ALERT.txt`
+- Watchdog alert file present at `/opt/aaas/platform/watchdog/admin-hermes-ALERT-{timestamp}.txt`
 - Dashboard at `http://127.0.0.1:9119` is unreachable
 - `pgrep -f "hermes.*dashboard"` returns no results
 - Watchdog log at `/opt/aaas/platform/watchdog/logs/aaas-watchdog.log` shows
@@ -18,13 +18,15 @@ independently in their Docker containers. Impact is limited to:
 
 ## This Playbook Is Used By
 
-- **The watchdog** (`aaas-watchdog.sh`, the same generic watchdog that also
-  covers Agent Vault and tenant containers) invokes OpenCode with a prompt
-  referencing this file when admin Hermes's automatic restart fails.
-- **OpenCode** reads this file to diagnose and recover without human involvement
-  wherever possible.
-- **The human operator** reads the Reports section and follows escalation steps
-  when OpenCode sets status to `NEEDS_HUMAN`.
+- **The watchdog** (`aaas-watchdog.sh`) invokes admin Hermes via
+  `handle-watchdog-alert.md` when automatic restart fails. That skill
+  orchestrates the full response loop (read alert → diagnose → recover →
+  report → remove alert) and references this file for the diagnosis and
+  recovery steps specific to admin Hermes.
+- **Admin Hermes** reads this file as part of `handle-watchdog-alert.md`
+  to diagnose and recover without human involvement wherever possible.
+- **The human operator** follows escalation steps when admin Hermes sets
+  report status to `partial` / `NEEDS_HUMAN`.
 
 ---
 
@@ -201,6 +203,6 @@ In all these cases, write a full diagnostic report explaining:
 - [ ] `pgrep -f "hermes.*dashboard"` shows a running process
 - [ ] Dashboard at `http://127.0.0.1:9119` is responsive
 - [ ] Proxy probe (`hermes -z "Reply with the single word: PROXY_OK"`) succeeds
-- [ ] Watchdog alert file removed: `rm -f /opt/aaas/platform/reports/admin-hermes-ALERT.txt`
+- [ ] Watchdog alert file removed: the exact timestamped file from the escalation message, e.g. `rm -f /opt/aaas/platform/watchdog/admin-hermes-ALERT-{timestamp}.txt`
 - [ ] Task report written per `/opt/aaas/platform/sop/write-report.md`
 - [ ] Watchdog timer still active: `systemctl status aaas-watchdog.timer`
