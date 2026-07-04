@@ -4,6 +4,75 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.16.0 - 2026-07-04
+
+### Added
+
+- **Business intelligence sub-agent for onboarding (`onboard-tenant.md` step 1.15).**
+  Inserts a focused Claude API call between web research (step 1.1) and block
+  generation (step 1.2). The sub-agent synthesises the operator interview answers
+  and web research text into four structured artifacts — richer capability and
+  brand fact blocks, a business context section for `business-data.md`, and three
+  pre-written vault seed notes — replacing the cold LLM generation that previously
+  produced shallow, generic output.
+
+  The core problem being solved: the operator interview collected 15+ structured
+  fields, and web research gathered raw text, but both were discarded after
+  producing a thin 3–6 line capabilities block and 1–4 brand fact lines. The
+  tenant agent then started with minimal context, unable to sound like it knew the
+  business without months of runtime learning.
+
+  **`platform/skills/research-tenant-business.md`** (new) — skill doc defining the
+  sub-agent's contract: inputs, invocation pattern, output field mapping to
+  downstream SOP steps, fallback handling, confidence levels, and cleanup.
+
+  **`platform/scripts/run-business-research-subagent.py`** (new) — host-side Python
+  script that assembles the prompt from a stdin JSON context block, calls
+  `claude-sonnet-4-6` via the Anthropic API, validates the response shape, and
+  writes clean JSON to a temp file. Handles markdown fence stripping, saves a
+  `.raw` sidecar on parse failure, stamps `_meta` for traceability, and exits
+  non-zero on any failure so the SOP fallback path triggers cleanly.
+
+  **`platform/tenant-hermes/scripts/seed-vault-context.py`** (new) — reads the
+  sub-agent JSON output and writes three vault seed notes (`Reference/Business
+  Overview.md`, `Reference/Vertical Playbook.md`, `Recurring/Patterns to Watch.md`)
+  into the scaffolded vault. Idempotent: skips files that already exist.
+  Runs on the host against the mounted volume — no container exec required.
+  Follows the same PASS/SKIP/FAIL + exit-code conventions as `seed-mnemosyne.py`.
+
+- **`onboard-tenant.md` updated** to integrate the sub-agent into the onboarding
+  flow with four targeted edits:
+  - Step 1.15 (new): assembles context block, invokes the sub-agent script,
+    extracts output fields, surfaces confidence to the operator, defines fallback
+    behaviour.
+  - Step 1.2 updated: prefers sub-agent `vertical_capabilities_block` and
+    `vertical_brand_facts_block` over cold generation; falls back only when
+    unavailable.
+  - Step 4.1 updated: `business-data.md` now has two sections — the existing
+    operational details section, plus a new "Assistant Context" section populated
+    from the sub-agent's `business_data_context_section` array (insider knowledge
+    lines that help the agent sound like it knows the business without being asked).
+  - Step 4.2 updated: after vault scaffolding, calls `seed-vault-context.py` to
+    write the sub-agent's three Reference and Recurring notes into the vault.
+    Sub-agent unavailability skips the seed step without aborting onboarding.
+  - Step 6.2 updated: `install-tenant-scripts.sh` description now lists
+    `seed-vault-context.py`.
+  - Step 13 note updated: clarifies vault now starts pre-populated when sub-agent
+    succeeded, rather than empty.
+  - Step 19 updated: report now covers sub-agent status, confidence, vault seed
+    notes written, and temp file cleanup (`rm -f /tmp/aaas-research-{tenant-id}.json`).
+
+- **`platform/scripts/install-tenant-scripts.sh` updated** — `seed-vault-context.py`
+  added to the install list (header comment and `install_script` call), so it is
+  deployed into `/opt/aaas/tenants/{tenant-id}/scripts/` alongside the other
+  tenant runtime scripts during onboarding and upgrades.
+
+- **`scripts/setup-platform.sh` updated** — three new managed assets registered in
+  `MANAGED_ASSET_RELATIVE_PATHS` (`skills/research-tenant-business.md`,
+  `scripts/run-business-research-subagent.py`,
+  `tenant-hermes/scripts/seed-vault-context.py`) and corresponding `chmod +x`
+  calls added to the install block.
+
 ## 0.15.10 - 2026-07-03
 
 ### Fixed

@@ -31,9 +31,64 @@ asset, not generated per tenant). If missing, the platform setup is out of date 
 do not attempt to author it inline; report this and stop.
 1. Collect tenant information one question at a time: business type, business name, vertical details, location, brand tone, colors, owner profile, Telegram bot token, allowed Telegram user IDs, LLM provider/model, provider-specific API key env var name, API key value, and any tenant-specific access restrictions (e.g. "only allow posting to Facebook and Instagram", "only allow querying the orders database"). If the operator has none, proceed with no tenant-specific restrictions — this is the common case and is not an error. Also ask whether the operator wants a fallback LLM provider (optional — press enter/say no to skip). Hermes automatically switches to the fallback provider:model mid-turn if the primary provider fails (rate limits, server errors, auth failures) — see https://hermes-agent.nousresearch.com/docs/user-guide/features/fallback-providers. If the operator wants one, also collect the fallback provider, fallback model name, fallback provider-specific API key env var name, and fallback API key value — same shape as the primary provider questions. If declined, proceed with no `fallback_providers` entry — this is the common case and is not an error.
 1.1. **Web research augmentation:** After collecting the operator's answers, proactively search the business website, public review/blog pages, Instagram bios, and Google Business snippets to fill gaps and validate facts. Do this even when the operator has answered every question — website copy often surfaces richer vertical detail than interview answers alone. If a social page blocks unauthenticated access, use the above sources as alternates. Record which sources were used; include them in the final task report.
+1.15. **Business intelligence sub-agent:** Run the research sub-agent to synthesise the interview answers and web research into richer, structured context. This replaces cold LLM generation for the capability and brand blocks in step 1.2, and produces the vault seed notes written in step 4.2.
+
+   Assemble the context block from step 1 answers and step 1.1 research text, then run:
+   ```bash
+   python3 /opt/aaas/platform/scripts/run-business-research-subagent.py \
+     --tenant-id    "{tenant-id-slug}" \
+     --output-file  "/tmp/aaas-research-{tenant-id-slug}.json" \
+     <<'CONTEXT'
+   {
+     "interview": {
+       "business_name": "...",
+       "business_type": "...",
+       "location": "...",
+       "brand_tone": "...",
+       "owner_name": "...",
+       "language": "...",
+       "communication_style": "...",
+       "timezone": "...",
+       "vertical_details": "...",
+       "primary_color": "...",
+       "secondary_color": "..."
+     },
+     "web_research": "...paste step 1.1 research text here, or empty string if nothing found..."
+   }
+   CONTEXT
+   ```
+
+   Read the skill file for full usage details and fallback handling:
+   `/opt/aaas/platform/skills/research-tenant-business.md`
+
+   After the script exits 0, read the output:
+   ```bash
+   cat /tmp/aaas-research-{tenant-id-slug}.json
+   ```
+
+   Extract and hold for the steps that consume each field:
+   - `vertical_capabilities_block`  → step 1.2 (replaces cold generation)
+   - `vertical_brand_facts_block`   → step 1.2 (replaces cold generation)
+   - `business_data_context_section` → step 4.1 (appended to business-data.md)
+   - `vault_seed_notes`             → step 4.2 (written into scaffolded vault)
+   - `research_sources_used`        → step 19 (task report)
+   - `confidence`                   → surface to operator in step 2 confirmation
+
+   **If the script fails** (non-zero exit, JSON parse error, or missing output file):
+   Log the error, note it in the task report, and continue to step 1.2 using
+   cold generation as before. The sub-agent is an enhancement, not a hard gate.
+   Do not surface the raw error to the operator — summarise it as "business
+   intelligence sub-agent unavailable; using generated context instead."
+
+   **If confidence is `low`:** Add to the step 2 confirmation summary:
+   "Note: Limited public information was found for this business. The generated
+   context is based mainly on your interview answers. You can provide a website
+   URL or Google Business link after onboarding to let the agent update its
+   reference notes."
+
 1.2. Using the collected business type and details, generate the following for this specific business (not a predefined category):
-   - VERTICAL_CAPABILITIES_BLOCK: 3-6 bullet lines in the form "- <capability>", describing concretely what this agent helps the owner with. Base this only on the actual business type and details collected in step 1. Do not copy wording from any other tenant.
-   - VERTICAL_BRAND_FACTS_BLOCK: 1-4 lines of stable business facts for the Mnemosyne seed — facts that do not change unless the owner makes a deliberate business decision (e.g. founding year, location, brand story, core service categories that define the business, facilities). Do not include operational details here. Base this only on information collected in step 1 or found via step 1.0. Do not invent facts that were not collected or found.
+   - VERTICAL_CAPABILITIES_BLOCK: 4-6 bullet lines in the form "- <capability>", describing concretely what this agent helps the owner with, grounded in the actual business. **Prefer the `vertical_capabilities_block` array from the step 1.15 sub-agent output if available** — join the array items as newline-separated lines. Fall back to cold generation only if the sub-agent was unavailable. Do not copy wording from any other tenant.
+   - VERTICAL_BRAND_FACTS_BLOCK: 2-5 lines of stable business facts for the Mnemosyne seed — facts that do not change unless the owner makes a deliberate business decision (e.g. founding year, location, brand story, core service categories, facilities). Do not include operational details here. **Prefer the `vertical_brand_facts_block` array from the step 1.15 sub-agent output if available** — join as newline-separated lines. Fall back to cold generation only if the sub-agent was unavailable. Do not invent facts that were not collected or found.
    - OPERATIONAL_DETAILS: a separate list of facts that belong in `business-data.md`, not in `MEMORY.md`. Apply this classification rule to every collected fact:
 
      Classification rule: Can the owner change this as a routine part of running the business, without changing what the business fundamentally is? If yes → operational. If no → stable.
@@ -49,7 +104,10 @@ do not attempt to author it inline; report this and stop.
 2. Show a full confirmation summary and ask: "Proceed with onboarding? (y/n)"
 3. Generate tenant ID as a lowercase slug from business name.
 4. Create tenant directories under `/opt/aaas/tenants/{tenant-id}/`: `memories`, `skills`, `files/assets`, `files/uploads`, `files/generated`, `vault`.
-4.1. **Create `business-data.md`** at `/opt/aaas/tenants/{tenant-id}/files/assets/business-data.md` now, before step 7's `chown -R`, so the ownership pass covers it. If OPERATIONAL_DETAILS were collected, write them into the file with a header:
+4.1. **Create `business-data.md`** at `/opt/aaas/tenants/{tenant-id}/files/assets/business-data.md` now, before step 7's `chown -R`, so the ownership pass covers it. Write the file in two sections:
+
+   **Section 1 — Operational details** (owner-editable, changes frequently):
+   If OPERATIONAL_DETAILS were collected, write them here. If none, write a stub.
    ```
    # Business Data — owner-editable
    # Last updated: {YYYY-MM-DD}
@@ -57,15 +115,22 @@ do not attempt to author it inline; report this and stop.
    # The assistant checks it before answering questions about them.
    # Update this file whenever details change — no admin action required.
 
-   {operational details here}
+   {operational details here, or stub comment if none}
    ```
-   If no operational details were collected, create a stub:
+
+   **Section 2 — Business context** (set at onboarding, rarely changes):
+   If the step 1.15 sub-agent produced a `business_data_context_section` array,
+   append it as a second section after a blank line:
    ```
-   # Business Data — owner-editable
-   # Last updated: {YYYY-MM-DD}
-   # Add operational details here (current offerings, availability, rates, etc.).
-   # The assistant checks this file before answering questions about them.
+   ## Assistant Context
+   # Set at onboarding. Edit only if this information becomes inaccurate.
+   # The assistant uses this to sound like it knows this business without
+   # being asked — do not delete lines unless they are factually wrong.
+
+   {one line per item in business_data_context_section array}
    ```
+   If the sub-agent was unavailable, omit section 2 entirely — do not leave a
+   placeholder or empty header. The file is complete with section 1 alone.
 4.2. **Scaffold the tenant's knowledge vault.** This is a separate system from
    both Mnemosyne and `business-data.md` — see the three-way explanation in
    `SOUL.md` (rendered from `SOUL.md.template`) for what the tenant agent is
@@ -78,8 +143,29 @@ do not attempt to author it inline; report this and stop.
    `Suppliers/`, `Recurring/`, `Reference/` folders, a minimal `.obsidian/`
    config so it opens cleanly in the Obsidian app, and a `README.md` written
    from the actual business name (not a template placeholder left unfilled).
+
+   **If the step 1.15 sub-agent succeeded**, seed the vault with the research
+   notes it produced. Run the seed script on the host (not inside the container
+   — the vault is a host-mounted volume):
+   ```bash
+   VAULT_DIR="/opt/aaas/tenants/{tenant-id}/vault" \
+     python3 /opt/aaas/platform/tenant-hermes/scripts/seed-vault-context.py \
+       --research-file "/tmp/aaas-research-{tenant-id}.json" \
+       --vault-dir     "/opt/aaas/tenants/{tenant-id}/vault"
+   ```
+   Expected output: three `PASS` lines for the seed notes written into
+   `Reference/Business Overview.md`, `Reference/Vertical Playbook.md`, and
+   `Recurring/Patterns to Watch.md`. A `SKIP` line means a note already existed
+   (safe — idempotent). A `FAIL` line means a note could not be written — log
+   the reason in the task report but do not abort onboarding; the vault is still
+   functional without seed notes.
+
+   If the sub-agent was unavailable, skip this seed step — the vault starts
+   with its README and empty section folders as before, and the tenant agent
+   will populate it at runtime. Note the skip in the task report.
+
    The tenant agent itself maintains this vault at runtime — the admin agent's
-   job here is only to scaffold it once during onboarding.
+   job here is only to scaffold it once and seed it with initial context.
 5. Render templates into `config.yaml`, `.env`, `.env.template`, `SOUL.md`, `memories/MEMORY.md`, `memories/USER.md`, `harness.yaml`, `ACCEPTANCE.md`, and `tenant-policy.yaml`. Use `/opt/aaas/platform/harness/tenant-harness.yaml.template` for the manifest, `/opt/aaas/platform/harness/ACCEPTANCE.md.template` for acceptance, and `/opt/aaas/platform/tenant-hermes/policy/tenant-policy.yaml.template` for the tenant policy file — fill in `{{TENANT_ID}}` and `{{BUSINESS_NAME}}`, and add the `rules:` list generated in step 1.2 (empty list if the operator gave no restrictions). Keep `home_chat_id: ""` in `config.yaml`; Telegram routing is restricted by `TELEGRAM_ALLOWED_USERS` in `.env`. Substitute `{{VERTICAL_CAPABILITIES_BLOCK}}` into `SOUL.md` and `{{VERTICAL_BRAND_FACTS_BLOCK}}` into `memories/MEMORY.md` using the stable facts generated and confirmed in step 1.2. Operational details classified in step 1.2 must not appear in `MEMORY.md`. Write the generated eval checks from step 1.2 to `/opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml` using the same YAML structure as `_fixed-safety-v1.yaml` (top-level `eval_profile`, `version`, `purpose`, `run_mode`, `checks` list), with `eval_profile` set to `{tenant-id}-v1`. If a fallback provider was collected in step 1, add a top-level `fallback_providers:` list to `config.yaml` with one entry (`provider` and `model`, matching `tenant-hermes/config.yaml.template`'s commented example) — never write the fallback API key into `config.yaml`, it is scrubbed the same way as the primary key in step 6.3. If no fallback provider was collected, leave the `fallback_providers` block commented out exactly as shipped in the template.
 5.1. **Render platform and tenant policy into `SOUL.md`.** Read `/opt/aaas/platform/policy/platform-policy.yaml` and the `tenant-policy.yaml` just rendered in step 5. Render each rule's `agent_instruction` as a bullet point under the appropriate section header, inside the `<!-- BEGIN PLATFORM RULES -->`/`<!-- END PLATFORM RULES -->` and `<!-- BEGIN TENANT RULES -->`/`<!-- END TENANT RULES -->` marker comments already present in `SOUL.md.template`. Copy `agent_instruction` verbatim — do not paraphrase. If `tenant-policy.yaml` has an empty `rules:` list, the tenant rules block is correctly empty (markers present, no bullets); this is not an error.
 6. Verify `config.yaml` contains `memory.provider: mnemosyne`, `memory_enabled: false`, `user_profile_enabled: false`, and no secrets. If a fallback provider was collected in step 1, also verify `config.yaml` contains a top-level `fallback_providers:` list with the collected `provider` and `model` (and no API key); if no fallback provider was collected, verify the block is still commented out, not silently added. Verify `.env` contains the selected provider API key env var, `TELEGRAM_ALLOWED_USERS` as comma-separated numeric IDs, and `MNEMOSYNE_DATA_DIR=/opt/data/mnemosyne/data`. Verify `SOUL.md` still contains, unchanged, every fixed conduct line from `platform/tenant-hermes/SOUL.md.template` (the "try to work it out yourself," "always save generated content," "always store owner-uploaded files," and "use `tenant-install.sh`" lines), the `BEGIN/END PLATFORM RULES` and `BEGIN/END TENANT RULES` marker blocks each containing the rendered `agent_instruction` bullets from step 5.1, and that generation only filled in `{{VERTICAL_CAPABILITIES_BLOCK}}` and the two policy marker blocks without altering any other line.
@@ -90,7 +176,7 @@ do not attempt to author it inline; report this and stop.
    /opt/aaas/platform/scripts/install-tenant-scripts.sh {tenant-id}
 ```
    This installs `skill-verify.sh`, `tenant-install.sh`, `reconcile-plugins.sh`,
-   `tenant-entrypoint.sh`, and `seed-mnemosyne.py` into
+   `tenant-entrypoint.sh`, `seed-mnemosyne.py`, and `seed-vault-context.py` into
    `/opt/aaas/tenants/{tenant-id}/scripts/`, each with `chmod +x`. Idempotent —
    already-current files are skipped. Adding a new runtime script in the future
    only requires updating `install-tenant-scripts.sh` in one place.
@@ -163,7 +249,7 @@ do not attempt to author it inline; report this and stop.
    `docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/MEMORY.md fact`
    `docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/USER.md preference`
    Each call exits non-zero if any individual fact fails to store — treat a non-zero exit as a failed seed, not a partial success. Verify with `docker exec hermes_{tenant-id} hermes memory status`, `docker exec hermes_{tenant-id} hermes mnemosyne stats --global`, and `docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"`. To manually store a single fact, use `docker exec hermes_{tenant-id} hermes mnemosyne store`. If `hermes mnemosyne` is unavailable, try the documented fallback `hermes hermes-mnemosyne`.
-   Note: `business-data.md` is not seeded into Mnemosyne — it is read directly by the tenant agent at runtime from `/home/hermes/files/assets/business-data.md`. The knowledge vault at `/home/hermes/vault/` is a third, separate system: scaffolded in step 4.2, maintained by the tenant agent itself at runtime, and never seeded into Mnemosyne either. Do not write business facts into the vault during onboarding — it starts empty (aside from its `README.md` and folder structure) and the tenant agent populates it over time as it learns durable, structured facts worth a dedicated note.
+   Note: `business-data.md` is not seeded into Mnemosyne — it is read directly by the tenant agent at runtime from `/home/hermes/files/assets/business-data.md`. The knowledge vault at `/home/hermes/vault/` is a third, separate system: scaffolded and seed-noted in step 4.2, maintained by the tenant agent itself at runtime, and never seeded into Mnemosyne. If the step 1.15 sub-agent succeeded, the vault already contains `Reference/Business Overview.md`, `Reference/Vertical Playbook.md`, and `Recurring/Patterns to Watch.md` — the tenant agent can query these from day one. The tenant agent will continue to add and update notes at runtime as it learns new durable facts.
 14. Add or update the tenant entry in `/opt/aaas/platform/tenants.yaml`.
 15. Send the welcome message through the tenant's Telegram bot to every numeric ID in `TELEGRAM_ALLOWED_USERS`. This only succeeds for users who have already opened the bot and sent `/start`; report Telegram `400 Bad Request: chat not found` or `403 Forbidden` as "user must start the bot first":
    `curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" -d chat_id="{user-id}" --data-urlencode text="{welcome-message}"`
@@ -176,4 +262,4 @@ do not attempt to author it inline; report this and stop.
    - The generated profile for this tenant: `/opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml`
    Once the tenant container is running, run `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` against both profiles for automated PASS/FAIL results on `match_type: literal` checks (this runs prompts inside the container via `hermes -z`, not over Telegram); the script will print `SKIP` for `match_type: semantic` checks, which still require the operator or admin agent to read the actual reply against that check's `judge_for` field. Fall back to fully manual review only if `eval-runner.sh` reports a missing dependency or the container is not running (exit code 2). At minimum, verify brand recall, confirmation before posting, confirmation before deleting, generated/upload folder behavior, owner-friendly language, no cross-tenant memory leakage, and the tenant's own generated vertical-specific checks. Record results from both files in `ACCEPTANCE.md`.
 18. Update `/opt/aaas/tenants/{tenant-id}/harness.yaml` with status, last verification timestamp, and verification notes if your editor/tooling can do so safely.
-19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, knowledge vault scaffold status, tenant-policy.yaml rules generated (or none) and confirmation that both BEGIN/END policy marker blocks rendered in SOUL.md, isolated tenant network created and Agent Vault joined to it, welcome message delivery status per user ID, registry update status, alternate brand sources used, fallback LLM provider/model configured (or declined), and whether operational details were written to `files/assets/business-data.md` or a stub was created for future owner use.
+19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, knowledge vault scaffold status and vault seed notes written (or skipped), business intelligence sub-agent status (succeeded/failed/fallback) and confidence level, tenant-policy.yaml rules generated (or none) and confirmation that both BEGIN/END policy marker blocks rendered in SOUL.md, isolated tenant network created and Agent Vault joined to it, welcome message delivery status per user ID, registry update status, research sources used (from sub-agent output or step 1.1), fallback LLM provider/model configured (or declined), and whether operational details and assistant context section were written to `files/assets/business-data.md` or a stub was created for future owner use. Remove the temp research file: `rm -f /tmp/aaas-research-{tenant-id}.json`.

@@ -27,11 +27,11 @@ aaas-platform/
     │   ├── config.yaml.template, env.template, SOUL.md.template, USER.md.template, MEMORY.md.template
     │   ├── policy/                 — tenant-policy.yaml.template (per-tenant operator restrictions)
     │   ├── skills/                 — tenant-contact-admin.md (tenant agent's own skill)
-    │   ├── scripts/                — skill-verify.sh, vault-init-tenant.sh (run inside the tenant container)
+    │   ├── scripts/                — skill-verify.sh, vault-init-tenant.sh, seed-vault-context.py (run inside the tenant container or against tenant volumes)
     │   └── evals/                  — tenant agent eval profiles (see below)
     ├── evals/                      — HOST: admin agent's own eval profile (meta-eval-generation-v1.yaml)
     ├── sop/                        — host-run SOPs: onboard/update/troubleshoot/upgrade/offboard a tenant, etc.
-    ├── skills/                     — admin agent's own skills (vault management, tenant request handling, …)
+    ├── skills/                     — admin agent's own skills (vault management, tenant request handling, business intelligence sub-agent, …)
     ├── harness/                    — check-tenant.sh + manifest/acceptance templates used to verify a tenant install
     ├── checklists/                 — required-step JSON checklists the admin agent must complete
     ├── policy/                     — platform-policy.yaml, the canonical source of platform-wide safety rules
@@ -181,12 +181,49 @@ A tenant has **three** distinct memory/knowledge systems, each with one job:
 | System | Holds | Read pattern |
 |---|---|---|
 | **Mnemosyne** | in-conversation recall (preferences, recent context) | queried by similarity, mid-conversation |
-| **`files/assets/business-data.md`** | today's truth: current prices, menu, hours, availability | one flat file, always re-read before answering related questions |
+| **`files/assets/business-data.md`** | today's truth: current prices, menu, hours, availability; plus a "Assistant Context" section of insider knowledge set at onboarding | one flat file, always re-read before answering related questions |
 | **Knowledge vault** (`vault/`) | durable, structured notes: customers, suppliers, recurring patterns, reference material | linked Markdown notes, browsed/searched, owner-editable |
 
 These do not overlap by design. Current pricing/menu/hours always belongs in `business-data.md`, never in the vault; fleeting conversational context belongs in Mnemosyne, not a dedicated vault note. The tenant's `SOUL.md` (rendered from `SOUL.md.template`) carries the exact decision rule the tenant agent follows when it learns a new fact, so this distinction lives with the agent at runtime, not only in platform documentation.
 
-The vault is scaffolded once during onboarding (`onboard-tenant.md` step 4.2) using `/opt/aaas/platform/tenant-hermes/scripts/vault-init-tenant.sh`, copied into the tenant volume and run inside the container. It creates `Customers/`, `Suppliers/`, `Recurring/`, and `Reference/` folders, a minimal `.obsidian/` config, and a `README.md` explaining the three-way split to the owner. The same script is safe to re-run for tenants onboarded before this feature existed (see `update-tenant.md` and `upgrade-tenants.md`) — it never overwrites existing notes.
+### Vault scaffolding and seed notes
+
+The vault is scaffolded once during onboarding (`onboard-tenant.md` step 4.2) using `/opt/aaas/platform/tenant-hermes/scripts/vault-init-tenant.sh`, copied into the tenant volume and run against the host-mounted path. It creates `Customers/`, `Suppliers/`, `Recurring/`, and `Reference/` folders, a minimal `.obsidian/` config, and a `README.md` explaining the three-way split to the owner. The same script is safe to re-run for tenants onboarded before this feature existed (see `update-tenant.md` and `upgrade-tenants.md`) — it never overwrites existing notes.
+
+After scaffolding, the vault is seeded with context notes produced by the **business intelligence sub-agent** (see below). When the sub-agent succeeds, the vault starts with three pre-written notes rather than empty section folders, so the tenant agent has structured business knowledge to query from the very first conversation.
+
+### Business intelligence sub-agent
+
+The onboarding flow (step 1.15) runs a focused Claude API call — the business intelligence sub-agent — between web research (step 1.1) and template generation (step 1.2). Its job is synthesis, not collection: it turns the operator's interview answers and raw web research text into four structured artifacts that make the tenant agent genuinely useful from day one.
+
+**Why it exists:** before this, onboarding produced a thin 3–6 line capabilities block and 1–4 brand fact lines, then discarded the rest of the research. The tenant agent started with minimal context and had to build up knowledge through months of runtime conversations. The sub-agent captures that synthesis work up front, at onboarding time, and persists it in the places the tenant agent actually reads.
+
+**What it produces:**
+
+| Output | Used in |
+|---|---|
+| `vertical_capabilities_block` | `SOUL.md` — grounded, business-specific capability lines instead of generic bullets |
+| `vertical_brand_facts_block` | `memories/MEMORY.md` → Mnemosyne seed — stable facts drawn from actual research |
+| `business_data_context_section` | `business-data.md` "Assistant Context" section — insider knowledge lines (how customers describe their needs, local context, seasonal patterns, owner's phrasing) |
+| `vault_seed_notes` | Three vault notes written at onboarding — `Reference/Business Overview.md`, `Reference/Vertical Playbook.md`, `Recurring/Patterns to Watch.md` |
+
+**How it works:**
+
+1. `onboard-tenant.md` step 1.15 assembles a JSON context block from the interview answers and web research text, then calls `platform/scripts/run-business-research-subagent.py` on the host.
+2. The script POSTs to `api.anthropic.com/v1/messages` using `ANTHROPIC_API_KEY`, with a system prompt instructing the model to return structured JSON only.
+3. The response is validated, stamped with `_meta` (tenant ID, model, confidence), and written to `/tmp/aaas-research-{tenant-id}.json`.
+4. Step 1.2 reads `vertical_capabilities_block` and `vertical_brand_facts_block` from the JSON instead of generating them cold.
+5. Step 4.1 appends `business_data_context_section` to `business-data.md` as a second, clearly delimited "Assistant Context" section.
+6. Step 4.2 calls `platform/tenant-hermes/scripts/seed-vault-context.py` on the host, which reads `vault_seed_notes` from the JSON and writes each note into the scaffolded vault. Idempotent — existing notes are never overwritten.
+7. The temp file is cleaned up at step 19 (`rm -f /tmp/aaas-research-{tenant-id}.json`).
+
+**Fallback design:** the sub-agent is an enhancement, not a hard gate. If the API call fails, the JSON cannot be parsed, or a field is missing, the onboarding SOP falls back to cold generation for that field and continues. The fallback is logged in the task report; no operator action is required unless the confidence level warrants it.
+
+**Confidence levels:** the sub-agent reports `high` (research corroborated interview answers), `medium` (sparse research), or `low` (interview answers only, no external validation). Low confidence is surfaced to the operator at step 2 with a suggestion to provide a website URL or Google Business link after onboarding, so the tenant agent can update its Reference notes over time.
+
+The sub-agent skill doc (`platform/skills/research-tenant-business.md`) is the source of truth for the sub-agent's contract, prompt, output field mapping, and failure handling.
+
+### Tenant agent vault usage
 
 The tenant agent has no `platform/skills/`-style loader the way the admin agent does — it only ever reads `SOUL.md` and files it is told to check. So its "search before writing a new note" habit is not a separate skill file; it is written directly into `SOUL.md.template`, backed by a "For the assistant" reference section at the bottom of the generated `vault/README.md` (the same file the owner reads, with the agent-facing part clearly marked so it's easy to skip). The admin-only `query-knowledge-vault.md` skill is unrelated and unreachable from inside a tenant container.
 

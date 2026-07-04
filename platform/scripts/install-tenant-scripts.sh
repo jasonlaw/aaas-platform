@@ -12,6 +12,7 @@
 #   reconcile-plugins.sh  — runs automatically via tenant-entrypoint.sh on start
 #   tenant-entrypoint.sh  — compose service command (replaces bare `gateway run`)
 #   seed-mnemosyne.py     — called by onboard-tenant step 13 and update-tenant step 5
+#   seed-vault-context.py — called by onboard-tenant step 4.2 to write sub-agent vault notes
 #
 # Idempotent: no-op for each file that is already present and identical to the source.
 # Non-identical files are overwritten (forward-upgrade semantics — the platform copy
@@ -83,6 +84,7 @@ install_script "tenant-install.sh"
 install_script "reconcile-plugins.sh"
 install_script "tenant-entrypoint.sh"
 install_script "seed-mnemosyne.py"
+install_script "seed-vault-context.py"
 
 echo ""
 echo "PASS  $INSTALLED installed, $SKIPPED already up to date — scripts at $SCRIPTS_DST"
