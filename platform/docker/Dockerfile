@@ -28,9 +28,10 @@ FROM nousresearch/hermes-agent:latest
 # (on our mounted, persistent tenant volume) but disables the mechanism by
 # default. Enable it so packages the tenant agent needs at runtime persist
 # across `docker compose up --force-recreate` instead of vanishing silently
-# — see tenant-plugin-persistence-issue.md. tenant-install.sh (copied into
-# every tenant volume at onboarding) is the supported way tenant agents use
-# this for capabilities outside the fixed set baked into the image below.
+# — see docs/architecture.md's "Tenant Plugin Persistence" section.
+# tenant-install.sh (copied into every tenant volume at onboarding) is the
+# supported way tenant agents use this for capabilities outside the fixed
+# set baked into the image below.
 ENV HERMES_DISABLE_LAZY_INSTALLS=0
 
 USER root
@@ -58,7 +59,8 @@ RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir \
 # "used constantly" capabilities applies (see hermes-agent's hindsight-client,
 # baked in the same way rather than persisted). Anything more tenant-specific
 # or occasional-use should go through runtime lazy-install
-# (/opt/data/lazy-packages, see tenant-plugin-persistence-issue.md), not here.
+# (/opt/data/lazy-packages, see docs/architecture.md's "Tenant Plugin
+# Persistence" section), not here.
 
 # faster-whisper: pure pip, CPU-capable, no system deps.
 RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir \
