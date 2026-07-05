@@ -96,15 +96,19 @@ do not attempt to author it inline; report this and stop.
    Do not surface the raw error to the operator — summarise it as "business
    intelligence sub-agent unavailable; using generated context instead."
 
-   **If the failure was specifically "response truncated at max_tokens"**
-   (check for this exact phrase in the script's stderr): a sidecar file
+   **If the failure mentions "response looks truncated"** (the script's
+   heuristic for JSON that fails to parse and doesn't end in `}`/`]` — it can
+   no longer check a raw API `stop_reason` now that generation runs through
+   `hermes -z`, whose output is plain text): a sidecar file
    `/tmp/aaas-research-{tenant-id-slug}.json.raw` was written containing the
    partial output. Before continuing:
    1. Read it: `cat /tmp/aaas-research-{tenant-id-slug}.json.raw`
    2. Note in the task report roughly how far generation got (e.g. "cut off
       partway through vault_seed_notes, capability and brand-fact arrays were
       complete") — this is what tells you later whether truncation is a
-      one-off or systemic enough to warrant raising `SUBAGENT_MAX_TOKENS`.
+      one-off or systemic enough to warrant raising the admin agent's own
+      output-length config (there is no separate `SUBAGENT_MAX_TOKENS` any
+      more — the sub-agent uses the admin agent's own model settings).
    3. Delete the sidecar immediately after noting it:
       `rm -f /tmp/aaas-research-{tenant-id-slug}.json.raw`
    This file exists only for this one diagnostic read — it is never

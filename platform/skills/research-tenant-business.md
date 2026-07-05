@@ -17,9 +17,16 @@ more collection: it turns raw material into the specific artifacts that make the
 tenant agent genuinely useful from day one rather than starting from a shallow
 template.
 
-The sub-agent runs as a single Anthropic API call from the host. The admin
-agent assembles the prompt, calls the API, validates the JSON output, and
-feeds the result into the rest of the onboarding SOP.
+The sub-agent runs as a single `hermes -z` one-shot call from the admin
+Hermes install (`/opt/aaas/platform/admin`) — the same mechanism used for
+proxy probes elsewhere on this platform (setup-admin-hermes.md Step 7,
+manage-agent-vault.md, handle-watchdog-alert.md) and for tenant evals
+(eval-runner.sh). Running it from the admin install means it automatically
+inherits whichever provider/model the admin agent is actually configured
+with, plus its already-provisioned Agent Vault routing — no separate
+credential is required. The wrapper script assembles the prompt, calls
+`hermes -z`, validates the JSON output, and feeds the result into the rest
+of the onboarding SOP.
 
 ---
 
@@ -50,10 +57,15 @@ python3 /opt/aaas/platform/scripts/run-business-research-subagent.py \
 
 The script is a thin wrapper that:
 1. Reads the JSON context block you pipe to it on stdin
-2. Calls `POST https://api.anthropic.com/v1/messages` using
-   `$ANTHROPIC_API_KEY` (or the platform's configured LLM key)
+2. Sources `/opt/aaas/platform/admin/.env` and runs `hermes -z` from
+   `/opt/aaas/platform/admin`, inheriting the admin agent's configured
+   provider/model and its Agent Vault proxy routing (no separate credential
+   needed — see `ADMIN_HERMES_HOME` below to point at a different admin
+   install if yours isn't at the default path)
 3. Writes the sub-agent's structured JSON response to `--output-file`
-4. Exits non-zero if the API call fails or the response cannot be parsed
+4. Exits non-zero if the call fails, times out (bounded by
+   `SUBAGENT_HERMES_TIMEOUT`, default 180s — `hermes -z` itself has no
+   internal timeout), or the response cannot be parsed as JSON
 
 ### Context block (stdin JSON)
 

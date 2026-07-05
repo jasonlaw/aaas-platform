@@ -4,6 +4,61 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.16.15 - 2026-07-05
+
+### Fixed
+
+- **`platform/tenant-hermes/scripts/tenant-entrypoint.sh` — a prior incident's
+  remediation notes claimed `exec gateway run` needed
+  `. venv/bin/activate` first, but no corresponding fix was ever committed to
+  this template, and the claim was never reconciled against the base image's
+  own `ENV PATH="/opt/hermes/bin:/opt/hermes/.venv/bin:/opt/data/.local/bin:${PATH}"`
+  (nousresearch/hermes-agent Dockerfile), which already puts the venv on PATH
+  for every process in the container regardless of this script's `command:`
+  override. That mismatch was flagged in an audit as needing verification
+  rather than being assumed fixed. Rather than re-adding an unverified
+  `source venv/bin/activate` unconditionally (which may have been masking a
+  different root cause, e.g. a stale image layer), the script now checks
+  whether `gateway` actually resolves on PATH first and only falls back to
+  venv activation, then to `hermes gateway run` directly, if it doesn't —
+  each fallback logs clearly so a real base-image PATH regression is a loud,
+  reportable signal instead of a silent workaround.
+
+## 0.16.14 - 2026-07-05
+
+### Fixed
+
+- **`platform/scripts/run-business-research-subagent.py` (onboard-tenant step 1.15)
+  called `api.anthropic.com` directly with a bare `ANTHROPIC_API_KEY` read from
+  the host's OS environment.** Nothing in `setup-platform.sh`,
+  `setup-prerequisites.sh`, or `setup-admin-hermes.md` actually provisions that
+  variable, and it was never the same credential as the admin or tenant
+  agents' own provider — every provider key in this platform's `.env` files is
+  the placeholder `routed-via-agent-vault`; the real key lives only in Agent
+  Vault and is injected at the network layer. In practice the sub-agent failed
+  on every onboarding unless someone had separately, manually exported a real
+  Anthropic key on the host, and silently fell back to cold generation as
+  designed — masking the failure as "sub-agent unavailable" rather than a
+  fixable misconfiguration. `research-tenant-business.md`'s own description
+  ("or the platform's configured LLM key") already implied this should have
+  worked; the code never actually implemented that fallback.
+  Fixed by dropping the direct API call and instead shelling out to
+  `hermes -z` from the admin Hermes install (`/opt/aaas/platform/admin`) — the
+  same one-shot mechanism already used for proxy probes
+  (`setup-admin-hermes.md` Step 7, `manage-agent-vault.md`,
+  `handle-watchdog-alert.md`) and tenant evals (`eval-runner.sh`). This
+  inherits the admin agent's actual configured provider/model and its
+  already-provisioned Agent Vault routing (`HTTP_PROXY`/`HTTPS_PROXY`,
+  `AGENT_VAULT_TOKEN`, `SSL_CERT_FILE` from `platform/admin/.env`) with no
+  second credential required. Also added a bounded proxy pre-check (mirroring
+  Step 7) before the `hermes -z` call, since it has no internal timeout and a
+  broken proxy path previously would have hung indefinitely rather than
+  failing fast. `docs/architecture.md`, `research-tenant-business.md`, and
+  `onboard-tenant.md`'s truncation-handling notes updated to match — the
+  `SUBAGENT_MAX_TOKENS`/`stop_reason`-based truncation check no longer applies
+  since generation now runs through the admin agent's own model settings; the
+  script instead flags likely-truncated JSON heuristically.
+
 ## 0.16.13 - 2026-07-05
 
 ### Added
