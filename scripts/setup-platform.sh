@@ -889,6 +889,9 @@ validate_install() {
     || error "Tenant env template must pin HERMES_HOME=/opt/data for runtime, matching the onboarding activation commands"
   grep -q "container_mnemosyne_active" "$PLATFORM_ROOT/harness/check-tenant.sh" \
     || error "Tenant harness check must verify Mnemosyne is functionally active, not just that config files reference it"
+  # NOTE: depends on the exact phrase "must never run" in the escalation
+  # prompt inside aaas-watchdog.sh (see the comment there). This has broken
+  # twice already when that prompt was reworded without updating this check.
   grep -qi "must never run" "$PLATFORM_ROOT/scripts/aaas-watchdog.sh" \
     || error "Watchdog escalation prompt must explicitly forbid recreate/stop/rm commands in unattended sessions"
   grep -q "Unattended.*run.*must never recreate" "$PLATFORM_ROOT/sop/troubleshoot-tenant.md" \

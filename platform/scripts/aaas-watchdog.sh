@@ -259,6 +259,10 @@ escalate() {
   # unattended, autonomous-recovery session with no operator present to
   # approve prompts, so requiring interactive approval here would just make
   # every escalation hang until OPENCODE_TIMEOUT and fail closed anyway.
+  # NOTE: scripts/setup-platform.sh's validate_install() greps this prompt
+  # (case-insensitively) for the literal phrase "must never run". If you
+  # reword the unattended no-recreate/stop/rm constraint below, keep that
+  # exact phrase somewhere in it or update the validator to match.
   timeout "${OPENCODE_TIMEOUT}" opencode run \
     --dir "${PLATFORM_DIR}" \
     --auto \
@@ -268,6 +272,7 @@ Your alert file is ${alert_file} — read it and remove it when done. \
 The incident playbook for this entity is /opt/aaas/platform/incidents/${playbook}. \
 HARD CONSTRAINT: this session is unattended (--auto, no operator). \
 Never recreate, stop, or remove any container for any reason. \
+Unattended sessions must never run recreate, stop, or remove commands on any container. \
 Apply only non-recreate fixes. Set trigger to watchdog and \
 operator_request to this message verbatim." \
     >> "$WATCHDOG_LOG" 2>&1 || log "${name}: OpenCode exited with error or timed out."
