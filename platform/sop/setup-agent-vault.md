@@ -135,3 +135,9 @@ Follow `/opt/aaas/platform/sop/write-report.md`. Include:
 - Back up `/opt/aaas/agent-vault/data/` as part of your server backup schedule.
   The database is encrypted at rest; backing it up does not expose credentials.
 - For recovery procedures see `/opt/aaas/platform/incidents/agent-vault-failure.md`.
+- If this host is Docker Desktop on WSL2 (not a plain Ubuntu box) and the
+  Agent Vault container has no internet access on a custom bridge network,
+  see `docs/troubleshooting.md` → "Agent Vault / Tenant Container Has No
+  Internet on Docker Desktop + WSL2 (nftables gap)" — a known Docker
+  Desktop/WSL2 nftables gap, not an Agent Vault bug. Not applicable on a
+  native Ubuntu install.

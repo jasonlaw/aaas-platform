@@ -104,6 +104,21 @@ official docs themselves recommend for exactly this case:
     source ~/.bashrc
     hermes --version
 
+Also export `HERMES_HOME` in the shell profile now, not just inline for the
+one-off Mnemosyne commands below. Without a persistent export, running
+`hermes` interactively from a normal login shell falls back to
+`~/.hermes/config.yaml` — the installer's own default profile, with its own
+default model — instead of this platform's `/opt/aaas/platform/admin`
+profile and the provider/model configured in Step 2's `config.yaml`. This
+fails silently: no error, just the wrong model. (The systemd service in
+Step 7 doesn't need this — it gets `HERMES_HOME` from `.env` via
+`EnvironmentFile=`; this is specifically for interactive CLI use. Step 3.1
+item 4 covers the same fallback in the gateway-process context.)
+
+    grep -qxF 'export HERMES_HOME=/opt/aaas/platform/admin' ~/.bashrc || \
+      echo 'export HERMES_HOME=/opt/aaas/platform/admin' >> ~/.bashrc
+    source ~/.bashrc
+
 Then add the two extra packages this platform needs on top of the base
 install — the Mnemosyne memory integration — into the same managed venv
 the installer just created. The installer already provisioned `uv`; use it
@@ -336,6 +351,13 @@ Real key is now in Agent Vault only. Do not write it anywhere else.
 Admin Hermes runs on the host — proxy address is localhost:14322, not the
 Docker container hostname used by tenant containers.
 
+The Agent Vault MITM proxy is scoped to LLM API calls only — it is not
+equipped to handle Telegram's Bot API or HuggingFace model downloads. Any
+host not in NO_PROXY gets routed through the proxy anyway and fails with a
+502 (Telegram connect, Mnemosyne embedding model download, etc.), so the
+default NO_PROXY here includes those hosts up front rather than leaving it
+for the operator to discover after Step 3.1 fails.
+
     PROVIDER_VAR={PROVIDER_VAR}
     sed -i "s|^${PROVIDER_VAR}=.*|${PROVIDER_VAR}=routed-via-agent-vault|" \
       /opt/aaas/platform/admin/.env
@@ -346,7 +368,7 @@ Docker container hostname used by tenant containers.
     # Admin Hermes runs on the host; proxy is localhost:14322.
     HTTP_PROXY=http://${ADMIN_VAULT_TOKEN}@localhost:14322
     HTTPS_PROXY=http://${ADMIN_VAULT_TOKEN}@localhost:14322
-    NO_PROXY=localhost,127.0.0.1
+    NO_PROXY=localhost,127.0.0.1,api.telegram.org,telegram.org,*.telegram.org,huggingface.co
     AGENT_VAULT_TOKEN=${ADMIN_VAULT_TOKEN}
     AGENT_VAULT_VAULT=admin-vault
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
@@ -559,6 +581,21 @@ is running as, the same one that owns `/opt/aaas/platform/admin`.
 
 Expected: a response containing PROXY_OK. If the call fails with a proxy or
 SSL error, re-check Step 4 (CA trust) and Step 5 (proxy vars in .env).
+
+If `hermes -z` hangs instead of erroring — it has no built-in timeout and
+gives no diagnostic output while stuck — don't wait it out. Interrupt it
+and run a bounded check against the proxy directly first, which fails fast
+with an actual error instead of a silent hang. Use the hostname for
+whichever provider was configured in Step 5.2 (e.g. `openrouter.ai` for
+OpenRouter, `api.anthropic.com` for Anthropic):
+
+    curl -sS --max-time 10 -v --proxy "http://${AGENT_VAULT_TOKEN}@localhost:14322" \
+      "https://{provider-hostname}/"
+    # A connection refused / timeout here points at the proxy or container
+    # network (see docs/troubleshooting.md's WSL2 nftables entry if this
+    # host is Docker Desktop on WSL2). A clean HTTP response (even an auth
+    # error from the provider itself) means the proxy path is fine and the
+    # original hang was Hermes-side — retry `hermes -z`.
 
 ## Step 8 — Confirm Watchdog Active
 

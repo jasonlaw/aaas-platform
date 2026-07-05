@@ -17,6 +17,88 @@ All notable changes to this platform setup are tracked here. The platform setup 
   because anything was broken. admin-hermes is now only added to the
   monitored entity list when `admin/.env` exists.
 
+## 0.16.12 - 2026-07-05
+
+### Added
+
+- **`docs/troubleshooting.md` — new entry for Docker Desktop + WSL2
+  nftables gap on custom bridge networks.** Documented, not automated: on
+  Docker Desktop for WSL2 specifically (not a plain Ubuntu host), a custom
+  bridge network like `agent-vault-net` can be missing the `DOCKER-FORWARD`
+  and `DOCKER-CT` nftables rules the default `docker0` bridge gets
+  automatically, causing full internet loss for that container (LLM calls
+  through the Agent Vault proxy fail with a `502` after a ~12s timeout).
+  Includes a quick diagnostic (`nft list chain ... | grep <bridge-iface>`)
+  and the live workaround (`nft add rule ...`). Cross-referenced from
+  `setup-agent-vault.md`'s Notes section. This is not wired into any setup
+  script — no WSL2 detection exists yet — it's a reference to cut
+  troubleshooting time if a WSL2 host hits it, called out as not applicable
+  on native Ubuntu installs.
+- **`setup-admin-hermes.md` Step 7 — fast bounded pre-check before
+  `hermes -z`.** `hermes -z "..."` has no timeout and produces no output
+  while stuck, so a failing proxy path presents as an indefinite hang
+  rather than a diagnosable error. Added an optional `curl --max-time 10
+  --proxy ...` check against the operator's configured provider hostname
+  to run first if `hermes -z` hangs — it fails fast with an actual error
+  (connection refused, timeout, or a real HTTP response) instead of
+  requiring the operator to wait out and then manually trace the proxy
+  chain from scratch. Does not replace the existing `hermes -z` check.
+
+## 0.16.11 - 2026-07-05
+
+### Fixed
+
+- **`setup-admin-hermes.md` Step 1 — `HERMES_HOME` was never exported to
+  the operator's shell profile, so the interactive `hermes` CLI silently
+  used the wrong config.** The skill only ever set `HERMES_HOME` inline for
+  one-off commands (the Mnemosyne plugin install) or via the systemd unit's
+  `EnvironmentFile=` (Step 7) — never persisted it to `~/.bashrc` the way
+  Step 1 already does for `PATH`. Running `hermes` from an interactive
+  login shell has no `HERMES_HOME` set, so it falls back to
+  `~/.hermes/config.yaml` — the official installer's own default profile
+  and default model — instead of `/opt/aaas/platform/admin/config.yaml`
+  and the provider/model actually configured for this platform. No error;
+  it just silently runs the wrong model, wrong skills, wrong sessions
+  directory. (This is the same fallback documented in Step 3.1 item 4 for
+  the gateway process, just hit here via bare CLI use instead of a
+  manual/nohup start.) Step 1 now exports `HERMES_HOME` to `~/.bashrc`
+  right after the existing `PATH` export, using the same
+  grep-before-append pattern.
+
+## 0.16.10 - 2026-07-05
+
+### Fixed
+
+- **`platform/scripts/aaas-watchdog.sh` — `%U` does not resolve to `User=`'s
+  UID in a system unit.** The generated `aaas-watchdog.service` is a
+  *system* unit (installed to `/etc/systemd/system`, run via `sudo
+  aaas-watchdog.sh --install`), not a `--user` unit. Its
+  `Environment=XDG_RUNTIME_DIR=/run/user/%U` comment claimed `%U` resolves
+  to the UID of the unit's own `User=` directive "for a system unit, not
+  just user units" — that's backwards. In a system unit, `%U`/`%u`
+  specifiers resolve to the system manager's own UID (0, since this unit
+  runs as root via sudo), regardless of `User=`. Confirmed live: with
+  `User=aaas` (UID 1000), `XDG_RUNTIME_DIR` still expanded to `/run/user/0`.
+  That pointed `systemctl --user` (used by `admin_hermes_restart()`) at a
+  session bus that doesn't exist, silently falling through to the `nohup`
+  fallback — which then killed the correctly-running systemd-managed admin
+  Hermes process via `pkill -f 'hermes.*dashboard'`. `--install` now
+  resolves the operator's UID itself via `id -u` at install time and bakes
+  the literal value into `XDG_RUNTIME_DIR`/`DBUS_SESSION_BUS_ADDRESS`
+  instead of relying on `%U`. The misleading comment is removed.
+
+- **`platform/admin-hermes/env.template` and `setup-admin-hermes.md` Step
+  5.5 — default `NO_PROXY` was missing every non-LLM host admin Hermes
+  talks to.** The Agent Vault MITM proxy on `localhost:14322` is scoped to
+  LLM API calls only; it has no route for Telegram's Bot API or
+  HuggingFace model downloads. With `NO_PROXY=localhost,127.0.0.1` as the
+  only exclusion, both `api.telegram.org` (Telegram gateway connectivity,
+  configured in Step 3.1) and `huggingface.co` (Mnemosyne embedding model
+  downloads) were routed through the LLM-only proxy and failed with a `502
+  Bad Gateway` instead of connecting directly. Default `NO_PROXY` in both
+  files now includes `api.telegram.org,telegram.org,*.telegram.org,
+  huggingface.co` alongside `localhost,127.0.0.1`.
+
 ## 0.16.9 - 2026-07-05
 
 ### Fixed

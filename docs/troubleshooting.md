@@ -33,6 +33,43 @@ Use this guide when a tenant is unhealthy and the answer is not obvious from the
 - If not legacy, switch iptables alternatives and restart Docker.
 - After Docker restart, restart only affected active tenants and rerun health checks.
 
+### Agent Vault / Tenant Container Has No Internet on Docker Desktop + WSL2 (nftables gap)
+- Applies only if the host is Docker Desktop on WSL2 — not a plain Ubuntu
+  box. If you're not sure, `docker info | grep -i "Operating System"` will
+  say `Docker Desktop` on WSL2 hosts.
+- Symptom: `docker exec <container> ping 1.1.1.1` (or any external host)
+  times out from a custom bridge network (e.g. `agent-vault-net`), and LLM
+  calls through the Agent Vault MITM proxy fail with `HTTP 502 Bad Gateway`
+  after a ~12-second timeout, even though the proxy's CONNECT tunnel itself
+  establishes fine.
+- Cause: on Docker Desktop for WSL2, Docker's nftables backend can leave a
+  custom bridge network (anything other than the default `docker0`) missing
+  two rules that the default bridge gets automatically: a `DOCKER-FORWARD`
+  accept rule for outbound traffic, and a `DOCKER-CT` established/related
+  accept rule for return traffic. Without them the nftables `FORWARD` chain
+  drops the container's packets before they reach the proxy or the internet.
+- Quick check: find the bridge's interface name, then look for the two
+  rules:
+  ```bash
+  docker network inspect <network-name> -f '{{.Id}}' | cut -c1-12
+  # bridge interface is br-<that id>, e.g. br-d1ab7f165eb6
+  sudo nft list chain ip filter DOCKER-FORWARD | grep '<bridge-iface>'
+  sudo nft list chain ip filter DOCKER-CT | grep '<bridge-iface>'
+  ```
+  If either grep comes back empty, this is the issue.
+- Fix (until the next Docker Desktop restart re-applies its own rules —
+  treat this as a live workaround, not a permanent one):
+  ```bash
+  sudo nft add rule ip filter DOCKER-FORWARD iifname "<bridge-iface>" accept
+  sudo nft add rule ip filter DOCKER-CT oifname "<bridge-iface>" ct state established,related accept
+  ```
+  Verify with `docker exec <container> ping -c1 1.1.1.1` and re-test the
+  proxy call.
+- Not yet automated: this platform does not currently detect WSL2 or apply
+  this fix during setup. If you hit this repeatedly across reinstalls,
+  worth raising as a setup-agent-vault.md automation follow-up rather than
+  re-diagnosing from scratch each time.
+
 ### Telegram Welcome Fails
 - `chat not found` or `403 Forbidden` usually means the owner has not opened the bot and sent `/start`.
 - Ask the owner to start the bot before retrying welcome delivery.

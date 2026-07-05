@@ -101,6 +101,18 @@ if [[ "${1:-}" == "--install" ]]; then
     echo "from the operator's own login shell to run admin Hermes as that user instead." >&2
   fi
 
+  # %U/%u in a *system* unit's Environment= do NOT resolve to the UID of
+  # User= above — in a system unit they resolve to the system manager's own
+  # UID (0, since this runs as root), regardless of User=. That specifier
+  # only tracks User= in --user units. Confirmed live: with User=aaas
+  # (UID 1000), Environment=XDG_RUNTIME_DIR=/run/user/%U still expanded to
+  # /run/user/0. That pointed systemctl --user at a session bus that
+  # doesn't exist, so admin_hermes_restart() silently fell through to the
+  # nohup fallback — which then killed the correctly-running systemd
+  # process via `pkill -f 'hermes.*dashboard'`. Resolve the UID ourselves at
+  # install time instead and bake in the literal value.
+  OPERATOR_UID="$(id -u "$OPERATOR_USER" 2>/dev/null || echo 0)"
+
   UNIT_DIR="/etc/systemd/system"
 
   cat > "$UNIT_DIR/aaas-watchdog.service" <<UNIT
@@ -139,12 +151,16 @@ Environment=PATH=%h/.local/bin:%h/.opencode/bin:/usr/local/bin:/usr/bin:/bin
 # extra code on our side — it's the standard, discoverable way any Linux
 # admin already knows to override one setting in a generated unit.
 # `systemctl cat aaas-watchdog.service` shows the merged result.
-# %U resolves to the UID of User= above (works for a system unit, not just
-# user units). Needed so systemctl --user (used to restart admin Hermes)
-# can reach that user's session bus — see the comment at the top of
-# aaas-watchdog.sh for why this is required.
-Environment=XDG_RUNTIME_DIR=/run/user/%U
-Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/bus
+# Needed so systemctl --user (used to restart admin Hermes) can reach that
+# user's session bus — see the comment at the top of aaas-watchdog.sh for
+# why this is required. NOTE: this is OPERATOR_UID (resolved via `id -u`
+# at install time above), not the %U specifier — %U in a *system* unit
+# resolves to the system manager's own UID (0 here, since this unit runs
+# as root), not to the UID of User= above. Baking in the literal UID is the
+# only way to reliably reach /run/user/<operator-uid>/bus from a system
+# unit that runs as a different user.
+Environment=XDG_RUNTIME_DIR=/run/user/${OPERATOR_UID}
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${OPERATOR_UID}/bus
 # Default KillMode=control-group kills EVERY process in this oneshot's
 # cgroup when it exits — including the nohup fallback in
 # admin_hermes_restart() (nohup only blocks SIGHUP; it does nothing against
