@@ -76,13 +76,25 @@ if command -v docker >/dev/null 2>&1; then
   fi
 fi
 
-# Admin Hermes SOUL.md/config.yaml drift against their shipped templates —
-# see check-admin-drift.sh's own header for why this can't just be a plain
-# diff. Warn-only here (not fail): a stale admin config is a real problem
-# an operator should see and act on, but it shouldn't block every other
-# pre-flight use of this script (e.g. before a routine tenant onboard) the
-# way a hard FAIL would. SKIP output from the script (admin not set up
-# yet) is expected and not surfaced as a warning.
+# Admin Hermes — two separate checks:
+# (a) Whether admin Hermes is configured at all. This is a WARN during
+#     general pre-flight but becomes relevant context for the business
+#     intelligence sub-agent (which calls `hermes -z` from the admin
+#     install): if admin Hermes is not configured, the sub-agent will
+#     fail and silently fall back to cold generation, with no clear
+#     diagnostic. Surfacing this here gives operators a diagnosable
+#     signal before they hit the silent fallback during onboarding.
+# (b) SOUL.md/config.yaml drift against their shipped templates —
+#     see check-admin-drift.sh's own header for why this can't just be
+#     a plain diff. Warn-only (not fail): a stale admin config is a real
+#     problem to surface but shouldn't block every other pre-flight use
+#     of this script. SKIP output (admin not set up yet) is expected.
+if [ -f "$PLATFORM_ROOT/admin/config.yaml" ] && [ -f "$PLATFORM_ROOT/admin/.env" ]; then
+  pass "admin_hermes_configured"
+else
+  warn "admin_hermes_not_configured:run 'setup-admin-hermes' skill before onboarding tenants (the business intelligence sub-agent requires it)"
+fi
+
 if [ -x "$PLATFORM_ROOT/scripts/check-admin-drift.sh" ]; then
   # Assigning a failing command substitution directly (DRIFT_OUTPUT="$(...)")
   # would trip this script's own `set -e` and exit immediately, before

@@ -263,7 +263,13 @@ after a recreate.
    built for a since-superseded Python ABI (tracked per entry as `python_abi`).
    It never blocks startup on failure — a failed reconciliation is logged and
    startup continues, since a missing plugin should degrade one capability, not
-   take the tenant offline.
+   take the tenant offline. Every entry is always attempted regardless of
+   earlier failures, but the script's own exit code reflects whether any entry
+   failed (`0` = all entries OK or not present; `1` = at least one reinstall
+   failed) — `tenant-entrypoint.sh` uses this to write `/opt/data/.reconcile-failed`
+   (cleared on the next successful reconcile), which `harness/check-tenant.sh`
+   surfaces as `WARN plugin_reconcile_healthy` so degraded plugin state is
+   visible without reading container logs.
 3. `tenant-install.sh` also supports `remove <name>` and `list`. Removing a pip
    package deletes only the specific files that install added under the shared
    `lazy-packages` directory (tracked per-package as `installed_paths`, since

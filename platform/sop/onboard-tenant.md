@@ -171,7 +171,16 @@ do not attempt to author it inline; report this and stop.
    - TENANT_POLICY_RULES: if the operator gave tenant-specific access restrictions in step 1, generate one or more rules in the same shape as a platform-policy.yaml rule (id, category, agent_instruction, eval_checks) — see the example rules in `/opt/aaas/platform/tenant-hermes/policy/tenant-policy.yaml.template`. Each rule must only narrow behavior, never widen past a platform-policy.yaml rule. If the operator gave no restrictions, this is an empty list — that is the common case, not an error.
    Show the generated VERTICAL_CAPABILITIES_BLOCK, VERTICAL_BRAND_FACTS_BLOCK, OPERATIONAL_DETAILS, generated eval checks, and TENANT_POLICY_RULES to the operator as part of the confirmation summary in step 2. Do not write any files yet.
 2. Show a full confirmation summary and ask: "Proceed with onboarding? (y/n)"
-3. Generate tenant ID as a lowercase slug from business name.
+3. Generate tenant ID as a lowercase slug from business name (spaces → hyphens, strip non-alphanumeric except hyphens, trim leading/trailing hyphens). **Check for collisions before creating any files:**
+   ```bash
+   grep -q "id: {tenant-id}" /opt/aaas/platform/tenants.yaml \
+     && echo "COLLISION: tenant ID already in tenants.yaml" \
+     || echo "OK: slug is available in registry"
+   [ -d /opt/aaas/tenants/{tenant-id} ] \
+     && echo "COLLISION: tenant directory already exists" \
+     || echo "OK: directory is free"
+   ```
+   If either check shows a collision, stop and ask the operator to provide a disambiguating suffix (e.g. `happy-paws-kl` vs `happy-paws-pj`). Do not create any files until the slug is confirmed unique.
 4. Create tenant directories under `/opt/aaas/tenants/{tenant-id}/`: `memories`, `skills`, `files/assets`, `files/uploads`, `files/generated`, `vault`.
 4.1. **Create `business-data.md`** at `/opt/aaas/tenants/{tenant-id}/files/assets/business-data.md` now, before step 7's `chown -R`, so the ownership pass covers it. Write the file in two sections:
 
@@ -189,7 +198,14 @@ do not attempt to author it inline; report this and stop.
 
    **Section 2 — Business context** (set at onboarding, rarely changes):
    If the step 1.15 sub-agent produced a `business_data_context_section` array,
-   append it as a second section after a blank line:
+   append it as a second section after a blank line. **First check whether the
+   section already exists** (relevant on a re-run after a partial failure):
+   ```bash
+   grep -q "^## Assistant Context" /opt/aaas/tenants/{tenant-id}/files/assets/business-data.md \
+     && echo "SKIP: Assistant Context section already present — not appending again" \
+     || echo "OK: adding Assistant Context section"
+   ```
+   Only append if the section is not already present:
    ```
    ## Assistant Context
    # Set at onboarding. Edit only if this information becomes inaccurate.
@@ -228,6 +244,16 @@ do not attempt to author it inline; report this and stop.
    (safe — idempotent). A `FAIL` line means a note could not be written — log
    the reason in the task report but do not abort onboarding; the vault is still
    functional without seed notes.
+
+   After the seed script exits, enumerate which notes are actually present so the
+   task report reflects the real vault state (not just what the seeder reported):
+   ```bash
+   find /opt/aaas/tenants/{tenant-id}/vault -name '*.md' -not -name 'README.md' \
+     | sort | sed "s|/opt/aaas/tenants/{tenant-id}/vault/||"
+   ```
+   Include this list in the task report under "Vault notes present after seeding."
+   An empty result (only README.md) when the sub-agent succeeded means all three
+   seed writes silently failed — escalate rather than marking onboarding complete.
 
    If the sub-agent was unavailable, skip this seed step — the vault starts
    with its README and empty section folders as before, and the tenant agent
@@ -322,15 +348,16 @@ do not attempt to author it inline; report this and stop.
    Each call exits non-zero if any individual fact fails to store — treat a non-zero exit as a failed seed, not a partial success. Verify with `docker exec hermes_{tenant-id} hermes memory status`, `docker exec hermes_{tenant-id} hermes mnemosyne stats --global`, and `docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"`. To manually store a single fact, use `docker exec hermes_{tenant-id} hermes mnemosyne store`. If `hermes mnemosyne` is unavailable, try the documented fallback `hermes hermes-mnemosyne`.
    Note: `business-data.md` is not seeded into Mnemosyne — it is read directly by the tenant agent at runtime from `/home/hermes/files/assets/business-data.md`. The knowledge vault at `/home/hermes/vault/` is a third, separate system: scaffolded and seed-noted in step 4.2, maintained by the tenant agent itself at runtime, and never seeded into Mnemosyne. If the step 1.15 sub-agent succeeded, the vault already contains `Reference/Business Overview.md`, `Reference/Vertical Playbook.md`, and `Recurring/Patterns to Watch.md` — the tenant agent can query these from day one. The tenant agent will continue to add and update notes at runtime as it learns new durable facts.
 14. Add or update the tenant entry in `/opt/aaas/platform/tenants.yaml`.
-15. Send the welcome message through the tenant's Telegram bot to every numeric ID in `TELEGRAM_ALLOWED_USERS`. This only succeeds for users who have already opened the bot and sent `/start`; report Telegram `400 Bad Request: chat not found` or `403 Forbidden` as "user must start the bot first":
-   `curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" -d chat_id="{user-id}" --data-urlencode text="{welcome-message}"`
-16. Run the deterministic tenant harness check:
+15. Run the deterministic tenant harness check:
    `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`
    The script auto-detects tenant file permission denial after UID `10000` ownership is applied and re-runs itself with `sudo` when available.
    If it fails, fix the failed checks before completion when possible. If a warning or failure is caused by an external precondition such as the owner not starting the Telegram bot, record it clearly in `ACCEPTANCE.md` and the task report.
-17. Run or operator-assist BOTH eval profiles once the tenant container is running:
+16. Run or operator-assist BOTH eval profiles once the tenant container is running:
    - The fixed profile: `/opt/aaas/platform/tenant-hermes/evals/_fixed-safety-v1.yaml` (mandatory for every tenant, every onboarding, no exceptions)
    - The generated profile for this tenant: `/opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml`
    Once the tenant container is running, run `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` against both profiles for automated PASS/FAIL results on `match_type: literal` checks (this runs prompts inside the container via `hermes -z`, not over Telegram); the script will print `SKIP` for `match_type: semantic` checks, which still require the operator or admin agent to read the actual reply against that check's `judge_for` field. Fall back to fully manual review only if `eval-runner.sh` reports a missing dependency or the container is not running (exit code 2). At minimum, verify brand recall, confirmation before posting, confirmation before deleting, generated/upload folder behavior, owner-friendly language, no cross-tenant memory leakage, and the tenant's own generated vertical-specific checks. Record results from both files in `ACCEPTANCE.md`.
+   **Do not proceed to the welcome message below until both eval profiles pass (or any failures are explicitly accepted by the operator).** Sending a welcome message before eval verification sets a false expectation that the bot is fully ready.
+17. Send the welcome message through the tenant's Telegram bot to every numeric ID in `TELEGRAM_ALLOWED_USERS`. This only succeeds for users who have already opened the bot and sent `/start`; report Telegram `400 Bad Request: chat not found` or `403 Forbidden` as "user must start the bot first":
+   `curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" -d chat_id="{user-id}" --data-urlencode text="{welcome-message}"`
 18. Update `/opt/aaas/tenants/{tenant-id}/harness.yaml` with status, last verification timestamp, and verification notes if your editor/tooling can do so safely.
 19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, knowledge vault scaffold status and vault seed notes written (or skipped), business intelligence sub-agent status (succeeded/failed/fallback) and confidence level, tenant-policy.yaml rules generated (or none) and confirmation that both BEGIN/END policy marker blocks rendered in SOUL.md, isolated tenant network created and Agent Vault joined to it, welcome message delivery status per user ID, registry update status, research sources used (from sub-agent output or step 1.1), fallback LLM provider/model configured (or declined), and whether operational details and assistant context section were written to `files/assets/business-data.md` or a stub was created for future owner use. Remove the temp research file: `rm -f /tmp/aaas-research-{tenant-id}.json /tmp/aaas-research-{tenant-id}.json.raw` (the `.raw` sidecar should already be gone if a truncation was handled at step 1.15 — this is a safety net, not the primary cleanup path).

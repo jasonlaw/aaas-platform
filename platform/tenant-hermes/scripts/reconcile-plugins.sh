@@ -52,6 +52,7 @@ current_abi() {
 }
 
 CURRENT_ABI="$(current_abi)"
+RECONCILE_HAD_FAILURE=0
 
 # Minimal, dependency-free YAML walk: this manifest's shape is fixed and
 # always written by tenant-install.sh (see record_manifest there), so a
@@ -65,10 +66,20 @@ reconcile_entry() {
       if [ ! -d "$target" ] || [ -z "$(ls -A "$target" 2>/dev/null)" ]; then
         warn "'$name' missing from $target — reinstalling"
         mkdir -p "$target"
-        eval "$install_cmd" && log "'$name' reinstalled" || warn "'$name' reinstall failed, continuing"
+        if eval "$install_cmd"; then
+          log "'$name' reinstalled"
+        else
+          warn "'$name' reinstall failed, continuing"
+          RECONCILE_HAD_FAILURE=1
+        fi
       elif [ "$python_abi" != "unknown" ] && [ "$python_abi" != "$CURRENT_ABI" ]; then
         warn "'$name' was built for $python_abi, running interpreter is $CURRENT_ABI — reinstalling"
-        eval "$install_cmd" && log "'$name' reinstalled for $CURRENT_ABI" || warn "'$name' reinstall failed, continuing"
+        if eval "$install_cmd"; then
+          log "'$name' reinstalled for $CURRENT_ABI"
+        else
+          warn "'$name' reinstall failed, continuing"
+          RECONCILE_HAD_FAILURE=1
+        fi
       else
         log "'$name' OK"
       fi
@@ -77,7 +88,12 @@ reconcile_entry() {
       if [ ! -x "$target" ]; then
         warn "'$name' missing or not executable at $target — reinstalling"
         mkdir -p "$(dirname "$target")"
-        eval "$install_cmd" && log "'$name' reinstalled" || warn "'$name' reinstall failed, continuing"
+        if eval "$install_cmd"; then
+          log "'$name' reinstalled"
+        else
+          warn "'$name' reinstall failed, continuing"
+          RECONCILE_HAD_FAILURE=1
+        fi
       else
         log "'$name' OK"
       fi
@@ -112,3 +128,15 @@ done < "$MANIFEST"
 reconcile_entry  # last entry in the file
 
 log "Reconciliation pass complete."
+
+# Exit non-zero only if at least one entry's reinstall genuinely failed — this
+# is what allows tenant-entrypoint.sh to distinguish "all plugins OK or not
+# present" from "at least one is missing/broken and the automatic reinstall
+# also failed." Never affects whether every entry gets *attempted*: the
+# accumulation above happens regardless of earlier failures, and this check
+# only changes the exit code, not any control flow within the loop.
+if [ "$RECONCILE_HAD_FAILURE" -eq 1 ]; then
+  warn "one or more plugins failed to reconcile — see warnings above"
+  exit 1
+fi
+exit 0

@@ -25,8 +25,18 @@
 # rather than a silent workaround nobody notices relying on.
 set -uo pipefail
 
+RECONCILE_SENTINEL="/opt/data/.reconcile-failed"
 if [ -x /opt/data/scripts/reconcile-plugins.sh ]; then
-  /opt/data/scripts/reconcile-plugins.sh || echo "[tenant-entrypoint] reconcile-plugins.sh failed, continuing startup"
+  if /opt/data/scripts/reconcile-plugins.sh; then
+    # Clear any prior failure sentinel on a successful reconcile
+    rm -f "$RECONCILE_SENTINEL"
+  else
+    echo "[tenant-entrypoint] reconcile-plugins.sh failed, continuing startup" >&2
+    # Write a sentinel file so check-tenant.sh can detect a degraded-plugin
+    # state without having to parse container logs. The file is removed on
+    # the next successful reconcile (above). Never block startup on this.
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$RECONCILE_SENTINEL" 2>/dev/null || true
+  fi
 fi
 
 if ! command -v gateway >/dev/null 2>&1; then

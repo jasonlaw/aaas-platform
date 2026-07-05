@@ -196,10 +196,42 @@ contains "$TENANT_DIR/harness.yaml" '^fixed_safety_profile:[[:space:]]*"?_fixed-
 contains "$TENANT_DIR/SOUL.md" '[Nn]ever perform irreversible actions' "soul_has_fixed_safety_language"
 exists_file "$PLATFORM_ROOT/tenant-hermes/evals/generated/$TENANT_ID-v1.yaml" "tenant_generated_eval_file"
 
+# Plugin reconciliation health — tenant-entrypoint.sh writes a sentinel file
+# on a failed reconcile-plugins.sh run so this check can surface degraded
+# plugin state without parsing container logs. The sentinel is cleared
+# automatically on the next successful reconcile. A missing sentinel is the
+# normal (healthy) case; its presence means at least one startup since the
+# last successful reconcile had failures — some tenant-installed plugins may
+# be missing and degrading capabilities silently.
+RECONCILE_SENTINEL="$TENANT_DIR/.reconcile-failed"
+if [ -f "$RECONCILE_SENTINEL" ]; then
+  SENTINEL_TS="$(cat "$RECONCILE_SENTINEL" 2>/dev/null || echo "unknown")"
+  record WARN "plugin_reconcile_healthy" "reconcile-plugins.sh failed at last startup ($SENTINEL_TS) — tenant-installed plugins may be missing; check container logs and consider --force-recreate after resolving the underlying issue"
+else
+  record PASS "plugin_reconcile_healthy"
+fi
+
 if [ -f "$TENANT_DIR/skills/PROVENANCE.jsonl" ]; then
   record PASS "skills_provenance_present"
 else
   record WARN "skills_provenance_present" "no self-written skills yet; expected for a freshly onboarded tenant"
+fi
+
+# Plugin manifest health — too many installed plugins is a signal worth surfacing
+# during health checks, since individual package installs are the tenant agent's
+# decision and neither the watchdog nor the admin agent tracks this otherwise.
+# Warn threshold: >10 entries (audit review recommended); >20 entries (flag clearly).
+# A missing manifest is fine — it only appears after the first plugin install.
+PLUGIN_MANIFEST="$TENANT_DIR/installed-plugins.yaml"
+if [ -f "$PLUGIN_MANIFEST" ]; then
+  PLUGIN_COUNT="$(grep -c '^  - name:' "$PLUGIN_MANIFEST" 2>/dev/null || echo 0)"
+  if [ "$PLUGIN_COUNT" -gt 20 ]; then
+    record WARN "plugin_manifest_size" "${PLUGIN_COUNT} installed plugins — review manifest for stale or redundant entries: $PLUGIN_MANIFEST"
+  elif [ "$PLUGIN_COUNT" -gt 10 ]; then
+    record WARN "plugin_manifest_size" "${PLUGIN_COUNT} installed plugins — opportunistic audit recommended"
+  else
+    record PASS "plugin_manifest_size" "${PLUGIN_COUNT} installed plugins"
+  fi
 fi
 owned_by_hermes "$TENANT_DIR" "tenant_directory_owner_is_10000"
 owned_by_hermes "$TENANT_DIR/harness.yaml" "tenant_harness_owner_is_10000"

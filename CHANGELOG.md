@@ -4,6 +4,157 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.18.0 - 2026-07-05
+
+### Fixed
+
+- **`platform/tenant-hermes/scripts/reconcile-plugins.sh` — script always exited
+  0, even when every plugin reinstall failed.** Individual reinstall failures
+  were caught with `||` and downgraded to a `warn` log line, but nothing
+  tracked that across the loop, so the script's final statement
+  (`log "Reconciliation pass complete."`) always succeeded and became the exit
+  code. This made the failure branch in `tenant-entrypoint.sh` (added in
+  0.17.0's sentinel fix) permanently unreachable — the sentinel file could
+  never actually be written, regardless of how many plugins failed to
+  reconcile. Added a `RECONCILE_HAD_FAILURE` flag set on any reinstall
+  failure; the script now exits 1 if any entry failed, 0 otherwise. Every
+  entry is still always attempted (non-blocking behavior is unchanged) — only
+  the final exit code changed. Verified with a live reproduction: a
+  mixed-failure manifest now correctly exits 1 and triggers the sentinel;
+  an all-success manifest and a missing-manifest case both still exit 0.
+
+- **`platform/harness/check-tenant.sh` — `plugin_manifest_size` check always
+  counted 0 plugins.** The grep pattern `'^- '` (anchored at column 0) never
+  matched real manifest entries, which are written by `tenant-install.sh` at
+  2-space indent (`  - name: "..."`). The check silently reported `PASS 0
+  installed plugins` regardless of how many were actually present — the exact
+  observability failure this check was added to catch. Fixed to
+  `'^  - name:'`, verified against a realistic two-entry manifest fixture
+  (now correctly counts 2, previously counted 0).
+
+- **`platform/policy/platform-policy.yaml` — merged `no_credential_in_skills`
+  into `no_credential_persistence`.** These two rules were substantially
+  redundant: `no_credential_persistence`'s "(2) Nowhere else" clause already
+  enumerated skill files, vault notes, and generated files as forbidden
+  credential-persistence locations, while `no_credential_in_skills` repeated
+  nearly the same list with one genuinely new scenario (posting a credential
+  to Telegram/an external channel). Because every rule's `agent_instruction`
+  is rendered verbatim into every tenant's `SOUL.md` (per onboard-tenant.md
+  step 5.1) and both rules also flow through unchanged into the generated
+  `_fixed-safety-v1.yaml` (a pure derivation via `generate-platform-eval.sh`),
+  this redundancy was paid twice: once in every tenant's system prompt token
+  budget, and once in the generated eval file. Merged the Telegram-posting
+  scenario and its `refuses_credential_in_skill_message` eval check into
+  `no_credential_persistence`, then removed `no_credential_in_skills`
+  entirely. Rule count: 7 → 6. All 12 eval checks preserved (none lost,
+  none duplicated) — verified structurally with a Python replica of
+  `validate-platform-rules.sh`'s coverage check (6/6 rules fully covered,
+  0 failures) since `yq` was unavailable in the audit sandbox. Regenerated
+  `_fixed-safety-v1.yaml` accordingly (a faithful line-for-line replica of
+  `generate-platform-eval.sh`'s own logic, since the sandbox's network
+  restrictions blocked fetching the real `yq` binary) — diff against the
+  previous generated file shows pure reordering only, no check gained,
+  lost, or altered. Fixed the one stale cross-reference to the removed rule
+  id in `_skill-verification-primitives-v1.yaml`'s `credential_scan`
+  primitive description.
+
+### Changed
+
+- **`docs/architecture.md`** — documented `reconcile-plugins.sh`'s exit code
+  contract now that it's meaningful (previously always 0): `0` = all entries
+  OK or not present, `1` = at least one reinstall failed, consumed by
+  `tenant-entrypoint.sh`'s sentinel mechanism.
+
+## 0.17.0 - 2026-07-05
+
+### Added
+
+- **`platform/scripts/preflight-check.sh` — `admin_hermes_configured` check.**
+  Added a new check that surfaces whether admin Hermes is configured (`admin/config.yaml`
+  and `admin/.env` both present) before any operation that depends on it. Previously,
+  running the business intelligence sub-agent (onboard-tenant step 1.15) when admin
+  Hermes was not set up would silently fall back to cold generation with no diagnostic
+  — the sub-agent calls `hermes -z` from the admin install, which requires
+  `admin/.env` to be present. Operators now see `WARN admin_hermes_not_configured`
+  during preflight rather than a cryptic sub-agent fallback. Warn-only (not fail),
+  since preflight is run in contexts other than onboarding where admin Hermes may
+  legitimately not be set up yet.
+
+- **`platform/harness/check-tenant.sh` — plugin reconcile failure sentinel check.**
+  `tenant-entrypoint.sh` now writes `/opt/data/.reconcile-failed` (with a UTC
+  timestamp) when `reconcile-plugins.sh` fails on startup, and removes it on the
+  next successful reconcile. `check-tenant.sh` reads this sentinel and emits
+  `WARN plugin_reconcile_healthy` with the failure timestamp when present. Previously
+  a reconcile failure on startup was only visible in container logs — the watchdog
+  and harness both saw a running container and reported healthy. The sentinel makes
+  degraded-plugin state observable at harness time without parsing logs.
+
+- **`platform/harness/check-tenant.sh` — plugin manifest size warning.**
+  Added an opportunistic warn threshold on the `installed-plugins.yaml` manifest:
+  warns at >10 entries (review recommended) and >20 entries (flag clearly). Neither
+  threshold blocks onboarding or upgrades. This surfaces manifest accumulation during
+  routine health checks rather than waiting for a monitor-health SOP to catch it.
+
+### Fixed
+
+- **`platform/sop/onboard-tenant.md` step 3 — tenant slug collision check.**
+  Added explicit collision guards before creating any tenant files: the SOP now
+  requires checking both `tenants.yaml` for an existing `id:` entry and the
+  `/opt/aaas/tenants/{id}` directory for existence. If either is present, onboarding
+  stops and asks the operator for a disambiguating suffix. Previously two tenants
+  with identical slug-producing names (e.g. "Happy Paws" and "happy-paws") would
+  silently produce the same tenant ID and overwrite each other's directories.
+
+- **`platform/sop/onboard-tenant.md` steps 15–17 — welcome message moved after evals.**
+  The Telegram welcome message (previously step 15) now fires *after* the harness
+  check (now step 15) and both eval profiles (now step 16), as the new step 17.
+  Previously the owner received a welcome message before eval verification, setting
+  a false expectation that the bot was fully ready even if evals later failed. A
+  gate note was added to step 16 making this ordering requirement explicit.
+
+- **`platform/sop/onboard-tenant.md` step 4.1 — `business-data.md` context section
+  deduplication guard.** The "Assistant Context" section append step now first checks
+  whether the section already exists (relevant on a re-run after a partial onboarding
+  failure) before appending. Previously re-running step 4.1 would produce duplicate
+  `## Assistant Context` sections in the file.
+
+- **`platform/sop/onboard-tenant.md` step 4.2 — post-seed vault note enumeration.**
+  After `seed-vault-context.py` exits, the SOP now enumerates which `.md` files
+  are actually present in the vault and includes the list in the task report. This
+  closes a gap where all three seed writes could silently fail but the seeder still
+  reported exit 0 (e.g. due to a path mismatch), leaving onboarding marked complete
+  with an empty vault and no visible error.
+
+- **`platform/sop/upgrade-platform.md` step 6–7 — `bash <(curl)` not `curl | bash`.**
+  Steps 6 and 7 now use `bash <(curl -fsSL ...) --yes` (process substitution) instead
+  of `curl -fsSL ... | bash -s -- --yes` (pipe). The pipe form runs the installer in
+  a subshell that cannot export PATH or group-membership changes back to the calling
+  shell — the same issue `README.md` has always documented, but the upgrade SOP
+  itself was still using the wrong form.
+
+- **`platform/sop/upgrade-platform.md` step 12 — replace fragile inline grep/awk
+  YAML loop with `upgrade-tenant.sh`.** The one-liner loop that restarted tenants
+  after a Docker daemon restart used `grep 'status: active' | awk '{print $2}'` to
+  parse `tenants.yaml` — this breaks on multi-line values, inline YAML comments, and
+  any key whose value happens to contain the string "active". Replaced with a loop
+  that calls `upgrade-tenant.sh` per tenant, which handles image-ID comparison and
+  only sets `NEEDS_RECREATE` when something actually changed.
+
+- **`platform/PLATFORM-REFERENCE.md` — `ADMIN_HERMES_API_KEY` explanation added.**
+  The credential-by-type rule now explains why `ADMIN_HERMES_API_KEY` in a tenant's
+  `.env` correctly bypasses Agent Vault: it is the API server token for the
+  tenant-to-admin bidirectional channel, not an LLM key. Agent Vault's MITM proxy
+  only handles HTTP/HTTPS calls to LLM providers, so this credential is out of scope
+  by design. Previously a security reviewer would have no in-platform explanation for
+  why this one credential does not follow the `routed-via-agent-vault` pattern.
+
+- **`scripts/setup-platform.sh` `--validate-only` — Agent Vault health check.**
+  Added a call to `agent-vault-health.sh` during `--validate-only` mode. Previously
+  `--validate-only` only checked file presence and content — it reported success even
+  if Agent Vault was down during a post-upgrade validation run. Warn-only (mirrors
+  the posture in `preflight-check.sh`): Agent Vault may not be set up yet on a
+  first-run validate.
+
 ## 0.16.18 - 2026-07-05
 
 ### Fixed

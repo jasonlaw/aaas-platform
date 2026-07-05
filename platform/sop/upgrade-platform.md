@@ -40,10 +40,10 @@ Upgrade the installed platform assets to the latest repository version while pre
    - Alert operator that Docker daemon was restarted; all tenant containers must be restarted after the platform upgrade completes
 4. Explain to the operator that this upgrades platform assets only. It does not migrate tenant data, rebuild the tenant Docker image, or restart tenant containers unless explicitly requested.
 5. Ask for confirmation: "Proceed with platform upgrade? (y/n)"
-6. Run the latest setup installer. On an existing platform it auto-detects upgrade mode and skips image rebuild by default. `--yes` assumes "Continue with backup" at the version-confirm prompt, which is required when running via `curl | bash` (no `/dev/tty` is available in that context — without it the script errors out if the installed version already matches the repository version):
-   `curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash -s -- --yes`
-7. Validate the installed platform. `--yes` is also required here for the same reason:
-   `curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh | bash -s -- --validate-only --yes`
+6. Run the latest setup installer. On an existing platform it auto-detects upgrade mode and skips image rebuild by default. `--yes` assumes "Continue with backup" at the version-confirm prompt — required here since no `/dev/tty` is available to the shell tool this SOP runs through. Use `bash <(curl ...)` (process substitution), not `curl | bash` (pipe): even though this command is issued by you (the OpenCode admin agent) via your shell tool rather than typed by the operator at an interactive terminal, the pipe form still runs the installer in a subshell that cannot export PATH or `docker` group-membership changes back to the invoking shell — the same failure mode `README.md` documents for a human running this by hand:
+   `bash <(curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh) --yes`
+7. Validate the installed platform:
+   `bash <(curl -fsSL https://raw.githubusercontent.com/jasonlaw/aaas-platform/main/scripts/setup.sh) --validate-only --yes`
 8. Read the new installed version:
    `cat /opt/aaas/platform/VERSION`
 9. Check that preserved files still exist:
@@ -79,9 +79,16 @@ Upgrade the installed platform assets to the latest repository version while pre
     - `sudo iptables -L DOCKER-FORWARD -n | head -5` should show bridge forwarding rules
     - If rules are missing, run the health monitor SOP to detect and repair
 11. If the new platform version changes the Dockerfile or template behavior and tenant image rebuild is needed, ask the operator before running the build image SOP. Do not rebuild automatically.
-12. **If Docker daemon was restarted during this upgrade:** Restart all active tenants to ensure they re-establish outbound connectivity:
-    `for tenant in $(grep 'status: active' /opt/aaas/platform/tenants.yaml | awk '{print $2}'); do docker compose up --force-recreate --no-deps -d hermes_$tenant; done`
-    Then run the health monitor SOP to verify outbound connectivity for all tenants.
+12. **If Docker daemon was restarted during this upgrade:** Restart all active tenants to ensure they re-establish outbound connectivity. Use `upgrade-tenant.sh` (not a hand-written grep/awk loop — that form is fragile against YAML multi-line values and comments):
+    ```bash
+    TARGET_IMAGE_ID="$(docker inspect --format '{{.Id}}' hermes-tenant:latest)"
+    while IFS= read -r tenant_id; do
+      [ -n "$tenant_id" ] || continue
+      /opt/aaas/platform/scripts/upgrade-tenant.sh "$tenant_id" "$TARGET_IMAGE_ID"
+    done < <(grep -A1 'status: active' /opt/aaas/platform/tenants.yaml \
+               | grep '^\s*id:' | awk '{print $2}')
+    ```
+    `upgrade-tenant.sh` handles connectivity backfill and sets `NEEDS_RECREATE` only when something actually changed — it does not unconditionally recreate every tenant. Then run the health monitor SOP to verify outbound connectivity for all tenants.
 13. Write a task report using `/opt/aaas/platform/sop/write-report.md` with `sop` set to `upgrade-platform`.
 
 ## Recovery

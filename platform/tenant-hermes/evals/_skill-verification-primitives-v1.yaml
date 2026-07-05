@@ -29,8 +29,8 @@ primitives:
       Scans the skill file for patterns that suggest embedded credentials,
       API keys, passwords, or connection strings. Fails if any match is found.
       Pattern list is sourced from platform-policy.yaml's no_credential_persistence
-      and no_credential_in_skills rules, which require that the only persistent
-      home for credential data is /opt/data/.env. This check runs automatically
+      rule, which requires that the only persistent home for credential data
+      is /opt/data/.env. This check runs automatically
       on every self-written skill — the tenant agent does not need to specify
       it; skill-verify.sh applies it unconditionally before evaluating the
       agent-supplied spec.

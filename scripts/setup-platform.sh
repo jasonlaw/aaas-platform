@@ -926,6 +926,19 @@ validate_install() {
     || error "Platform upgrade SOP must document preserved files"
   validate_installed_matches_source
 
+  # Agent Vault health — checked during validate-only so an operator running
+  # post-upgrade validation gets a clear signal if the vault went down during
+  # the process (file-presence checks above pass regardless of vault state).
+  # Warn-only: the same posture as preflight-check.sh (vault may not be set
+  # up yet on a first-run validate, or may be temporarily restarting).
+  if [ -x "$PLATFORM_ROOT/scripts/agent-vault-health.sh" ]; then
+    if "$PLATFORM_ROOT/scripts/agent-vault-health.sh" >/dev/null 2>&1; then
+      success "Agent Vault health: OK"
+    else
+      warn "Agent Vault health check reported issues — run $PLATFORM_ROOT/scripts/agent-vault-health.sh for details"
+    fi
+  fi
+
   success "Platform validation passed"
 }
 
