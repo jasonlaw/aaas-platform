@@ -78,6 +78,8 @@ COMPOSE_FILE="$PLATFORM_ROOT/docker/docker-compose.yaml"
 HARNESS_TEMPLATE="$PLATFORM_ROOT/harness/tenant-harness.yaml.template"
 ACCEPTANCE_TEMPLATE="$PLATFORM_ROOT/harness/ACCEPTANCE.md.template"
 POLICY_TEMPLATE="$PLATFORM_ROOT/tenant-hermes/policy/tenant-policy.yaml.template"
+SOUL_TEMPLATE="$PLATFORM_ROOT/tenant-hermes/SOUL.md.template"
+PLATFORM_POLICY="$PLATFORM_ROOT/policy/platform-policy.yaml"
 
 [ -d "$TENANT_DIR" ] \
   || fail "tenant directory not found: $TENANT_DIR"
@@ -205,6 +207,94 @@ else
   sudo chown -R 10000:10000 "$TENANT_DIR"
   sudo chmod -R go+rX "$TENANT_DIR"
   note "ownership repaired"
+fi
+
+# --- Sub-step: re-render SOUL.md policy blocks ---
+# SOUL.md is intentionally re-rendered on every upgrade so platform and tenant
+# policy changes are picked up automatically. Only the two marker-delimited
+# policy blocks are updated; all other SOUL.md content (capabilities block,
+# brand tone, conduct lines) is left exactly as-is.
+#
+# MEMORY.md and USER.md are intentionally NOT touched here — they are
+# maintained at runtime by the tenant agent (Mnemosyne) and must not be
+# overwritten by the upgrade process. Any runtime-accumulated facts or
+# preferences would be lost if these files were regenerated from templates.
+
+SOUL_FILE="$TENANT_DIR/SOUL.md"
+TENANT_POLICY_FILE="$TENANT_DIR/tenant-policy.yaml"
+
+if [ -f "$SOUL_FILE" ]; then
+  # Render platform rules from platform-policy.yaml
+  PLATFORM_RULES_BLOCK=""
+  if [ -f "$PLATFORM_POLICY" ]; then
+    # Extract agent_instruction lines from each rule block and render as bullets.
+    # Uses awk to collect multi-line agent_instruction values under each rule entry.
+    PLATFORM_RULES_BLOCK="$(awk '
+      /^  - id:/ { in_rule=1; buf="" }
+      in_rule && /agent_instruction:/ {
+        # inline value on same line (agent_instruction: "text")
+        sub(/.*agent_instruction:[[:space:]]*>?[[:space:]]*/, ""); gsub(/^"|"$/, "")
+        if (length($0) > 0) { buf = $0; next }
+        in_instr=1; buf=""; next
+      }
+      in_rule && in_instr {
+        # multi-line block scalar — stop on dedent (next key at same indent)
+        if (/^  [a-z_]+:/) { in_instr=0; print "- " buf; buf=""; next }
+        sub(/^[[:space:]]{4,6}/, ""); buf = (buf=="" ? $0 : buf " " $0)
+      }
+      !in_instr && in_rule && buf != "" { print "- " buf; buf=""; in_rule=0 }
+    END { if (buf != "") print "- " buf }
+    ' "$PLATFORM_POLICY")"
+  fi
+
+  # Render tenant rules from tenant-policy.yaml
+  TENANT_RULES_BLOCK=""
+  if [ -f "$TENANT_POLICY_FILE" ]; then
+    TENANT_RULES_BLOCK="$(awk '
+      /^  - id:/ { in_rule=1; buf="" }
+      in_rule && /agent_instruction:/ {
+        sub(/.*agent_instruction:[[:space:]]*>?[[:space:]]*/, ""); gsub(/^"|"$/, "")
+        if (length($0) > 0) { buf = $0; next }
+        in_instr=1; buf=""; next
+      }
+      in_rule && in_instr {
+        if (/^  [a-z_]+:/) { in_instr=0; print "- " buf; buf=""; next }
+        sub(/^[[:space:]]{4,6}/, ""); buf = (buf=="" ? $0 : buf " " $0)
+      }
+      !in_instr && in_rule && buf != "" { print "- " buf; buf=""; in_rule=0 }
+    END { if (buf != "") print "- " buf }
+    ' "$TENANT_POLICY_FILE")"
+  fi
+
+  # Rewrite only the content between the BEGIN/END marker comment pairs.
+  # sed reads the file; between each pair of markers it replaces any
+  # existing bullet lines with the freshly-rendered block, then resumes
+  # normal output. Lines outside the markers are passed through unchanged.
+  SOUL_UPDATED="$(awk -v plat="$PLATFORM_RULES_BLOCK" -v tenant="$TENANT_RULES_BLOCK" '
+    /<!-- BEGIN PLATFORM RULES/ { print; in_plat=1; next }
+    /<!-- END PLATFORM RULES/   {
+      if (plat != "") print plat
+      in_plat=0; print; next
+    }
+    /<!-- BEGIN TENANT RULES/   { print; in_tenant=1; next }
+    /<!-- END TENANT RULES/     {
+      if (tenant != "") print tenant
+      in_tenant=0; print; next
+    }
+    in_plat || in_tenant { next }   # drop old rendered lines between markers
+    { print }
+  ' "$SOUL_FILE")"
+
+  # Only write if content actually changed (avoids spurious NEEDS_RECREATE)
+  SOUL_CURRENT="$(cat "$SOUL_FILE")"
+  if [ "$SOUL_UPDATED" != "$SOUL_CURRENT" ]; then
+    printf '%s\n' "$SOUL_UPDATED" > "$SOUL_FILE"
+    note "SOUL.md policy blocks re-rendered (volume-mounted — no recreate needed; takes effect on next container restart)"
+  else
+    note "SOUL.md policy blocks unchanged — skipping"
+  fi
+else
+  note "WARN SOUL.md not found at $SOUL_FILE — skipping policy block re-render"
 fi
 
 # --- Sub-step: validate config ---

@@ -4,6 +4,40 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.16.17 - 2026-07-05
+
+### Changed
+
+- **`platform/scripts/upgrade-tenant.sh` — SOUL.md policy blocks are now re-rendered
+  automatically on every upgrade run**, replacing the manual admin-agent step that
+  was previously documented as `upgrade-tenants.md` step 3.1. The script reads
+  `platform-policy.yaml` and the tenant's own `tenant-policy.yaml`, extracts each
+  rule's `agent_instruction` verbatim, and rewrites only the content between the
+  `<!-- BEGIN PLATFORM RULES -->`/`<!-- END PLATFORM RULES -->` and
+  `<!-- BEGIN TENANT RULES -->`/`<!-- END TENANT RULES -->` marker pairs in
+  `SOUL.md`. All other `SOUL.md` content (capabilities block, brand tone, conduct
+  lines set at onboarding) is left exactly as-is. A diff check is run before
+  writing — if nothing changed the file is not touched. Because `SOUL.md` is
+  volume-mounted, the updated file is visible to the container on its next restart
+  without a forced recreate; `NEEDS_RECREATE` is not set for this change alone.
+  If a recreate occurs for another reason (image diff, backfill), the updated
+  SOUL.md is picked up automatically. `upgrade-tenants.md` step 3.1 (previously
+  a manual re-render instruction with a separate `--force-recreate` note) is
+  removed and replaced with a description of the new automatic behaviour in step 3.
+
+- **`platform/scripts/upgrade-tenant.sh` — `MEMORY.md` and `USER.md` are
+  explicitly never modified during upgrade.** These files are maintained at
+  runtime by the tenant agent (Mnemosyne). The script adds a comment block making
+  this protection explicit so future contributors cannot accidentally add a
+  template-overwrite step. `upgrade-tenants.md` step 3 now documents this
+  constraint and the correct operator path for intentional memory updates
+  (direct host edit + `seed-mnemosyne.py` re-seed, not an onboarding re-run).
+
+- **`upgrade-tenants.md` step 3.1 removed.** The manual SOUL.md policy re-render
+  instruction (and its associated manual `--force-recreate` guidance) is no longer
+  needed — the script handles it. Step 3's description updated to cover both the
+  automatic SOUL.md re-render and the MEMORY.md/USER.md non-modification guarantee.
+
 ## 0.16.16 - 2026-07-05
 
 ### Removed

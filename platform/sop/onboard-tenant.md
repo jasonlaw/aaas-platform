@@ -29,24 +29,57 @@ setup is out of date - do not attempt to author it inline; report this and stop.
 0.4. Confirm `/opt/aaas/platform/policy/platform-policy.yaml` exists (platform-level
 asset, not generated per tenant). If missing, the platform setup is out of date -
 do not attempt to author it inline; report this and stop.
-1. Collect tenant information one question at a time: business type, business name, vertical details, location, brand tone, colors, owner profile, Telegram bot token, allowed Telegram user IDs, LLM provider/model, API key value, and any tenant-specific access restrictions (e.g. "only allow posting to Facebook and Instagram", "only allow querying the orders database"). If the operator has none, proceed with no tenant-specific restrictions — this is the common case and is not an error. Also ask whether the operator wants a fallback LLM provider (optional — press enter/say no to skip). Hermes automatically switches to the fallback provider:model mid-turn if the primary provider fails (rate limits, server errors, auth failures) — see https://hermes-agent.nousresearch.com/docs/user-guide/features/fallback-providers. If the operator wants one, also collect the fallback provider, fallback model name, and fallback API key value — same shape as the primary provider questions. If declined, proceed with no `fallback_providers` entry — this is the common case and is not an error.
+1. **Collect tenant information using a two-phase interview: essentials first, then optional refinements.**
 
-   **Never ask the operator for the provider-specific API key env var
-   name — that is always derived, not collected.** Accept the LLM
-   provider/model in whatever form the operator gives it (`provider/model`,
-   e.g. `opencode-zen/big-pickle`; or separate `provider =` / `model =`
-   answers), split out the Provider ID, and look it up in
-   `/opt/aaas/platform/reference/llm-provider-catalog.md` to get both the
-   hostname (needed later in `provision-tenant-vault.md` step 2) and the env
-   var name (via the catalog's deterministic derivation rule). Only fall
-   back to asking the operator a follow-up question if the named provider
-   isn't in the catalog (ask for its API hostname only, never the env var
-   name — see the catalog's "Provider not in this table" section) or if it
-   falls under the catalog's Exceptions section (OAuth-only or
-   multi-credential providers), in which case follow that section's
-   escalation guidance instead of proceeding. Same rule applies to the
-   optional fallback provider if one is collected.
+   **Design principle:** Most fields have sensible defaults. Present each default inline so the operator can accept it with a single word or skip past it — they only need to type when the default is wrong. The agent's personality and capabilities can always be tuned later; getting the bot running fast is the priority.
+
+   **Phase 1 — Essentials (always ask, no defaults possible):**
+   Ask these as a single grouped message so the operator can reply to all at once:
+
+   > **Quick setup — 5 things needed to get started:**
+   > 1. **Business name** — what should the agent call itself?
+   > 2. **Business type & what you do** — e.g. "pet grooming salon, dogs and cats, appointment-only"
+   > 3. **Location** — city/region, e.g. "Kuala Lumpur, Malaysia"
+   > 4. **Telegram bot token** — from @BotFather
+   > 5. **Your Telegram user ID(s)** — numeric IDs allowed to use this bot (comma-separated if multiple)
+   >
+   > *(That's all that's required to go live. Everything else has a sensible default you can change later.)*
+
+   **Phase 2 — Optional refinements (show defaults, let operator accept or override):**
+   After Phase 1 answers are received, present the following as a single confirmation block with pre-filled defaults. The operator can reply "all good" or list only the items they want to change:
+
+   > **Here are the defaults for everything else — reply "ok" to accept, or tell me which ones to change:**
+   >
+   > - **Language:** English *(change if the agent should reply in another language)*
+   > - **Brand tone:** Professional and a little playful *(e.g. "formal", "warm and casual", "fun and emoji-friendly")*
+   > - **Primary colour:** #2563EB (blue) *(hex code for brand assets)*
+   > - **Secondary colour:** #FFFFFF (white)
+   > - **Owner/contact name:** *(skipped — agent will refer to owner by business name unless you tell me a name)*
+   > - **LLM provider/model:** openrouter/google/gemini-2.0-flash-001 *(change if you have a preferred provider and API key)*
+   > - **LLM API key:** *(required only if you changed the provider above — otherwise paste your OpenRouter key)*
+   > - **Fallback provider:** None *(optional — Hermes auto-switches mid-turn if the primary provider fails)*
+   > - **Access restrictions:** None *(optional — e.g. "only allow posting to Instagram, not Facebook")*
+
+   **Defaults used when the operator accepts without changes:**
+   | Field | Default |
+   |---|---|
+   | language | English |
+   | brand_tone | "professional and a little playful" |
+   | communication_style | "friendly, concise" |
+   | primary_color | #2563EB |
+   | secondary_color | #FFFFFF |
+   | owner_name | *(omitted — use business name)* |
+   | llm_provider | openrouter |
+   | llm_model | google/gemini-2.0-flash-001 |
+   | fallback_providers | *(none)* |
+   | tenant_access_restrictions | *(none)* |
+   | timezone | inferred from location (if ambiguous, ask) |
+   | vertical_details | *(derived from business type in step 1.1 web research)* |
+
+   **Never ask the operator for the provider-specific API key env var name — that is always derived, not collected.** Accept the LLM provider/model in whatever form the operator gives it (`provider/model`, e.g. `openrouter/google/gemini-2.0-flash-001`; or separate `provider =` / `model =` answers), split out the Provider ID, and look it up in `/opt/aaas/platform/reference/llm-provider-catalog.md` to get both the hostname (needed later in `provision-tenant-vault.md` step 2) and the env var name (via the catalog's deterministic derivation rule). Only fall back to asking the operator a follow-up question if the named provider isn't in the catalog (ask for its API hostname only, never the env var name — see the catalog's "Provider not in this table" section) or if it falls under the catalog's Exceptions section (OAuth-only or multi-credential providers), in which case follow that section's escalation guidance instead of proceeding. Same rule applies to the optional fallback provider if one is collected.
 1.1. **Web research augmentation:** After collecting the operator's answers, proactively search the business website, public review/blog pages, Instagram bios, and Google Business snippets to fill gaps and validate facts. Do this even when the operator has answered every question — website copy often surfaces richer vertical detail than interview answers alone. If a social page blocks unauthenticated access, use the above sources as alternates. Record which sources were used; include them in the final task report.
+
+   **Using research to fill accepted defaults:** If the operator accepted defaults without customising tone, colors, or vertical_details, use web research findings to improve on the defaults before proceeding — e.g. if the business website uses a strong brand colour, prefer that over #2563EB; if their social bio signals a distinct voice, reflect it in brand_tone. Update the working values silently and surface the changes in the step 2 confirmation summary so the operator can see what was inferred.
 1.15. **Business intelligence sub-agent:** Run the research sub-agent to synthesise the interview answers and web research into richer, structured context. This replaces cold LLM generation for the capability and brand blocks in step 1.2, and produces the vault seed notes written in step 4.2.
 
    Assemble the context block from step 1 answers and step 1.1 research text, then run:
