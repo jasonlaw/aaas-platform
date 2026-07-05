@@ -4,6 +4,20 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.16.18 - 2026-07-05
+
+### Fixed
+
+- **`platform/PLATFORM-REFERENCE.md` line 150 — stale `--force-recreate` instruction
+  after `SOUL.md` re-render.** The bullet said "After rendering, `--force-recreate`
+  the tenant container so it reads the updated `SOUL.md`" — incorrect because
+  `SOUL.md` is volume-mounted; the updated file is visible to the container on its
+  next restart without a forced recreate. This was the same class of bug caught in
+  `upgrade-tenant.sh` (fixed in 0.16.17). Corrected to state that no recreate is
+  needed for a `SOUL.md`-only change, and that if a recreate is already happening
+  for another reason (new image, `.env` or `config.yaml` change) the updated
+  `SOUL.md` is picked up automatically.
+
 ## 0.16.17 - 2026-07-05
 
 ### Changed
