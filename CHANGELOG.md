@@ -4,6 +4,35 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.18.1 - 2026-07-05
+
+### Fixed
+
+- **`scripts/setup-platform.sh` — fresh install could hang silently after
+  the "Agent Vault CA certificate not yet present" warning, with no further
+  output and no error.** The Agent Vault health check added in 0.17.0 was
+  placed unconditionally inside `validate_install()`, which runs on every
+  invocation of `setup-platform.sh` — including a normal fresh install, not
+  just `--validate-only` as the accompanying comment claimed. On a fresh
+  install, Agent Vault's container has only just been started moments
+  earlier (its master password isn't set yet, and its API/CLI session may
+  not be ready), so this check was both premature and dangerous: its output
+  is redirected to `/dev/null` by the caller, so if any step inside
+  `agent-vault-health.sh` blocked, the operator would see nothing — not even
+  an error — just a frozen terminal. Reproduced and confirmed the specific
+  cause: the CLI session check (`agent-vault vault list`) was the only
+  network-touching step in `agent-vault-health.sh` without a timeout (every
+  other check uses `curl --connect-timeout 5`); against a still-initializing
+  or unreachable Agent Vault, it can hang indefinitely. Fixed two ways: (1)
+  gated the health check in `setup-platform.sh` to run only when
+  `VALIDATE_ONLY=true`, matching what the comment always said it should do;
+  (2) wrapped the CLI check in `agent-vault-health.sh` with `timeout 10` as
+  defense in depth, so even in `--validate-only` mode this can never hang
+  past 10 seconds. Verified with a fake hanging `agent-vault` binary: before
+  the fix, the check blocked for the binary's full sleep duration with the
+  script's own output suppressed; after the fix, it correctly times out at
+  10 seconds and reports `WARN ..._or_timed_out` instead of hanging.
+
 ## 0.18.0 - 2026-07-05
 
 ### Fixed

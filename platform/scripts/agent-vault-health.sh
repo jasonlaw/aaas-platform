@@ -68,10 +68,23 @@ fi
 # CLI resolves the server from the saved session file (~/.agent-vault/session.json)
 # established by `agent-vault auth login`. Do not add an address flag here.
 if command -v agent-vault >/dev/null 2>&1; then
-  if agent-vault vault list >/dev/null 2>&1; then
-    pass "agent_vault_cli_authenticated"
+  # Every other network check in this script uses --connect-timeout; the CLI
+  # binary has no equivalent flag, so wrap it in `timeout` instead. Without
+  # this, a still-initializing or unreachable Agent Vault can hang this
+  # check indefinitely — and since callers often redirect this script's
+  # output to /dev/null, that hang produces no visible signal at all.
+  if command -v timeout >/dev/null 2>&1; then
+    if timeout 10 agent-vault vault list >/dev/null 2>&1; then
+      pass "agent_vault_cli_authenticated"
+    else
+      warn "agent_vault_cli_not_authenticated_or_session_expired_or_timed_out"
+    fi
   else
-    warn "agent_vault_cli_not_authenticated_or_session_expired"
+    if agent-vault vault list >/dev/null 2>&1; then
+      pass "agent_vault_cli_authenticated"
+    else
+      warn "agent_vault_cli_not_authenticated_or_session_expired"
+    fi
   fi
 else
   warn "agent_vault_cli_not_installed_on_host"

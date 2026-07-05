@@ -926,12 +926,20 @@ validate_install() {
     || error "Platform upgrade SOP must document preserved files"
   validate_installed_matches_source
 
-  # Agent Vault health — checked during validate-only so an operator running
-  # post-upgrade validation gets a clear signal if the vault went down during
-  # the process (file-presence checks above pass regardless of vault state).
-  # Warn-only: the same posture as preflight-check.sh (vault may not be set
-  # up yet on a first-run validate, or may be temporarily restarting).
-  if [ -x "$PLATFORM_ROOT/scripts/agent-vault-health.sh" ]; then
+  # Agent Vault health — only checked in --validate-only mode, where the
+  # operator is explicitly asking "is my installed platform healthy?" and
+  # Agent Vault is expected to already be configured and running. On a fresh
+  # install this same validate_install() function also runs as part of the
+  # normal setup sequence (see call site below), at which point Agent Vault
+  # has only just been started via `docker compose up -d` moments earlier —
+  # its master password isn't set yet and its API/CLI session may not be
+  # ready, so running this check there is both meaningless (of course it's
+  # not fully healthy yet) and unsafe (agent-vault-health.sh's CLI session
+  # check has no timeout and can hang if Agent Vault is still initializing,
+  # and setup-platform.sh redirects this to /dev/null, so a hang here would
+  # produce zero output — indistinguishable from the setup script being
+  # stuck). Gate strictly to VALIDATE_ONLY.
+  if [ "$VALIDATE_ONLY" = true ] && [ -x "$PLATFORM_ROOT/scripts/agent-vault-health.sh" ]; then
     if "$PLATFORM_ROOT/scripts/agent-vault-health.sh" >/dev/null 2>&1; then
       success "Agent Vault health: OK"
     else
