@@ -27,11 +27,19 @@ import argparse
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 
 MODEL_DEFAULT     = "claude-sonnet-4-6"
-MAX_TOKENS_DEFAULT = 2048
+# 2048 was too tight for the requested output: three vault notes (200-400 +
+# 150-300 + 100-200 words) plus the capability/brand-fact/context arrays add
+# up to ~1500-1800 tokens of content before JSON overhead (quoted keys,
+# escaped newlines). A response cut off mid-JSON by max_tokens fails
+# json.loads and was indistinguishable from any other failure, silently
+# falling back to cold generation. Raised to give headroom; the stop_reason
+# check below also now names this failure mode explicitly if it still happens.
+MAX_TOKENS_DEFAULT = 3072
 
 SYSTEM_PROMPT = """\
 You are a business analyst helping set up an AI assistant for a small business.
@@ -151,8 +159,32 @@ def call_api(api_key: str, model: str, max_tokens: int, user_prompt: str) -> dic
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    # Onboarding is a one-shot event with no automatic re-run, so a single
+    # transient error (rate limit, dropped connection) used to permanently
+    # cost the tenant the richer generation for no good reason. One retry,
+    # only for the error classes actually worth retrying — a 429 or a network
+    # error may well succeed a moment later; a 400/401 will not, so those
+    # still fail immediately rather than wasting the retry.
+    last_exc = None
+    for attempt in (1, 2):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if exc.code == 429 and attempt == 1:
+                last_exc = exc
+                time.sleep(5)
+                continue
+            raise
+        except urllib.error.URLError as exc:
+            if attempt == 1:
+                last_exc = exc
+                time.sleep(5)
+                continue
+            raise
+    # Unreachable in practice (loop always returns or raises), but keeps the
+    # function's control flow explicit rather than relying on fallthrough.
+    raise last_exc  # type: ignore[misc]
 
 
 def extract_text(api_response: dict) -> str:
@@ -160,6 +192,26 @@ def extract_text(api_response: dict) -> str:
     content = api_response.get("content", [])
     parts = [block.get("text", "") for block in content if block.get("type") == "text"]
     return "\n".join(parts).strip()
+
+
+# Phrases that only ever appear in the schema instructions the model was
+# given, never in real output. If one shows up verbatim inside a generated
+# item, the model most likely echoed the field's own instructions back as
+# content instead of following them — a case structural validation alone
+# (checking only that the key exists) would miss entirely.
+INSTRUCTION_ECHO_MARKERS = [
+    "avoid generic phrasing",
+    "one concrete capability per item",
+    "one stable fact per item",
+    "one item per context note",
+    "do not change unless the owner makes",
+]
+
+ARRAY_LENGTH_BOUNDS = {
+    "vertical_capabilities_block": (4, 6),
+    "vertical_brand_facts_block": (2, 5),
+    "business_data_context_section": (3, 8),
+}
 
 
 def validate_output(parsed: dict) -> list[str]:
@@ -174,6 +226,30 @@ def validate_output(parsed: dict) -> list[str]:
             warnings.append(f"missing vault note: {note}")
     if parsed.get("confidence") not in ("high", "medium", "low"):
         warnings.append(f"unexpected confidence value: {parsed.get('confidence')!r}")
+
+    # Content-shape checks below are advisory only — they flag likely-bad
+    # output for a human to glance at during step 2 confirmation, they never
+    # block the field from being used. A slightly-out-of-range array is far
+    # less risky than an empty one, so this stays a warning, not a failure.
+    for field, (low, high) in ARRAY_LENGTH_BOUNDS.items():
+        value = parsed.get(field)
+        if isinstance(value, list) and not (low <= len(value) <= high):
+            warnings.append(
+                f"{field} has {len(value)} items, expected {low}-{high}"
+            )
+        items_to_scan = value if isinstance(value, list) else []
+        for item in items_to_scan:
+            if not isinstance(item, str):
+                continue
+            lowered = item.lower()
+            for marker in INSTRUCTION_ECHO_MARKERS:
+                if marker in lowered:
+                    warnings.append(
+                        f"{field} item looks like echoed schema instructions, "
+                        f"not generated content: {item[:80]!r}"
+                    )
+                    break
+
     return warnings
 
 
@@ -226,6 +302,23 @@ def main() -> int:
     text = extract_text(api_response)
     if not text:
         return fail("API response contained no text content")
+
+    # A response cut off by the token budget used to look identical to any
+    # other malformed-JSON failure below, with no signal pointing at the
+    # actual cause. Anthropic's API reports this directly via stop_reason,
+    # so check it before assuming a parse failure means the model
+    # misbehaved rather than simply running out of room.
+    if api_response.get("stop_reason") == "max_tokens":
+        raw_path = args.output_file + ".raw"
+        try:
+            with open(raw_path, "w", encoding="utf-8") as f:
+                f.write(text)
+        except OSError:
+            pass
+        return fail(
+            f"response truncated at max_tokens ({max_tokens}) — raw partial "
+            f"output saved to {raw_path}; consider raising SUBAGENT_MAX_TOKENS"
+        )
 
     # --- Strip markdown fences if the model added them despite instructions ---
     if text.startswith("```"):

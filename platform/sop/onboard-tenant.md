@@ -80,6 +80,22 @@ do not attempt to author it inline; report this and stop.
    Do not surface the raw error to the operator — summarise it as "business
    intelligence sub-agent unavailable; using generated context instead."
 
+   **If the failure was specifically "response truncated at max_tokens"**
+   (check for this exact phrase in the script's stderr): a sidecar file
+   `/tmp/aaas-research-{tenant-id-slug}.json.raw` was written containing the
+   partial output. Before continuing:
+   1. Read it: `cat /tmp/aaas-research-{tenant-id-slug}.json.raw`
+   2. Note in the task report roughly how far generation got (e.g. "cut off
+      partway through vault_seed_notes, capability and brand-fact arrays were
+      complete") — this is what tells you later whether truncation is a
+      one-off or systemic enough to warrant raising `SUBAGENT_MAX_TOKENS`.
+   3. Delete the sidecar immediately after noting it:
+      `rm -f /tmp/aaas-research-{tenant-id-slug}.json.raw`
+   This file exists only for this one diagnostic read — it is never
+   operator-facing, is not consumed by any later step, and contains raw
+   interview/research content, so it should not persist on the host past this
+   point. Do not wait for step 19 cleanup to remove it.
+
    **If confidence is `low`:** Add to the step 2 confirmation summary:
    "Note: Limited public information was found for this business. The generated
    context is based mainly on your interview answers. You can provide a website
@@ -262,4 +278,4 @@ do not attempt to author it inline; report this and stop.
    - The generated profile for this tenant: `/opt/aaas/platform/tenant-hermes/evals/generated/{tenant-id}-v1.yaml`
    Once the tenant container is running, run `/opt/aaas/platform/scripts/eval-runner.sh {tenant-id} {path-to-eval-file}` against both profiles for automated PASS/FAIL results on `match_type: literal` checks (this runs prompts inside the container via `hermes -z`, not over Telegram); the script will print `SKIP` for `match_type: semantic` checks, which still require the operator or admin agent to read the actual reply against that check's `judge_for` field. Fall back to fully manual review only if `eval-runner.sh` reports a missing dependency or the container is not running (exit code 2). At minimum, verify brand recall, confirmation before posting, confirmation before deleting, generated/upload folder behavior, owner-friendly language, no cross-tenant memory leakage, and the tenant's own generated vertical-specific checks. Record results from both files in `ACCEPTANCE.md`.
 18. Update `/opt/aaas/tenants/{tenant-id}/harness.yaml` with status, last verification timestamp, and verification notes if your editor/tooling can do so safely.
-19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, knowledge vault scaffold status and vault seed notes written (or skipped), business intelligence sub-agent status (succeeded/failed/fallback) and confidence level, tenant-policy.yaml rules generated (or none) and confirmation that both BEGIN/END policy marker blocks rendered in SOUL.md, isolated tenant network created and Agent Vault joined to it, welcome message delivery status per user ID, registry update status, research sources used (from sub-agent output or step 1.1), fallback LLM provider/model configured (or declined), and whether operational details and assistant context section were written to `files/assets/business-data.md` or a stub was created for future owner use. Remove the temp research file: `rm -f /tmp/aaas-research-{tenant-id}.json`.
+19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, knowledge vault scaffold status and vault seed notes written (or skipped), business intelligence sub-agent status (succeeded/failed/fallback) and confidence level, tenant-policy.yaml rules generated (or none) and confirmation that both BEGIN/END policy marker blocks rendered in SOUL.md, isolated tenant network created and Agent Vault joined to it, welcome message delivery status per user ID, registry update status, research sources used (from sub-agent output or step 1.1), fallback LLM provider/model configured (or declined), and whether operational details and assistant context section were written to `files/assets/business-data.md` or a stub was created for future owner use. Remove the temp research file: `rm -f /tmp/aaas-research-{tenant-id}.json /tmp/aaas-research-{tenant-id}.json.raw` (the `.raw` sidecar should already be gone if a truncation was handled at step 1.15 — this is a safety net, not the primary cleanup path).

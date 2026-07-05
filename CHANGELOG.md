@@ -4,6 +4,88 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.16.9 - 2026-07-05
+
+### Fixed
+
+- **The `.raw` truncation sidecar (added in 0.16.8) was a diagnostic
+  artifact nobody actually read.** It sat in host `/tmp` (not a container —
+  the admin agent and its scripts run on the host, only tenant-hermes runs
+  inside per-tenant containers), contained real interview/research content,
+  and had no cleanup path beyond the general `/tmp` file — step 19's cleanup
+  only ever targeted the main output file, never the `.raw` sidecar.
+  `onboard-tenant.md` step 1.15 now reads the `.raw` file immediately when a
+  truncation is detected, notes how far generation got in the task report,
+  and deletes the file in the same step — a same-run diagnostic read, not
+  something left on the host afterward. Step 19's cleanup now also removes
+  `.raw` as a safety net in case the truncation branch was somehow skipped.
+
+## 0.16.8 - 2026-07-05
+
+### Fixed
+
+- **The business intelligence sub-agent (`run-business-research-subagent.py`)
+  had four effectiveness/efficiency gaps, all still silent failure modes:**
+  - Raised default `SUBAGENT_MAX_TOKENS` from 2048 to 3072 — the requested
+    output (three vault notes plus three arrays) could run to ~1500-1800
+    tokens of content before JSON overhead, tight enough to risk silent
+    truncation that looked identical to any other JSON-parse failure.
+  - Added an explicit truncation check against the API's own `stop_reason`;
+    a `max_tokens` cutoff now fails with a distinct, named error (and saves
+    the partial text to `{output-file}.raw`) instead of surfacing as a
+    generic "not valid JSON" failure with no pointer to the actual cause.
+  - Added one retry with a short backoff for 429 (rate limit) and network
+    errors only — onboarding is a one-shot event with no automatic re-run,
+    so a single transient error used to permanently cost the tenant the
+    richer generation. Non-retryable errors (401/400) still fail immediately.
+  - Extended `validate_output()` with array-length checks
+    (`vertical_capabilities_block` 4-6 items, etc.) and a check for output
+    that echoes the schema's own instruction text back as content instead of
+    following it — both previously invisible to validation, which only
+    checked that keys existed.
+
+### Added
+
+- **No documented way to re-run the sub-agent for an already-onboarded
+  tenant.** `research-tenant-business.md` now documents a re-run path for
+  when an operator provides a website URL after onboarding: re-run the
+  script standalone, then apply only the existing write steps (SOUL/MEMORY
+  substitution, business-data append, vault seeding) rather than repeating
+  onboarding. Reuses all existing code; no new tooling.
+
+## 0.16.7 - 2026-07-05
+
+### Fixed
+
+- **`harness/check-tenant.sh` could not tell a properly locked-down Agent Vault
+  sidecar apart from a dead one.** `agent_vault_mgmt_port_not_reachable_from_tenant`
+  and `agent_vault_sidecar_mgmt_port_not_reachable` both record `PASS` on any
+  failed connection — which is exactly what a crashed
+  `agent-vault-proxy-{tenant-id}` container looks like from inside the tenant,
+  same as a properly-isolated one. Both checks could pass while the sidecar
+  was down and the tenant's LLM calls were actually failing. Added
+  `agent_vault_sidecar_running` (docker ps check on the sidecar container
+  itself) and `agent_vault_sidecar_proxy_port_reachable` (a positive check
+  that :14322 actually responds) so sidecar liveness is proven directly
+  instead of inferred from the absence of a connection. The comment claiming
+  ":14322... is checked separately" was previously false — no such check
+  existed anywhere in the file.
+
+### Removed
+
+- **The "local SOP override" tier of `improve-sop.md` never had a loader.**
+  The SOP documented writing an "active" override to
+  `platform/local/sop/{sop-name}.md`, but no code anywhere in the platform
+  ever reads that directory — the SOP's own text said as much
+  ("If the platform does not yet load local overrides automatically, write a
+  proposal instead"). This left a permanently-unreachable code path
+  documented as a real workflow option. Removed the local-override concept
+  entirely from `improve-sop.md`, `docs/architecture.md`, and `README.md`.
+  SOP improvements now go through the proposal path only
+  (`reports/sop-improvements/`); an operator who wants a change applied
+  immediately gets it patched into the native SOP directly, with their
+  explicit confirmation, rather than into an unreviewed parallel file.
+
 ## 0.16.6 - 2026-07-04
 
 ### Fixed

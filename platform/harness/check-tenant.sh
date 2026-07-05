@@ -323,6 +323,30 @@ if command -v docker >/dev/null 2>&1; then
   else
     record PASS "agent_vault_sidecar_mgmt_port_not_reachable"
   fi
+
+  # The two checks above prove *unreachable*, which is also exactly what a
+  # dead sidecar looks like — a crashed agent-vault-proxy-{tenant-id} gives
+  # the same "connection refused" result as a properly locked-down one, so
+  # both would silently PASS while the tenant's LLM calls are actually
+  # broken. Prove liveness directly instead of inferring it from an absence.
+  if docker ps --filter "name=^/agent-vault-proxy-${TENANT_ID}$" --format '{{.Names}}' 2>/dev/null | grep -qx "agent-vault-proxy-${TENANT_ID}"; then
+    record PASS "agent_vault_sidecar_running" "agent-vault-proxy-${TENANT_ID}"
+  else
+    record FAIL "agent_vault_sidecar_running" "agent-vault-proxy-${TENANT_ID} not running"
+  fi
+
+  # Positive counterpart to the two not-reachable checks above: :14322 is the
+  # port tenants actually use, so a real connection here is what proves the
+  # sidecar is up and forwarding, rather than just absent from the network.
+  # Any HTTP response code (including 407 for missing/invalid auth) counts as
+  # reachable; only a connection failure (empty/000) means the sidecar or its
+  # forwarding path is down.
+  proxy_code="$(docker exec "$SERVICE" sh -lc "curl -s -o /dev/null -w '%{http_code}' --connect-timeout 2 http://agent-vault-proxy-${TENANT_ID}:14322/" 2>/dev/null || true)"
+  if [ -n "$proxy_code" ] && [ "$proxy_code" != "000" ]; then
+    record PASS "agent_vault_sidecar_proxy_port_reachable" "http_code=$proxy_code"
+  else
+    record FAIL "agent_vault_sidecar_proxy_port_reachable" "no response from agent-vault-proxy-${TENANT_ID}:14322"
+  fi
 else
   record WARN "docker_available" "docker command not found; skipped runtime checks"
 fi
