@@ -26,7 +26,6 @@ during the setup steps below.
 | **Telegram bot token** | Each tenant's `.env` during onboarding | Create a bot via [@BotFather](https://t.me/BotFather) and note the token. |
 | **Telegram bot username** | Tenant onboarding | The `@username` of the bot (without `@`). |
 | **Telegram user IDs** | Tenant access control | Numeric IDs of users allowed to message each tenant bot. Get them from [@userinfobot](https://t.me/userinfobot). |
-| **Email details** *(optional)* | Tenant config if email integration is needed | SMTP host, port, username, password. |
 
 > **Security note:** LLM API keys are managed exclusively by Agent Vault.
 > They are never written to `.env` files, skill files, vault notes, or reports.

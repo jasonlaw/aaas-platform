@@ -1,21 +1,3 @@
-# --- himalaya builder stage ---
-# Built from crates.io (cargo install --locked, exact version pin) rather
-# than curl-ing a prebuilt GitHub release binary. Kept as its own stage so
-# the Rust toolchain never lands in the final tenant image (COPY --from=
-# below only takes the compiled binary).
-#
-# Feature set trimmed to imap,smtp,sendmail,maildir — the ones tenants
-# actually need — to drop the default `notmuch` feature, which otherwise
-# pulls in libnotmuch-dev as a native build dependency. If a tenant needs
-# notmuch or PGP support later, add the feature here and (for notmuch)
-# install libnotmuch-dev in this stage's apt-get line — never in the final
-# image, which should stay dependency-free for this binary.
-# https://github.com/pimalaya/himalaya/tags
-FROM rust:1-slim AS himalaya-builder
-RUN cargo install himalaya --version 1.2.0 --locked \
-    --no-default-features --features imap,smtp,sendmail,maildir \
-    --root /usr/local
-
 # Pinned to an exact release tag rather than :latest so a rebuild (--build-image,
 # or a forced upgrade) can't silently pull a different, unvetted base image.
 # Bump deliberately, verify against platform/evals + harness/check-tenant.sh on
@@ -51,30 +33,6 @@ RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir \
     "mnemosyne-memory[embeddings]" \
     mnemosyne-hermes && \
     chown -R hermes:hermes /opt/hermes/.venv
-
-# Bundled tenant-agent capabilities, baked into every tenant image rather than
-# left to runtime lazy-install: both are free/permissively licensed, need no
-# system-level (apt) dependencies beyond curl above, and are common enough
-# across tenants (email, speech-to-text) that upstream's own precedent for
-# "used constantly" capabilities applies (see hermes-agent's hindsight-client,
-# baked in the same way rather than persisted). Anything more tenant-specific
-# or occasional-use should go through runtime lazy-install
-# (/opt/data/lazy-packages, see docs/architecture.md's "Tenant Plugin
-# Persistence" section), not here.
-
-# faster-whisper: pure pip, CPU-capable, no system deps.
-RUN uv pip install --python /opt/hermes/.venv/bin/python --no-cache-dir \
-    faster-whisper && \
-    chown -R hermes:hermes /opt/hermes/.venv
-
-# himalaya: self-contained Rust binary, no runtime system deps. Installed to
-# /usr/local/bin (already on PATH, root-owned — never writable by the hermes
-# user, consistent with keeping install targets out of tenant-agent hands).
-#
-# Built from crates.io via a dedicated builder stage (see top of file) rather
-# than downloading a release binary — avoids trusting a prebuilt GitHub asset
-# and keeps the Rust toolchain out of this final image entirely.
-COPY --from=himalaya-builder /usr/local/bin/himalaya /usr/local/bin/himalaya
 
 # Write-protect the runtime venv from the hermes user (root retains write via
 # DAC_OVERRIDE, so this only blocks the tenant agent's own process). This is

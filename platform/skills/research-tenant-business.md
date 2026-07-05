@@ -223,23 +223,29 @@ intermediate artifact, not operator-facing output.
 
 ## Handling failures
 
-**API call fails (network, auth, rate limit):**
+**`hermes -z` call fails (proxy unreachable, auth, provider error) or times out:**
 Log the error and fall back to cold generation for step 1.2 (as the SOP
 previously did). Note the fallback in the task report. Do not abort
 onboarding — the sub-agent is an enhancement, not a hard dependency. The
-script itself retries once on a 429 or network error before giving up, so by
-the time this reaches the SOP the transient case has already been handled.
+script no longer retries transient failures itself (there is no HTTP layer
+to distinguish a retryable 429 from a hard failure once the call goes
+through `hermes -z`); a bounded proxy reachability pre-check runs first so a
+broken Agent Vault path is reported immediately instead of `hermes -z`
+hanging indefinitely (it has no internal timeout — bounded by
+`SUBAGENT_HERMES_TIMEOUT`, default 180s).
 
-**Response truncated at the token budget:**
-The script checks the API's own `stop_reason` and fails with a distinct
-`response truncated at max_tokens` message (rather than a generic JSON-parse
-error) when this happens, saving the partial text to `{output-file}.raw`.
-The onboarding SOP (step 1.15) reads that file immediately, notes in the task
-report roughly how far generation got before cutting off, then deletes it —
-the file is a one-time diagnostic read for the admin agent during this same
+**Response looks truncated:**
+`hermes -z` returns plain text, not a raw API response, so the script can no
+longer check a `stop_reason` field directly. Instead, when the output fails
+to parse as JSON and doesn't end in `}`/`]`, the script flags it as a likely
+truncation and saves the partial text to `{output-file}.raw`. The onboarding
+SOP (step 1.15) reads that file immediately, notes in the task report
+roughly how far generation got before cutting off, then deletes it — the
+file is a one-time diagnostic read for the admin agent during this same
 onboarding run, never something left on the host for later or shown to the
-operator. If this recurs across tenants, raise `SUBAGENT_MAX_TOKENS` rather
-than treating each occurrence as a one-off.
+operator. If this recurs across tenants, raise the admin agent's own
+output-length config — there is no separate `SUBAGENT_MAX_TOKENS` any more,
+since generation now runs through the admin agent's own model settings.
 
 **Output is not valid JSON:**
 Same fallback as above. If the response text looks like a partial JSON

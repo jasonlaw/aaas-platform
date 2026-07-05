@@ -288,8 +288,12 @@ told not to run `remove` itself, since it lacks the tenant-side context to
 know if something still backs a scheduled skill.
 
 **What is never in the manifest:** packages baked into the tenant image at
-build time (e.g. `faster-whisper`, `himalaya` — see `platform/docker/Dockerfile`)
-are not, and should not be, tracked in `installed-plugins.yaml`. That manifest
+build time (e.g. `mnemosyne-memory`, `mnemosyne-hermes` — see
+`platform/docker/Dockerfile`) are not, and should not be, tracked in
+`installed-plugins.yaml`. (`faster-whisper` and `himalaya` were previously
+baked in here too — both were removed 2026-07-05; a tenant that genuinely
+needs email or speech-to-text now gets it through runtime lazy-install like
+any other tenant-specific capability.) That manifest
 exists solely for what the tenant agent chose to add at runtime; image-baked
 capabilities are identical across every tenant and versioned by the image tag,
 not per-tenant state. If a tenant reports a missing capability after a

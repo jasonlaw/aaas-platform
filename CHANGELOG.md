@@ -4,6 +4,36 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.16.16 - 2026-07-05
+
+### Removed
+
+- **`platform/docker/Dockerfile` — dropped the baked-in `himalaya` (email) and
+  `faster-whisper` (speech-to-text) tenant capabilities**, along with the
+  `himalaya-builder` Rust build stage that compiled it. Neither was wired
+  into onboarding, `SOUL.md.template`, config templates, or any eval/harness
+  check — nothing in the onboarding SOP actually collects the SMTP
+  credentials himalaya would need, so the capability was effectively
+  unreachable in practice while still adding a Rust toolchain build stage
+  and two extra installs to every tenant image. A tenant that genuinely
+  needs either capability can still get it through the existing runtime
+  lazy-install mechanism (`/opt/data/lazy-packages`, see
+  `docs/architecture.md`'s "Tenant Plugin Persistence" section) — the same
+  path already used for every other tenant-specific or occasional-use
+  package — rather than paying the build cost for every tenant regardless
+  of whether they use it.
+- **`README.md`'s "Before You Begin" table — removed the "Email details
+  (optional)" row.** It described SMTP host/port/username/password as
+  something to have ready for onboarding, but no onboarding step ever
+  actually asked for or used these fields; the row only ever existed because
+  `himalaya` was in the image. Removed rather than left as dead
+  documentation now that the capability itself is gone.
+- **`docs/architecture.md`'s "What is never in the manifest" note** — updated
+  its example of image-baked packages (previously `faster-whisper`,
+  `himalaya`) to the packages actually still baked in (`mnemosyne-memory`,
+  `mnemosyne-hermes`), with a pointer to this removal for anyone who goes
+  looking for the old examples.
+
 ## 0.16.15 - 2026-07-05
 
 ### Fixed
