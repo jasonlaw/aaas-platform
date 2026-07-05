@@ -373,9 +373,20 @@ docker_entities="$(
   done
 )"
 
-# Splice in admin Hermes as a virtual entity at its configured priority.
-all_entities="$(printf '%s\n%s\t%s\t%s\n' "$docker_entities" \
-  "$ADMIN_HERMES_PRIORITY" "admin-hermes" "$ADMIN_HERMES_PLAYBOOK" | grep -v '^\s*$' | sort -n -k1,1)"
+# Splice in admin Hermes as a virtual entity at its configured priority —
+# but only if it has actually been installed (setup-admin-hermes SOP). On a
+# fresh platform, admin Hermes is not installed by default; unconditionally
+# monitoring it here would probe unreachable ports, fail every restart
+# attempt (admin_hermes_restart already bails out on a missing .env), wait
+# out the full ADMIN_HERMES_PROBE_TIMEOUT x MAX_RESTART_ATTEMPTS, and
+# escalate to OpenCode — every single watchdog cycle — purely because the
+# operator hasn't installed it yet, not because anything is broken.
+if [[ -f "${ADMIN_DIR}/.env" ]]; then
+  all_entities="$(printf '%s\n%s\t%s\t%s\n' "$docker_entities" \
+    "$ADMIN_HERMES_PRIORITY" "admin-hermes" "$ADMIN_HERMES_PLAYBOOK" | grep -v '^\s*$' | sort -n -k1,1)"
+else
+  all_entities="$(printf '%s\n' "$docker_entities" | grep -v '^\s*$' | sort -n -k1,1)"
+fi
 
 # --- Priority 0 (Agent Vault) gate ---
 vault_line="$(printf '%s\n' "$all_entities" | awk -F'\t' '$1 == 0' | head -1)"

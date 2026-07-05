@@ -4,6 +4,19 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+### Fixed
+
+- **`platform/scripts/aaas-watchdog.sh` — watchdog falsely escalated admin-hermes when it was never installed.**
+  `admin-hermes` was spliced into the monitored entity list unconditionally,
+  with no check for whether it had actually been installed
+  (`setup-admin-hermes.md`). On a fresh platform without admin Hermes set up,
+  every cycle probed unreachable ports 9119/8642, failed the restart attempt
+  (already guarded on a missing `admin/.env`), waited out the full
+  `ADMIN_HERMES_PROBE_TIMEOUT` × `MAX_RESTART_ATTEMPTS`, and escalated to
+  OpenCode — purely because admin Hermes hadn't been installed yet, not
+  because anything was broken. admin-hermes is now only added to the
+  monitored entity list when `admin/.env` exists.
+
 ## 0.16.9 - 2026-07-05
 
 ### Fixed
