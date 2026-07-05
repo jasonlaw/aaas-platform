@@ -214,7 +214,20 @@ intermediate artifact, not operator-facing output.
 **API call fails (network, auth, rate limit):**
 Log the error and fall back to cold generation for step 1.2 (as the SOP
 previously did). Note the fallback in the task report. Do not abort
-onboarding — the sub-agent is an enhancement, not a hard dependency.
+onboarding — the sub-agent is an enhancement, not a hard dependency. The
+script itself retries once on a 429 or network error before giving up, so by
+the time this reaches the SOP the transient case has already been handled.
+
+**Response truncated at the token budget:**
+The script checks the API's own `stop_reason` and fails with a distinct
+`response truncated at max_tokens` message (rather than a generic JSON-parse
+error) when this happens, saving the partial text to `{output-file}.raw`.
+The onboarding SOP (step 1.15) reads that file immediately, notes in the task
+report roughly how far generation got before cutting off, then deletes it —
+the file is a one-time diagnostic read for the admin agent during this same
+onboarding run, never something left on the host for later or shown to the
+operator. If this recurs across tenants, raise `SUBAGENT_MAX_TOKENS` rather
+than treating each occurrence as a one-off.
 
 **Output is not valid JSON:**
 Same fallback as above. If the response text looks like a partial JSON
@@ -246,3 +259,32 @@ After onboarding completes (step 19), remove the temp file:
 ```bash
 rm -f /tmp/aaas-research-{tenant-id}.json
 ```
+
+---
+
+## Re-running for an already-onboarded tenant
+
+If a tenant onboarded with `confidence: low` or fell back to cold generation
+entirely, and the operator later provides a website URL or Google Business
+link, re-run the sub-agent rather than waiting for the tenant agent to pick
+facts up conversationally over time:
+
+1. Gather the same context block as onboarding step 1.15, updated with the
+   new research text (re-run step 1.1's web research against the new URL).
+2. Run the script exactly as above, with a fresh output path (e.g.
+   `/tmp/aaas-research-{tenant-id}-rerun.json`) so a failed re-run can never
+   collide with or partially overwrite the original.
+3. Apply only the *write* steps that consume the output — step 1.2's
+   template substitution for `SOUL.md`/`MEMORY.md`, step 4.1's append to
+   `business-data.md`, and step 4.2's vault seeding — do not repeat the rest
+   of onboarding. `seed-vault-context.py` is idempotent and never overwrites
+   existing vault notes, so re-running it is always safe; if the operator
+   wants the *content* of an existing vault note updated (not just missing
+   notes filled in), edit that note directly instead of relying on the
+   seeder to replace it.
+4. Write a task report (`sop: research-tenant-business-rerun`) noting the
+   previous confidence level and the new one.
+
+This reuses the existing script and write logic as-is — no new tooling
+required, just a documented entry point for a scenario the original SOP
+otherwise left to happen only implicitly.

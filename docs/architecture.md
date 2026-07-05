@@ -217,9 +217,9 @@ The onboarding flow (step 1.15) runs a focused Claude API call — the business 
 6. Step 4.2 calls `platform/tenant-hermes/scripts/seed-vault-context.py` on the host, which reads `vault_seed_notes` from the JSON and writes each note into the scaffolded vault. Idempotent — existing notes are never overwritten.
 7. The temp file is cleaned up at step 19 (`rm -f /tmp/aaas-research-{tenant-id}.json`).
 
-**Fallback design:** the sub-agent is an enhancement, not a hard gate. If the API call fails, the JSON cannot be parsed, or a field is missing, the onboarding SOP falls back to cold generation for that field and continues. The fallback is logged in the task report; no operator action is required unless the confidence level warrants it.
+**Fallback design:** the sub-agent is an enhancement, not a hard gate. If the API call fails, the JSON cannot be parsed, or a field is missing, the onboarding SOP falls back to cold generation for that field and continues. The fallback is logged in the task report; no operator action is required unless the confidence level warrants it. The script retries once on a 429 or network error before conceding, and distinguishes a token-budget truncation (checked directly against the API's own `stop_reason`) from a genuine malformed response, so a systematic under-provisioning of `SUBAGENT_MAX_TOKENS` shows up as a named, greppable failure rather than blending into ordinary parse failures. A truncation also writes a `.raw` sidecar with the partial output; step 1.15 reads it, notes how far generation got in the task report, and deletes it in the same step — it is a same-run diagnostic artifact, not something left on the host afterward.
 
-**Confidence levels:** the sub-agent reports `high` (research corroborated interview answers), `medium` (sparse research), or `low` (interview answers only, no external validation). Low confidence is surfaced to the operator at step 2 with a suggestion to provide a website URL or Google Business link after onboarding, so the tenant agent can update its Reference notes over time.
+**Confidence levels:** the sub-agent reports `high` (research corroborated interview answers), `medium` (sparse research), or `low` (interview answers only, no external validation). Low confidence is surfaced to the operator at step 2 with a suggestion to provide a website URL or Google Business link after onboarding. `research-tenant-business.md` documents how to act on that: re-run the sub-agent standalone against the new research and apply only the existing write steps (SOUL/MEMORY substitution, business-data append, vault seeding) rather than re-running onboarding.
 
 The sub-agent skill doc (`platform/skills/research-tenant-business.md`) is the source of truth for the sub-agent's contract, prompt, output field mapping, and failure handling.
 
@@ -303,6 +303,17 @@ plus `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`, to prove that the
 tenant gets a brand-aware, private, owner-safe assistant rather than only a
 running Docker container.
 
+`check-tenant.sh`'s Agent Vault isolation checks prove both directions: the
+management port (`:14321`) must be unreachable from the tenant container via
+either the `agent-vault` or `agent-vault-proxy-{tenant-id}` hostname, **and**
+the sidecar container itself must be confirmed running (`agent_vault_sidecar_running`)
+with its proxy port (`:14322`) actually answering (`agent_vault_sidecar_proxy_port_reachable`).
+The not-reachable checks alone can't distinguish a properly isolated sidecar
+from a crashed one — both look like a failed connection from inside the
+tenant — so the positive liveness checks exist specifically to rule out the
+false-PASS case where the sidecar is down and the tenant's LLM calls are
+silently failing.
+
 Tenant behavioral validation has two eval layers:
 
 - Fixed safety eval: `/opt/aaas/platform/tenant-hermes/evals/_fixed-safety-v1.yaml`
@@ -339,9 +350,12 @@ tenants.
 
 **SOP Improvement:**
 SOP improvement work should use `/opt/aaas/platform/sop/improve-sop.md`. Native
-SOP files are upgrade-managed, so local active overrides belong under
-`/opt/aaas/platform/local/sop/`, while reviewable improvement proposals belong
-under `/opt/aaas/platform/reports/sop-improvements/`.
+SOP files are upgrade-managed, so improvements are written as reviewable
+proposals under `/opt/aaas/platform/reports/sop-improvements/` rather than
+editing the native file in place. There is no mechanism for a proposal to take
+effect before review; if an operator wants a change applied immediately, the
+native SOP is patched directly with their explicit confirmation, and that
+patch is the reviewed change.
 
 ## Platform Watchdog
 

@@ -118,7 +118,7 @@ From there, OpenCode can use the platform SOPs to help you:
 - Suspend, reactivate, and offboard tenants (includes Agent Vault cleanup)
 - Upgrade tenants to a newer image
 - Update tenant configuration safely
-- Improve SOPs through local overrides or proposals without editing upgrade-managed native SOPs
+- Improve SOPs through reviewable proposals without editing upgrade-managed native SOPs directly
 - Build and search the platform's own knowledge vault of durable tenant, incident, and SOP learnings
 
 Ask the admin agent what skills are available, then tell it the tenant operation you want to perform.

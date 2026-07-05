@@ -11,12 +11,11 @@ Do not use this SOP as a shortcut during an active tenant or platform operation.
 ## Upgrade Safety Rule
 Treat `/opt/aaas/platform/sop/` as native, upgrade-managed content.
 
-Do not edit native SOP files in place unless the operator explicitly asks to patch the platform source. Instead, write proposed or local improvements to one of these locations:
+Do not edit native SOP files in place unless the operator explicitly asks to patch the platform source. Instead, write proposed improvements to:
 
-- Local active overrides: `/opt/aaas/platform/local/sop/{sop-name}.md`
 - Improvement proposals: `/opt/aaas/platform/reports/sop-improvements/{timestamp}_{sop-name}.md`
 
-If `/opt/aaas/platform/local/sop/` does not exist, create it before writing an active local override. If the platform does not yet load local overrides automatically, write a proposal instead and report that activation needs a platform loader change.
+There is no mechanism for an SOP change to take effect before it is reviewed and merged into the native file — every improvement, however urgent, goes through a proposal. If the operator wants a change to apply immediately, patch the native SOP directly with their explicit confirmation and record that as the reviewed change; do not invent a parallel "active locally" state for an SOP.
 
 ## Inputs
 Collect or infer:
@@ -43,47 +42,14 @@ Collect or infer:
    - Steps that should move into scripts or checklists.
    - Documentation-only clarifications.
 5. Check related automation before proposing SOP text. If a script, checklist, harness, or template already enforces the behavior, reference it instead of duplicating too much logic in the SOP.
-6. Draft the improvement as either:
-   - A full local override, when the operator wants the agent to use it immediately.
-   - A proposal document, when the change needs review or loader support.
+6. Draft the improvement as a proposal document.
 7. Preserve native SOP intent and ordering where possible. Keep changes narrow, operational, and testable.
-8. Include an "Upgrade Notes" section in every override or proposal describing:
+8. Include an "Upgrade Notes" section in every proposal describing:
    - Native SOP version or platform version reviewed.
    - Files intentionally not modified.
-   - How to rebase or retire the override after a platform upgrade.
 9. Validate the proposed SOP by walking through one realistic scenario from recent reports. Confirm that the new wording would have changed the outcome or reduced ambiguity.
 10. Write a task report using `/opt/aaas/platform/sop/write-report.md` with `sop` set to `improve-sop`.
 11. Follow `/opt/aaas/platform/sop/sync-knowledge-vault.md` to record the accepted change (or the rejected idea, if explicitly told not to pursue it) in `vault/SOPs/{sop-name}.md`, linked to the incidents or reports that justified it.
-
-## Local Override Format
-Use this structure for `/opt/aaas/platform/local/sop/{sop-name}.md`:
-
-```markdown
----
-override_version: 1
-target_native_sop: "{sop-name}"
-reviewed_platform_version: "{contents of /opt/aaas/platform/VERSION}"
-created_utc: "{YYYY-MM-DDTHH:MM:SSZ}"
-status: "active"
----
-
-# Local Override: {SOP Name}
-
-## Why This Override Exists
-Short explanation linked to report signals or operator request.
-
-## Native SOP Relationship
-- Native file reviewed:
-- Native file intentionally not modified:
-- Rebase guidance:
-
-## Override Instructions
-Write the complete instructions the agent should follow locally.
-
-## Validation
-- Scenario tested:
-- Expected improvement:
-```
 
 ## Proposal Format
 Use this structure for `/opt/aaas/platform/reports/sop-improvements/{timestamp}_{sop-name}.md`:
@@ -112,8 +78,8 @@ One short paragraph describing the proposed change.
 - Reason:
 - Risk:
 
-## Suggested Patch Or Override
-Provide concise replacement or insertion text.
+## Suggested Patch
+Provide concise replacement or insertion text for the native SOP file.
 
 ## Validation
 - Scenario:
@@ -121,13 +87,11 @@ Provide concise replacement or insertion text.
 
 ## Upgrade Notes
 - Native files not modified:
-- Rebase guidance:
 ```
 
 ## Rules
-- Do not put secrets in SOP overrides, proposals, reports, or index entries.
+- Do not put secrets in SOP proposals, reports, or index entries.
 - Do not weaken safety gates, confirmation steps, tenant isolation, or validation requirements to make an SOP shorter.
 - Prefer executable checks in scripts or checklists when the same instruction would otherwise be repeated across SOPs.
-- Keep local overrides small enough to rebase after native upgrades.
-- If an override conflicts with a newer native SOP after platform upgrade, stop and ask the operator whether to rebase, retire, or keep the override.
-- Report clearly whether the improvement was only proposed or is active as a local override.
+- If the operator wants a proposal applied now, patch the native SOP file directly with their explicit confirmation rather than writing it anywhere else — do not defer an approved change into an unreviewed parallel file.
+- Report clearly whether the improvement is still a proposal awaiting review or has already been merged into the native SOP.
