@@ -4,7 +4,55 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.16.13 - 2026-07-05
+
+### Added
+
+- **`platform/reference/llm-provider-catalog.md` — new shared LLM provider
+  catalog.** Single source of truth for provider hostnames and API key env
+  var names, replacing the hardcoded 5-row table duplicated across
+  `setup-admin-hermes.md`, `manage-agent-vault.md`, `provision-tenant-vault.md`,
+  and `docs/architecture.md`. Adds `opencode-go` (previously unsupported —
+  no env var, hostname, or table entry existed anywhere) plus a dozen other
+  common providers, a deterministic env-var derivation rule, and an
+  exceptions list for OAuth-only and multi-credential providers that must be
+  escalated to the operator rather than auto-configured. Custom/arbitrary
+  `base_url` endpoints remain explicitly out of scope. Wired into
+  `scripts/setup-platform.sh`: added to `MANAGED_ASSET_RELATIVE_PATHS` (so
+  `mkdir`/`copy_tree`/backup all pick it up automatically).
+- **`scripts/setup-platform.sh`'s `validate_install()` now derives its
+  required-file list from `MANAGED_ASSET_RELATIVE_PATHS`** instead of
+  keeping its own separate hardcoded `required=()` array. This was the one
+  place that still hadn't been folded into the single-source-of-truth
+  cleanup described in the array's own top-of-file comment — confirmed via
+  a byte-for-byte diff that the derived list matches the old hardcoded one
+  exactly, so this is a drift-proofing fix with no behavior change today,
+  but means any future managed asset only needs to be added in one place
+  going forward.
+
+### Changed
+
+- **Operators/tenants are no longer asked for the API key env var name
+  during onboarding.** `onboard-tenant.md` step 1 and `setup-admin-hermes.md`
+  now derive it from the provider ID via the new catalog instead of
+  collecting it as a question — e.g. `opencode-zen/big-pickle` or
+  `provider = openrouter, model = openai/gpt-oss-120b` is now enough input on
+  its own. Only genuinely unlisted or excepted providers still prompt a
+  follow-up question, and never for the env var name itself.
+
 ### Fixed
+
+- **`platform/tenant-hermes/env.template`, `platform/scripts/provision-tenant-vault.sh`,
+  and `docs/architecture.md` still used `OPENCODE_API_KEY`** instead of
+  `OPENCODE_ZEN_API_KEY` — the same drift already fixed on the admin side
+  (see the 0.x entry below), left unfixed on the tenant side. All three now
+  match the catalog; `OPENCODE_GO_API_KEY` added alongside.
+- **`setup-admin-hermes.md`'s post-setup verification grep hardcoded "one of
+  the five Step 5.2 names"** as an allow-list for `*_API_KEY` variables in
+  `admin/.env`. This silently failed closed for any catalog provider beyond
+  the original five (including the newly-added `opencode-go`). The check now
+  derives its allow-list from the catalog file at check time instead of a
+  hardcoded pattern.
 
 - **`platform/scripts/aaas-watchdog.sh` — watchdog falsely escalated admin-hermes when it was never installed.**
   `admin-hermes` was spliced into the monitored entity list unconditionally,

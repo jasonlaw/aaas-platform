@@ -22,7 +22,7 @@ during the setup steps below.
 
 | Item | Where used | Notes |
 |---|---|---|
-| **LLM API key** | Agent Vault (Step 1) and Hermes admin vault (Step 2) | Never stored in `.env` directly — goes into Agent Vault only. Supported providers: OpenRouter, OpenAI, Anthropic, Nous, OpenCode Zen. |
+| **LLM API key** | Agent Vault (Step 1) and Hermes admin vault (Step 2) | Never stored in `.env` directly — goes into Agent Vault only. Supported providers: see `platform/reference/llm-provider-catalog.md` (OpenRouter, OpenAI, Anthropic, Nous, OpenCode Zen, OpenCode Go, and others). The env var name is derived automatically from the provider — never asked of the operator. |
 | **Telegram bot token** | Each tenant's `.env` during onboarding | Create a bot via [@BotFather](https://t.me/BotFather) and note the token. |
 | **Telegram bot username** | Tenant onboarding | The `@username` of the bot (without `@`). |
 | **Telegram user IDs** | Tenant access control | Numeric IDs of users allowed to message each tenant bot. Get them from [@userinfobot](https://t.me/userinfobot). |

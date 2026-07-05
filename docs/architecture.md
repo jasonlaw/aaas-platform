@@ -78,13 +78,18 @@ re-onboard the tenant using the full onboard-tenant SOP.
 
 Supported LLM providers and their Agent Vault hostnames:
 
-| Provider         | Hostname            | Env var                |
-|------------------|---------------------|------------------------|
-| OpenRouter       | `openrouter.ai`     | `OPENROUTER_API_KEY`   |
-| OpenAI           | `api.openai.com`    | `OPENAI_API_KEY`       |
-| Anthropic        | `api.anthropic.com` | `ANTHROPIC_API_KEY`    |
-| Nous             | `api.nous.ai`       | `NOUS_API_KEY`         |
-| OpenCode Zen     | `opencode.ai`       | `OPENCODE_API_KEY`     |
+Authoritative source: `platform/reference/llm-provider-catalog.md`. This
+table is a convenience excerpt only — do not edit this copy independently of
+the catalog.
+
+| Provider         | Hostname            | Env var                  |
+|------------------|---------------------|---------------------------|
+| OpenRouter       | `openrouter.ai`     | `OPENROUTER_API_KEY`     |
+| OpenAI           | `api.openai.com`    | `OPENAI_API_KEY`         |
+| Anthropic        | `api.anthropic.com` | `ANTHROPIC_API_KEY`      |
+| Nous             | `api.nous.ai`       | `NOUS_API_KEY`           |
+| OpenCode Zen     | `opencode.ai`       | `OPENCODE_ZEN_API_KEY`   |
+| OpenCode Go      | `opencode.ai`       | `OPENCODE_GO_API_KEY`    |
 
 ## Policy Framework
 

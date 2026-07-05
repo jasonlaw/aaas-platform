@@ -76,7 +76,8 @@ provider_host() {
     ANTHROPIC_API_KEY)    echo "api.anthropic.com" ;;
     OPENROUTER_API_KEY)   echo "openrouter.ai" ;;
     NOUS_API_KEY)         echo "api.nous.ai" ;;
-    OPENCODE_API_KEY)     echo "opencode.ai" ;;
+    OPENCODE_ZEN_API_KEY) echo "opencode.ai" ;;
+    OPENCODE_GO_API_KEY)  echo "opencode.ai" ;;
     *)
       echo "WARN  unknown provider env var '$var_name' — could not auto-detect hostname" >&2
       echo ""

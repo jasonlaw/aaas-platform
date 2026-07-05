@@ -192,22 +192,32 @@ primary key in Step 5.7. If no fallback provider was collected, leave the
 `fallback_providers` block commented out exactly as shipped. Leave .env
 untouched until Step 5 — real API key must never be written into .env.
 
-**`model.provider` must be set to exactly one of the five literal values in
-the Step 5.2 table below** (`openrouter`, `openai`, `anthropic`, `nous`, or
-the OpenCode Zen provider value from that table) **and nothing else.** There
-is no supported custom-provider mechanism anywhere in this platform — no
-top-level `providers:` list, no `api_key_env_var` or `key_env` field, no
-per-provider override block. If a 401/model-routing error occurs against one
-of the five listed providers, the fix is a config or model-name correction
-within the existing single `model:` block, never the introduction of a new
-provider block or a new env var name not already present (commented or not)
-in `admin-hermes/env.template`. If a `providers:` block or any non-template
-env var is already present from a prior session, that is prior drift to be
-removed, not a pattern to extend — flag it under Issues and revert to the
-single supported `model:` field and the exact env var name from the Step
-5.2 table. If source code or external docs suggest a different env var name
-than what Step 5.2 lists, escalate to the operator — do not write any
-credential under an undocumented name.
+**`model.provider` must be set to exactly one Provider ID listed in
+`/opt/aaas/platform/reference/llm-provider-catalog.md`** (Step 5.2 reproduces
+the current table) **and nothing else.** There is no supported
+custom-provider mechanism anywhere in this platform — no top-level
+`providers:` list, no `api_key_env_var` or `key_env` field, no `base_url`,
+no per-provider override block. If a 401/model-routing error occurs against
+a catalog provider, the fix is a config or model-name correction within the
+existing single `model:` block, never the introduction of a new provider
+block or a new env var name not already present (commented or not) in
+`admin-hermes/env.template`. If a `providers:` block, `base_url` key, or any
+non-catalog env var is already present from a prior session, that is prior
+drift to be removed, not a pattern to extend — flag it under Issues and
+revert to the single supported `model:` field and the exact env var name
+from the catalog. If source code or external docs suggest a different env
+var name than what the catalog lists, escalate to the operator — do not
+write any credential under an undocumented name.
+
+**Never ask the operator for the API key env var name.** Given only
+`provider/model` (e.g. `opencode-zen/big-pickle`) or separate `provider =`
+and `model =` answers, look up the Provider ID in the catalog and derive the
+env var mechanically — the catalog's derivation rule is deterministic. The
+operator only needs to be asked for: (1) the provider/model itself, if not
+given, and (2) the real API key value. If the named provider is not in the
+catalog, or falls under the catalog's Exceptions section (OAuth-only or
+multi-credential providers), stop and follow the catalog's escalation
+guidance instead of guessing.
 
 ## Step 3.1 — Configure Telegram (optional)
 
@@ -308,22 +318,29 @@ placeholder. Same policy as every tenant — no exceptions for the admin agent.
 
 ### 5.2 Provider hostname reference
 
-| Provider     | Hostname              | Env var               |
-|--------------|-----------------------|-----------------------|
-| OpenRouter   | openrouter.ai         | OPENROUTER_API_KEY    |
-| OpenAI       | api.openai.com        | OPENAI_API_KEY        |
-| Anthropic    | api.anthropic.com     | ANTHROPIC_API_KEY     |
-| Nous         | api.nous.ai           | NOUS_API_KEY          |
-| OpenCode Zen | opencode.ai           | OPENCODE_ZEN_API_KEY  |
+Full catalog: `/opt/aaas/platform/reference/llm-provider-catalog.md` — read
+it for the current list, the derivation rule, and the exceptions that must
+be escalated rather than auto-configured. Most commonly used at the time of
+writing:
+
+| Provider ID    | Hostname              | Env var               |
+|----------------|------------------------|------------------------|
+| `openrouter`   | openrouter.ai          | OPENROUTER_API_KEY    |
+| `openai`       | api.openai.com         | OPENAI_API_KEY        |
+| `anthropic`    | api.anthropic.com      | ANTHROPIC_API_KEY     |
+| `nous`         | api.nous.ai            | NOUS_API_KEY          |
+| `opencode-zen` | opencode.ai            | OPENCODE_ZEN_API_KEY  |
+| `opencode-go`  | opencode.ai            | OPENCODE_GO_API_KEY   |
 
 The **Env var** column is exact and non-negotiable — it is the only name
 `{PROVIDER_VAR}` may take throughout Step 5, and it is the only name that
 may appear (commented or not) in `admin/.env`. Do not rename, abbreviate,
 or invent a variant even if it seems more descriptive — Agent Vault's
 service registration in 5.3 and the proxy injection in 5.5 are keyed to
-this exact string, and `admin-hermes/env.template` only ships the five
-names above. If runtime source code or provider docs appear to contradict
-this table, **stop and escalate to the operator** before writing any
+this exact string. This excerpt is a convenience only — the catalog file
+above is authoritative and is where new providers get added. If runtime
+source code or provider docs appear to contradict either this excerpt or
+the full catalog, **stop and escalate to the operator** before writing any
 credential — do not self-resolve the conflict.
 
 ### 5.3 Store the credential and register the service
@@ -443,15 +460,19 @@ time:
 **Reject any invented provider config.** These two checks must both pass —
 if either fails, this is drift from an earlier session (possibly one that
 predates this checklist), not a valid configuration; remove the offending
-block/line and re-derive from the Step 5.2 table before continuing:
+block/line and re-derive from the catalog
+(`/opt/aaas/platform/reference/llm-provider-catalog.md`) before continuing:
 
     grep -q "^providers:" /opt/aaas/platform/admin/config.yaml \
       && echo "FAIL: unsupported top-level providers: block present — remove, use model.provider only" \
       || echo "OK: no custom providers block"
+    ALLOWED_VARS=$(grep -oE '\`[A-Z_]+_API_KEY\`' \
+      /opt/aaas/platform/reference/llm-provider-catalog.md \
+      | tr -d '`' | sort -u | paste -sd'|' -)
     grep -E "^[A-Z_]+_API_KEY=" /opt/aaas/platform/admin/.env \
-      | grep -vE "^(OPENROUTER_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|NOUS_API_KEY|OPENCODE_ZEN_API_KEY)=" \
-      && echo "FAIL: unrecognized *_API_KEY variable — must be one of the five Step 5.2 names, exactly" \
-      || echo "OK: only documented provider env var names present"
+      | grep -vE "^(${ALLOWED_VARS})=" \
+      && echo "FAIL: unrecognized *_API_KEY variable — must be a name from the catalog, exactly" \
+      || echo "OK: only catalog-listed provider env var names present"
 
 **Validate `SOUL.md` and `config.yaml` content, not just their existence.**
 A bare `test -f` above only proves a file exists — it says nothing about

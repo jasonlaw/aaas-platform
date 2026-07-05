@@ -78,18 +78,24 @@ this is a structural property of what the container can reach, not an
 access-control rule that could be misconfigured.
 
 ### 2. Store the credential and register the LLM provider service
-Identify the provider hostname from the tenant's LLM provider:
+Identify the provider hostname from the tenant's LLM provider. Full catalog,
+derivation rule for the env var, and exceptions (OAuth-only / multi-credential
+providers to escalate rather than auto-configure):
+`/opt/aaas/platform/reference/llm-provider-catalog.md`. Most commonly used at
+the time of writing:
 
-| Provider         | Hostname                |
-|------------------|-------------------------|
-| OpenAI           | `api.openai.com`        |
-| Anthropic        | `api.anthropic.com`     |
-| OpenRouter       | `openrouter.ai`         |
-| Nous             | `api.nous.ai`           |
-| OpenCode Zen     | `opencode.ai`           |
+| Provider ID      | Hostname                |
+|-------------------|--------------------------|
+| `openai`         | `api.openai.com`        |
+| `anthropic`      | `api.anthropic.com`     |
+| `openrouter`     | `openrouter.ai`         |
+| `nous`           | `api.nous.ai`           |
+| `opencode-zen`   | `opencode.ai`           |
+| `opencode-go`    | `opencode.ai`           |
 
-Store the credential (replace `{tenant-id}`, `{provider-env-var}` — the exact
-var name collected in onboard-tenant step 1 — and `{real-api-key}`):
+Store the credential (replace `{tenant-id}`, `{provider-env-var}` — derived
+from the Provider ID via the catalog's rule, never asked of the operator —
+and `{real-api-key}`):
 ```bash
 agent-vault vault credential set {provider-env-var}={real-api-key} --vault {tenant-id}-vault
 ```
@@ -149,14 +155,14 @@ cannot read the raw credential value, only route requests through the proxy.
 
 ### 4. Set a placeholder for the LLM API key env var — BEFORE injecting proxy config
 The tenant `.env` was rendered in onboard-tenant step 5 with the real key under the
-provider-specific env var name collected in onboard-tenant step 1 (e.g.
-`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `NOUS_API_KEY`, `OPENAI_API_KEY`,
-`OPENCODE_API_KEY`).
+provider-specific env var name derived from the catalog in onboard-tenant step 1
+(e.g. `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `NOUS_API_KEY`, `OPENAI_API_KEY`,
+`OPENCODE_ZEN_API_KEY`, `OPENCODE_GO_API_KEY`).
 Use that exact variable name here — **do not hardcode `OPENAI_API_KEY`**, or the
 real key will never be scrubbed for any other provider:
 
 ```bash
-PROVIDER_VAR={provider-env-var}   # the exact var name collected in onboard-tenant step 1
+PROVIDER_VAR={provider-env-var}   # derived from the catalog in onboard-tenant step 1
 sed -i "s|^${PROVIDER_VAR}=.*|${PROVIDER_VAR}=routed-via-agent-vault|" \
   /opt/aaas/tenants/{tenant-id}/.env
 ```

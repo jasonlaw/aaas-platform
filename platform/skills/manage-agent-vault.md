@@ -65,13 +65,20 @@ credential must be rotated (key compromised or expired).
 
 ### 2.1 Provider hostname reference
 
-| Provider     | Hostname              | Env var               |
-|--------------|-----------------------|-----------------------|
-| OpenRouter   | openrouter.ai         | OPENROUTER_API_KEY    |
-| OpenAI       | api.openai.com        | OPENAI_API_KEY        |
-| Anthropic    | api.anthropic.com     | ANTHROPIC_API_KEY     |
-| Nous         | api.nous.ai           | NOUS_API_KEY          |
-| OpenCode Zen | opencode.ai           | OPENCODE_ZEN_API_KEY  |
+Full catalog, derivation rule, and exceptions (OAuth-only / multi-credential
+providers that must be escalated, not auto-configured):
+`/opt/aaas/platform/reference/llm-provider-catalog.md`. Never ask the
+operator/tenant for the env var name — derive it via the catalog's rule.
+Most commonly used at the time of writing:
+
+| Provider ID    | Hostname               | Env var               |
+|----------------|-------------------------|------------------------|
+| `openrouter`   | openrouter.ai           | OPENROUTER_API_KEY    |
+| `openai`       | api.openai.com          | OPENAI_API_KEY        |
+| `anthropic`    | api.anthropic.com       | ANTHROPIC_API_KEY     |
+| `nous`         | api.nous.ai             | NOUS_API_KEY          |
+| `opencode-zen` | opencode.ai             | OPENCODE_ZEN_API_KEY  |
+| `opencode-go`  | opencode.ai             | OPENCODE_GO_API_KEY   |
 
 ### 2.2 Store or update the credential
 

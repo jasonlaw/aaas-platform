@@ -29,7 +29,23 @@ setup is out of date - do not attempt to author it inline; report this and stop.
 0.4. Confirm `/opt/aaas/platform/policy/platform-policy.yaml` exists (platform-level
 asset, not generated per tenant). If missing, the platform setup is out of date -
 do not attempt to author it inline; report this and stop.
-1. Collect tenant information one question at a time: business type, business name, vertical details, location, brand tone, colors, owner profile, Telegram bot token, allowed Telegram user IDs, LLM provider/model, provider-specific API key env var name, API key value, and any tenant-specific access restrictions (e.g. "only allow posting to Facebook and Instagram", "only allow querying the orders database"). If the operator has none, proceed with no tenant-specific restrictions — this is the common case and is not an error. Also ask whether the operator wants a fallback LLM provider (optional — press enter/say no to skip). Hermes automatically switches to the fallback provider:model mid-turn if the primary provider fails (rate limits, server errors, auth failures) — see https://hermes-agent.nousresearch.com/docs/user-guide/features/fallback-providers. If the operator wants one, also collect the fallback provider, fallback model name, fallback provider-specific API key env var name, and fallback API key value — same shape as the primary provider questions. If declined, proceed with no `fallback_providers` entry — this is the common case and is not an error.
+1. Collect tenant information one question at a time: business type, business name, vertical details, location, brand tone, colors, owner profile, Telegram bot token, allowed Telegram user IDs, LLM provider/model, API key value, and any tenant-specific access restrictions (e.g. "only allow posting to Facebook and Instagram", "only allow querying the orders database"). If the operator has none, proceed with no tenant-specific restrictions — this is the common case and is not an error. Also ask whether the operator wants a fallback LLM provider (optional — press enter/say no to skip). Hermes automatically switches to the fallback provider:model mid-turn if the primary provider fails (rate limits, server errors, auth failures) — see https://hermes-agent.nousresearch.com/docs/user-guide/features/fallback-providers. If the operator wants one, also collect the fallback provider, fallback model name, and fallback API key value — same shape as the primary provider questions. If declined, proceed with no `fallback_providers` entry — this is the common case and is not an error.
+
+   **Never ask the operator for the provider-specific API key env var
+   name — that is always derived, not collected.** Accept the LLM
+   provider/model in whatever form the operator gives it (`provider/model`,
+   e.g. `opencode-zen/big-pickle`; or separate `provider =` / `model =`
+   answers), split out the Provider ID, and look it up in
+   `/opt/aaas/platform/reference/llm-provider-catalog.md` to get both the
+   hostname (needed later in `provision-tenant-vault.md` step 2) and the env
+   var name (via the catalog's deterministic derivation rule). Only fall
+   back to asking the operator a follow-up question if the named provider
+   isn't in the catalog (ask for its API hostname only, never the env var
+   name — see the catalog's "Provider not in this table" section) or if it
+   falls under the catalog's Exceptions section (OAuth-only or
+   multi-credential providers), in which case follow that section's
+   escalation guidance instead of proceeding. Same rule applies to the
+   optional fallback provider if one is collected.
 1.1. **Web research augmentation:** After collecting the operator's answers, proactively search the business website, public review/blog pages, Instagram bios, and Google Business snippets to fill gaps and validate facts. Do this even when the operator has answered every question — website copy often surfaces richer vertical detail than interview answers alone. If a social page blocks unauthenticated access, use the above sources as alternates. Record which sources were used; include them in the final task report.
 1.15. **Business intelligence sub-agent:** Run the research sub-agent to synthesise the interview answers and web research into richer, structured context. This replaces cold LLM generation for the capability and brand blocks in step 1.2, and produces the vault seed notes written in step 4.2.
 
@@ -198,14 +214,16 @@ do not attempt to author it inline; report this and stop.
    only requires updating `install-tenant-scripts.sh` in one place.
 6.3. **Provision the tenant vault in Agent Vault:**
    Run the deterministic provision script now — after `.env` exists but before
-   container start. Pass the provider-specific API key env var name collected in
-   step 1 (e.g. `ANTHROPIC_API_KEY`) — the script uses this exact name to scrub
-   the real key, so it must not be hardcoded or guessed.
+   container start. Pass the provider-specific API key env var name derived
+   from the catalog in step 1 (e.g. `ANTHROPIC_API_KEY`) — the script uses
+   this exact name to scrub the real key, so it must not be hardcoded or
+   guessed.
    ```bash
    /opt/aaas/platform/scripts/provision-tenant-vault.sh \
      {tenant-id} {provider-env-var} {real-api-key}
    ```
-   If a fallback provider was collected in step 1, pass both its env var and key
+   If a fallback provider was collected in step 1, pass both its derived env
+   var and key
    as the optional 4th and 5th arguments:
    ```bash
    /opt/aaas/platform/scripts/provision-tenant-vault.sh \
