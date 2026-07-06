@@ -4,6 +4,48 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.18.7 - 2026-07-06
+
+### Fixed (found during a full project audit of 0.18.4–0.18.6)
+
+- **`admin-hermes/env.template`'s own Telegram comment still asserted the
+  old, wrong claim** that `config.yaml`'s `home_chat_id` "is never read by
+  the gateway" — this was already corrected in `setup-admin-hermes.md` and
+  `config.yaml.template` in 0.18.5/0.18.6, but the same claim was left
+  standing in `env.template`, contradicting the fix. Rewritten to match:
+  either file may be where `hermes config set` puts
+  `TELEGRAM_ALLOWED_USERS`/`TELEGRAM_HOME_CHANNEL`, both are correct, and
+  `hermes config get` — not reading the file — is the way to verify.
+
+- **`configure-telegram-channel-admin.md` pointed at the wrong file for
+  its pre-0.13.1 Hermes escalation note.** It said "see
+  `admin-hermes/env.template`'s note on this," but that note actually
+  lives in `setup-admin-hermes.md` Step 6 — `env.template` has never
+  contained it. Fixed the cross-reference.
+
+- **`tenant-hermes/skills/configure-telegram-channel-tenant.md`'s Step 4
+  test message didn't prefer `HOME_CHANNEL`** even when the call being
+  verified had just set one, unlike the admin skill's equivalent step.
+  Now uses `${HOME_CHANNEL:-one-allowed-id}`. Also completed two small
+  gaps left from the 0.18.6 home-channel addition: the Preconditions
+  bullet and Inputs section now both mention home channel alongside bot
+  token and allow list, matching what Steps 1–3 already implement.
+
+### Verified, no changes needed
+
+- Re-ran the full cross-reference audit from 0.18.6 after these fixes;
+  confirmed no remaining stale "tenant has no home channel" or "gateway
+  never reads / dead config" claims anywhere in the repo, and no new
+  broken `.md`/`.sh`/`.py`/`.yaml` cross-references.
+- Validated YAML syntax on every non-templated `.yaml` file and
+  structural sanity on the four `config.yaml.template` files (which
+  contain `{{ }}` placeholders and can't be parsed as plain YAML).
+- Re-ran `bash -n` / `py_compile` on every shell and Python script in the
+  repo, not just the ones touched this round.
+- Confirmed the `Never` sections of the admin and tenant Telegram skills
+  make the same claims about `.env`/`config.yaml` routing, with no
+  contradictions between them.
+
 ## 0.18.6 - 2026-07-06
 
 ### Fixed

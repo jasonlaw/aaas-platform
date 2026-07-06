@@ -41,8 +41,9 @@ file and line regardless of the file's current state.
   for another reason — troubleshoot that first (see
   sop/troubleshoot-tenant.md), don't try to reconfigure a dead container.
 - You have, from the caller (operator or the tenant's own self-service
-  request via handle-tenant-request.md): the new Telegram bot token and/or
-  allow list. This skill only writes what it's given.
+  request via handle-tenant-request.md): the new Telegram bot token
+  and/or allow list and/or home channel. This skill only writes what
+  it's given.
 
 ## Inputs
 
@@ -130,10 +131,11 @@ would silently reintroduce the inconsistency this skill exists to remove.
 
 ## Step 4 — Test message (after the restart in Step 2)
 
-Send a test message to confirm delivery, to any ID now in the allow list:
+Send a test message to confirm delivery. Use `${HOME_CHANNEL}` if this call
+set it; otherwise any ID currently in the allow list:
 
     curl -sS -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
-      -d chat_id="{one-allowed-id}" \
+      -d chat_id="${HOME_CHANNEL:-one-allowed-id}" \
       --data-urlencode text="Telegram channel reconfigured and live."
 
 A `400 Bad Request: chat not found` or `403 Forbidden` means that user

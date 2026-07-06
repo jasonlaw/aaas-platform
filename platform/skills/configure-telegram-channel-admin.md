@@ -111,7 +111,7 @@ If `hermes config get` errors with "unknown key" or similar instead of
 printing a value or a clean empty result, treat that as a signal the
 installed Hermes version doesn't recognize one of these three keys (e.g.
 a host running a pre-0.13.1 Hermes, before `TELEGRAM_HOME_CHANNEL`
-existed — see `admin-hermes/env.template`'s note on this) — stop and
+existed — see `setup-admin-hermes.md` Step 6's note on this) — stop and
 escalate rather than falling back to hand-editing `.env` for just that
 one key, which would silently reintroduce the inconsistency this skill
 exists to remove.
