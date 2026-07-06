@@ -42,23 +42,68 @@ first. Do not proceed until it passes.
 Collect before writing any files. Never write the real API key anywhere
 except Agent Vault (Step 5).
 
-1. LLM provider and model. Recommended: openrouter / openai/gpt-4.1-mini
-1.1. Fallback LLM provider and model (optional). Ask whether the operator
-   wants automatic failover to a backup provider:model if the primary
-   provider fails (rate limits, server errors, auth failures) — see
+**Format for every question below:** each item states whether it is an
+*options* question (a fixed, known set of answers — present them as a
+list and let the operator pick one) or a *free-text* question (no fixed
+set — real secrets, model names). Default to options wherever the valid
+answers are known ahead of time; do not turn a fixed-choice field into an
+open-ended question. Ask items in the order listed and skip an item only
+where it is explicitly marked conditional on an earlier answer — this
+keeps the number and shape of questions the same from run to run instead
+of drifting with phrasing.
+
+**Never ask the operator to supply a credential this setup can generate
+itself.** Three values fall in this category, and none of them should
+ever be posed as a question:
+- The Agent Vault admin token (the `hermes_admin` agent token used to
+  authenticate to the Agent Vault proxy) — always minted automatically
+  in Step 5.4 via `agent-vault agent create --token-only`.
+- `API_SERVER_KEY` — always generated in Step 3.2.
+- The dashboard basic auth password/secret, if basic auth is enabled —
+  always generated in Step 3.3.
+
+None of these have an operator-meaningful value to collect; generate
+them, write them, and only report afterward that they were set, never
+their value.
+
+1. LLM provider — options: openrouter, openai, anthropic, nous,
+   opencode-zen, opencode-go, or other (for "other", see
+   /opt/aaas/platform/reference/llm-provider-catalog.md for the full
+   catalog and its Exceptions section). Default: openrouter.
+2. Model for the chosen provider — free text. Default (only if item 1 is
+   openrouter): openai/gpt-4.1-mini. Use the default without asking
+   further if the operator has no preference and item 1 is openrouter;
+   otherwise ask for the model with no default.
+3. Real LLM API key for the primary provider — free text, required (a
+   secret with no possible default). Stored in Agent Vault only, never
+   in .env.
+4. Fallback provider — options: none (default), or the same list as
+   item 1 minus whichever provider was already chosen there. This is
+   automatic failover to a backup provider:model if the primary fails
+   (rate limits, server errors, auth failures) — see
    https://hermes-agent.nousresearch.com/docs/user-guide/features/fallback-providers.
-   If yes, also collect the fallback's real LLM API key — stored in Agent
-   Vault only, same as the primary key, never in .env. If declined, proceed
-   with no fallback configured — this is the common case and is not an error.
-2. Real LLM API key — stored in Agent Vault only, never in .env
-3. Dashboard host. Recommended: 127.0.0.1
-4. Dashboard port. Recommended: 9119
-5. Dashboard basic auth? Recommended: yes if binding outside localhost
-6. Enable Telegram for admin Hermes? If yes, also collect:
-   - Telegram bot token (from @BotFather)
-   - Allow list: numeric Telegram user IDs permitted to message this agent.
-     Mandatory if Telegram is enabled — do not proceed to Step 3.1 with an
-     empty allow list. If the operator gives none, stop and ask again; an
+   Declining is the common case and is not an error. If a fallback
+   provider is chosen, also collect:
+   - Fallback model — free text, same convention as item 2 (no default).
+   - Fallback's real LLM API key — free text, required. Stored in Agent
+     Vault only, same as the primary key, never in .env.
+5. Dashboard binding — options: default (127.0.0.1:9119, loopback only),
+   or custom (then collect host and port as free text). Use the default
+   without asking further if the operator picks default here — this also
+   determines whether item 6 is asked at all.
+6. Dashboard basic auth — only ask this if item 5 was custom with a
+   non-loopback host; skip entirely (leave disabled, the default) if
+   item 5 was the default loopback binding, since basic auth only
+   matters once the dashboard is reachable off-box. Options: no
+   (default), or yes. If yes, do not ask for a username or password —
+   both are generated automatically in Step 3.3.
+7. Enable Telegram for admin Hermes — options: no (default), or yes. If
+   yes, also collect:
+   - Telegram bot token (from @BotFather) — free text, required.
+   - Allow list: numeric Telegram user IDs permitted to message this
+     agent — free text, comma-separated numeric IDs, required. Mandatory
+     if Telegram is enabled — do not proceed to Step 3.1 with an empty
+     allow list. If the operator gives none, stop and ask again; an
      enabled Telegram channel with no allowed users is not a valid state.
    - TELEGRAM_HOME_CHANNEL: which allowed user is the primary contact for
      proactive messages (alerts, restart notifications)? Set via .env, not
@@ -289,6 +334,68 @@ collect at least one ID before writing anything.
    per Step 7, which always sets it via the systemd unit's
    `EnvironmentFile`, and re-send the item 5 test message.
 
+## Step 3.2 — Generate API Server Key
+
+`API_SERVER_KEY` lets tenant agents authenticate to admin Hermes's API
+server for support requests, alerts, and LLM key change requests (see
+skills/handle-tenant-request.md), and is handed to every tenant as
+`ADMIN_HERMES_API_KEY` during onboarding (sop/onboard-tenant.md, step
+that fills in `ADMIN_HERMES_API_KEY`). It is never collected from the
+operator (see Ask The Operator preamble) — generate it directly, every
+run, regardless of any other answer in Ask The Operator:
+
+    API_SERVER_KEY_VALUE=$(openssl rand -hex 32)
+    sed -i "s|^API_SERVER_KEY=.*|API_SERVER_KEY=${API_SERVER_KEY_VALUE}|" \
+      /opt/aaas/platform/admin/.env
+    unset API_SERVER_KEY_VALUE
+
+Verify:
+
+    grep -q "^API_SERVER_KEY=." /opt/aaas/platform/admin/.env \
+      && echo "OK: API_SERVER_KEY generated" \
+      || echo "FAIL: API_SERVER_KEY was not written"
+
+Never print the generated value in a task report or log beyond this
+verification step.
+
+## Step 3.3 — Configure Dashboard Basic Auth (optional)
+
+Skip this step entirely if the operator declined dashboard basic auth in
+Ask The Operator item 6 (the default, and the only option when the
+dashboard was left on the default loopback binding from item 5). Leave
+the commented-out `HERMES_DASHBOARD_BASIC_AUTH_*` lines in `.env` as-is.
+
+If enabled, generate the credentials — never ask the operator for a
+username or password, there is nothing for them to meaningfully supply:
+
+    DASHBOARD_AUTH_USER="admin"
+    DASHBOARD_AUTH_PASS=$(openssl rand -base64 24)
+    DASHBOARD_AUTH_SECRET=$(openssl rand -hex 32)
+    sed -i \
+      -e "s|^# HERMES_DASHBOARD_BASIC_AUTH_USERNAME=.*|HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${DASHBOARD_AUTH_USER}|" \
+      -e "s|^# HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=.*|HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${DASHBOARD_AUTH_PASS}|" \
+      -e "s|^# HERMES_DASHBOARD_BASIC_AUTH_SECRET=.*|HERMES_DASHBOARD_BASIC_AUTH_SECRET=${DASHBOARD_AUTH_SECRET}|" \
+      /opt/aaas/platform/admin/.env
+    unset DASHBOARD_AUTH_PASS DASHBOARD_AUTH_SECRET
+
+Tell the operator once, out of band from the task report (e.g. a direct
+message, never written to any file under version control), that basic
+auth is enabled and the username is `admin` — they can read the
+generated password themselves from `.env` if they need it:
+
+    grep HERMES_DASHBOARD_BASIC_AUTH_PASSWORD /opt/aaas/platform/admin/.env
+
+Never include the password or secret value itself in the task report.
+
+Verify:
+
+    grep -q "^HERMES_DASHBOARD_BASIC_AUTH_USERNAME=." /opt/aaas/platform/admin/.env \
+      && echo "OK: basic auth username set"
+    grep -q "^HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=." /opt/aaas/platform/admin/.env \
+      && echo "OK: basic auth password set"
+    grep -q "^HERMES_DASHBOARD_BASIC_AUTH_SECRET=." /opt/aaas/platform/admin/.env \
+      && echo "OK: basic auth secret set"
+
 ## Step 4 — Install Agent Vault CA on Host
 
 Admin Hermes runs on the host (not in Docker). It needs the Agent Vault MITM
@@ -357,6 +464,9 @@ credential — do not self-resolve the conflict.
 Real key is now in Agent Vault only. Do not write it anywhere else.
 
 ### 5.4 Mint an agent token
+
+This is the Agent Vault admin token referenced in the Ask The Operator
+preamble — always generated here, never collected as an operator answer:
 
     ADMIN_VAULT_TOKEN=$(agent-vault agent create \
       --vault admin-vault:proxy \
@@ -555,6 +665,23 @@ After Step 7 starts Hermes, this validation step only confirms config was
 *written* correctly — it does not confirm the gateway actually connected.
 Run Step 3.1 item 6's test-message check after Step 7 for that.
 
+Step 3.2 runs unconditionally, so also verify it regardless of any Ask
+The Operator answer:
+
+    grep -q "^API_SERVER_KEY=." /opt/aaas/platform/admin/.env \
+      && echo "OK: API_SERVER_KEY set" \
+      || echo "FAIL: API_SERVER_KEY missing — re-run Step 3.2"
+
+If dashboard basic auth was enabled in Ask The Operator, also verify:
+
+    grep -q "^HERMES_DASHBOARD_BASIC_AUTH_USERNAME=." /opt/aaas/platform/admin/.env && echo "OK: basic auth username set"
+    grep -q "^HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=." /opt/aaas/platform/admin/.env && echo "OK: basic auth password set"
+    grep -q "^HERMES_DASHBOARD_BASIC_AUTH_SECRET=."   /opt/aaas/platform/admin/.env && echo "OK: basic auth secret set"
+
+If declined, confirm the lines remain commented out instead:
+
+    grep -q "^# HERMES_DASHBOARD_BASIC_AUTH_USERNAME=" /opt/aaas/platform/admin/.env && echo "OK: basic auth left disabled"
+
 ## Step 7 — Install Gateway Service and Verify Proxy
 
 Admin Hermes (the gateway/dashboard process) runs as a systemd `--user`
@@ -656,7 +783,11 @@ name, agent token name (hermes_admin), CA trust status, proxy verification
 result, watchdog install status, Telegram enabled/declined status, and (if
 enabled) allow-list size and test message delivery result per user ID.
 Fallback provider/model configured (or declined), and if configured, the
-fallback credential's vault/service registration status.
+fallback credential's vault/service registration status. API_SERVER_KEY
+generated status (Step 3.2 always runs). Dashboard basic auth
+enabled/declined status, and if enabled, that the username/password/secret
+were generated — status only, never the values.
 
 Never include: API keys, vault tokens, passwords, auth secrets, Telegram bot
-tokens, or any credential-shaped value.
+tokens, the Agent Vault admin token, the generated API_SERVER_KEY or
+dashboard basic auth password/secret, or any other credential-shaped value.
