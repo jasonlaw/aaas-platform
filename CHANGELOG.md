@@ -4,6 +4,72 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.18.6 - 2026-07-06
+
+### Fixed
+
+- **`setup-admin-hermes.md` Ask The Operator item 7 could be read as
+  multi-select for `TELEGRAM_HOME_CHANNEL`.** It accepts exactly one
+  primary contact, never a list. Reworded to say explicitly that it's a
+  single-select choice when the allow list has more than one ID.
+
+- **Admin Hermes had no explicit guard against lazy-install
+  configuration.** `HERMES_LAZY_INSTALL_TARGET` /
+  `HERMES_DISABLE_LAZY_INSTALLS` exist solely to work around the tenant
+  containers' read-only image; admin Hermes runs on the host with a
+  normal, writable venv and never needs them. Added an explicit
+  Preconditions rule against configuring either for admin Hermes.
+
+- **Tenant Telegram onboarding had no `TELEGRAM_HOME_CHANNEL`
+  equivalent.** Added it end-to-end using the same convention as admin
+  Hermes: single ID, auto-selected if the allow list has exactly one
+  entry, asked as a single-select choice otherwise. Updated
+  `tenant-hermes/env.template` (new commented field),
+  `sop/onboard-tenant.md` (collect at step 1, render + verify at steps
+  5/6), `tenant-hermes/skills/configure-telegram-channel-tenant.md`
+  (full rotation support: inputs, sanity checks, write, verify, `Never`
+  rules), `tenant-hermes/config.yaml.template`'s `home_chat_id` comment,
+  and `skills/configure-telegram-channel-admin.md`'s two stale
+  "tenants never have a home channel" claims.
+
+- **"Vertical" was renamed to "industry" throughout the tenant
+  onboarding pipeline** (obsoleted term). Case-preserving rename across
+  12 files: `sop/onboard-tenant.md`, `sop/update-tenant.md`,
+  `sop/troubleshoot-tenant.md`, `skills/research-tenant-business.md`,
+  `tenant-hermes/MEMORY.md.template`, `tenant-hermes/SOUL.md.template`,
+  `tenant-hermes/evals/_fixed-safety-v1.yaml`,
+  `tenant-hermes/evals/_skill-verification-primitives-v1.yaml`,
+  `scripts/generate-platform-eval.sh`,
+  `scripts/run-business-research-subagent.py`, `PLATFORM-REFERENCE.md`,
+  and `evals/meta-eval-generation-v1.yaml`. Covers both prose ("vertical
+  detail" → "industry detail", "cross-vertical" → "cross-industry") and
+  the `{{VERTICAL_CAPABILITIES_BLOCK}}` / `{{VERTICAL_BRAND_FACTS_BLOCK}}`
+  template placeholders, now `{{INDUSTRY_CAPABILITIES_BLOCK}}` /
+  `{{INDUSTRY_BRAND_FACTS_BLOCK}}`. Verified the renamed `.py`/`.sh`
+  files still parse.
+
+- **No documented guard against the Hermes CLI prompting for a sudo
+  password.** Hermes prompts interactively for sudo (or reads
+  `SUDO_PASSWORD`) when a command needs elevation — admin Hermes's whole
+  design avoids sudo for anything agent-driven, so this should never
+  fire. Added an explicit Preconditions rule: never set `SUDO_PASSWORD`;
+  treat a sudo prompt as a bug to fix, not something to paper over.
+
+- **Two broken self-references in `setup-admin-hermes.md`.**
+  `configure-telegram-channel.md` (missing the `-admin` suffix) appeared
+  twice, pointing at a file that doesn't exist. Fixed both to
+  `configure-telegram-channel-admin.md`.
+
+- **Streamlined Step 3.1's routing-rule explanation.** Items 1 and 2 had
+  grown duplicative across recent patches (the same secrets-vs-`.env`
+  rule explained three times in adjacent paragraphs). Condensed to state
+  the rule once and point to `configure-telegram-channel-admin.md` for
+  the full rationale, with no loss of the underlying guidance.
+
+- Verified, via a full pass over every `` `path` `` and `` /opt/aaas/... ``
+  reference in the changed skills/SOPs, that no new broken cross-file
+  references were introduced by this or the prior two releases.
+
 ## 0.18.5 - 2026-07-06
 
 ### Fixed

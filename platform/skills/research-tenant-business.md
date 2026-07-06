@@ -4,7 +4,7 @@ description: >
   Run a focused sub-agent to synthesise raw interview answers and web
   research into richer, structured tenant context during onboarding
   (onboard-tenant step 1.15). Produces four artifacts consumed by later
-  onboarding steps: VERTICAL_CAPABILITIES_BLOCK, VERTICAL_BRAND_FACTS_BLOCK,
+  onboarding steps: INDUSTRY_CAPABILITIES_BLOCK, INDUSTRY_BRAND_FACTS_BLOCK,
   enriched business-data content, and vault seed notes. Use only from within
   onboard-tenant.md — never called standalone.
 ---
@@ -34,7 +34,7 @@ of the onboarding SOP.
 
 After completing onboard-tenant steps 1 and 1.1. You should have:
 - Operator interview answers (business name, type, location, brand tone,
-  owner name, vertical details, communication style, timezone)
+  owner name, industry details, communication style, timezone)
 - Web research text from step 1.1 (website copy, review snippets, social
   bios, Google Business data — whatever was found)
 
@@ -82,7 +82,7 @@ Pipe a JSON object with two fields:
     "language": "...",
     "communication_style": "...",
     "timezone": "...",
-    "vertical_details": "...",
+    "industry_details": "...",
     "primary_color": "...",
     "secondary_color": "..."
   },
@@ -107,7 +107,7 @@ python3 /opt/aaas/platform/scripts/run-business-research-subagent.py \
     "language": "English",
     "communication_style": "casual, emoji-friendly",
     "timezone": "Australia/Perth",
-    "vertical_details": "mobile and in-salon grooming for dogs and cats. specialises in anxious pets. 3 groomers. appointment-only.",
+    "industry_details": "mobile and in-salon grooming for dogs and cats. specialises in anxious pets. 3 groomers. appointment-only.",
     "primary_color": "#F4A03A",
     "secondary_color": "#FFFFFF"
   },
@@ -150,7 +150,7 @@ Business: {business_name}, a {business_type} in {location}.
 Brand tone: {brand_tone}. Language: {language}.
 Owner: {owner_name}. Communication style: {communication_style}.
 Timezone: {timezone}.
-Additional details from operator: {vertical_details}
+Additional details from operator: {industry_details}
 
 Web research findings:
 {web_research or "None available."}
@@ -158,13 +158,13 @@ Web research findings:
 Produce a JSON object with exactly these fields:
 
 {
-  "vertical_capabilities_block": [
+  "industry_capabilities_block": [
     "string — one concrete capability per item, 4–6 items",
     "ground each in the actual business type and details above",
     "write as '- <capability>' lines, e.g. '- Help draft responses to Google reviews in your brand voice'",
-    "avoid generic phrasing like 'help manage your business' — be specific to this vertical"
+    "avoid generic phrasing like 'help manage your business' — be specific to this industry"
   ],
-  "vertical_brand_facts_block": [
+  "industry_brand_facts_block": [
     "string — one stable fact per item, 2–5 items",
     "only facts that do not change unless the owner makes a deliberate business decision",
     "e.g. founding year, location, owner name, brand story, core service categories",
@@ -174,7 +174,7 @@ Produce a JSON object with exactly these fields:
     "string — one item per context note, 3–8 items",
     "these are NOT operational facts (no prices/hours — those belong in the operational section)",
     "these are insider context lines that help the assistant sound like it knows this business:",
-    "  - how customers typically describe their needs in this vertical",
+    "  - how customers typically describe their needs in this industry",
     "  - common questions or objections the owner handles regularly",
     "  - local context (neighbourhood, nearby landmarks, how locals refer to things)",
     "  - seasonal or calendar patterns specific to this business",
@@ -183,7 +183,7 @@ Produce a JSON object with exactly these fields:
   ],
   "vault_seed_notes": {
     "Reference/Business Overview.md": "string — a full Markdown note (200–400 words) covering: what this business does, its positioning, what makes it distinctive, who its customers are, and how the owner wants it to be perceived. Use the research and interview to make this specific. Include frontmatter: type: reference, created_utc: <placeholder>.",
-    "Reference/Vertical Playbook.md": "string — a full Markdown note (150–300 words) covering: typical workflows in this vertical that the assistant will help with, common patterns (recurring tasks, seasonal rhythms, peak periods), and anything the owner should know about how the assistant will approach tasks in this space. Use the interview details and research findings. Include frontmatter: type: reference, created_utc: <placeholder>.",
+    "Reference/Industry Playbook.md": "string — a full Markdown note (150–300 words) covering: typical workflows in this industry that the assistant will help with, common patterns (recurring tasks, seasonal rhythms, peak periods), and anything the owner should know about how the assistant will approach tasks in this space. Use the interview details and research findings. Include frontmatter: type: reference, created_utc: <placeholder>.",
     "Recurring/Patterns to Watch.md": "string — a full Markdown note (100–200 words) listing 3–5 recurring patterns specific to this business that the assistant should track over time (e.g. 'Waitlist fills 2–3 weeks ahead — flag when slots open', 'Google review replies should be posted within 48h'). Draw from research and interview. Include frontmatter: type: recurring, created_utc: <placeholder>."
   },
   "research_sources_used": [
@@ -208,8 +208,8 @@ Parse each field and use it as follows in the onboarding SOP:
 
 | Output field | Used in onboarding step |
 |---|---|
-| `vertical_capabilities_block` | Step 1.2 → `VERTICAL_CAPABILITIES_BLOCK` (replaces cold generation) |
-| `vertical_brand_facts_block` | Step 1.2 → `VERTICAL_BRAND_FACTS_BLOCK` for `MEMORY.md` seeding |
+| `industry_capabilities_block` | Step 1.2 → `INDUSTRY_CAPABILITIES_BLOCK` (replaces cold generation) |
+| `industry_brand_facts_block` | Step 1.2 → `INDUSTRY_BRAND_FACTS_BLOCK` for `MEMORY.md` seeding |
 | `business_data_context_section` | Step 4.1 → appended to `business-data.md` as a "Context" section |
 | `vault_seed_notes` | Step 4.2 → written as seed notes into the scaffolded vault |
 | `research_sources_used` | Step 19 → include in task report under "Sources used" |

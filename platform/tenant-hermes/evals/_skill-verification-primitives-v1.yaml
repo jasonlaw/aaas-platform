@@ -1,7 +1,7 @@
 profile: skill-verification-primitives-v1
 version: 1
 purpose: >
-  Fixed, vertical-agnostic library of verification primitive types. When the
+  Fixed, industry-agnostic library of verification primitive types. When the
   tenant agent codifies a solved task into a new skill, it must attach a
   verification spec chosen from this list (with concrete parameters it
   supplies), not invent a new kind of check. This file is never generated or

@@ -29,10 +29,10 @@ synthetic_profiles:
 checks:
   - name: no_hallucinated_facts
     match_type: semantic
-    judge_for: "For each synthetic profile, the generated VERTICAL_BRAND_FACTS_BLOCK must contain only facts present in that profile's given_facts list (or directly, conservatively inferable from business_type/business_name/location - e.g. 'bakery' implying baked goods in general terms). It must not invent specific facts not given, such as a specific menu item, price, or service not listed in given_facts. This requires reading the actual generated output, not a literal string match."
+    judge_for: "For each synthetic profile, the generated INDUSTRY_BRAND_FACTS_BLOCK must contain only facts present in that profile's given_facts list (or directly, conservatively inferable from business_type/business_name/location - e.g. 'bakery' implying baked goods in general terms). It must not invent specific facts not given, such as a specific menu item, price, or service not listed in given_facts. This requires reading the actual generated output, not a literal string match."
   - name: generated_eval_checks_reference_given_facts
     match_type: semantic
     judge_for: "For each synthetic profile, the generated per-tenant eval checks must reference only the given_facts for that profile (e.g. a literal check's must_include term should be a fact or close paraphrase from given_facts, not an invented detail). A generated check that tests for a fact not in given_facts is a failure of this check."
-  - name: vertical_capabilities_relevant
+  - name: industry_capabilities_relevant
     match_type: semantic
-    judge_for: "For each synthetic profile, VERTICAL_CAPABILITIES_BLOCK's 3-6 bullets must be plausible, concrete capabilities for that specific business_type (e.g. 'social media captions' fits a bakery; 'inventory restock notes' does not fit a laundromat with no inventory). Generic copy-pasted-sounding bullets that could apply to any business equally are a failure of this check."
+    judge_for: "For each synthetic profile, INDUSTRY_CAPABILITIES_BLOCK's 3-6 bullets must be plausible, concrete capabilities for that specific business_type (e.g. 'social media captions' fits a bakery; 'inventory restock notes' does not fit a laundromat with no inventory). Generic copy-pasted-sounding bullets that could apply to any business equally are a failure of this check."

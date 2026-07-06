@@ -92,7 +92,7 @@ Business: {business_name}, a {business_type} in {location}.
 Brand tone: {brand_tone}. Language: {language}.
 Owner: {owner_name}. Communication style: {communication_style}.
 Timezone: {timezone}.
-Additional details from operator: {vertical_details}
+Additional details from operator: {industry_details}
 
 Web research findings:
 {web_research}
@@ -100,13 +100,13 @@ Web research findings:
 Produce a JSON object with exactly these fields:
 
 {{
-  "vertical_capabilities_block": [
+  "industry_capabilities_block": [
     "string — one concrete capability per item, 4–6 items",
     "ground each in the actual business type and details above",
     "write as '- <capability>' lines, e.g. '- Help draft responses to Google reviews in your brand voice'",
-    "avoid generic phrasing like 'help manage your business' — be specific to this vertical"
+    "avoid generic phrasing like 'help manage your business' — be specific to this industry"
   ],
-  "vertical_brand_facts_block": [
+  "industry_brand_facts_block": [
     "string — one stable fact per item, 2–5 items",
     "only facts that do not change unless the owner makes a deliberate business decision",
     "e.g. founding year, location, owner name, brand story, core service categories",
@@ -116,7 +116,7 @@ Produce a JSON object with exactly these fields:
     "string — one item per context note, 3–8 items",
     "these are NOT operational facts (no prices/hours — those belong in the operational section)",
     "these are insider context lines that help the assistant sound like it knows this business:",
-    "  - how customers typically describe their needs in this vertical",
+    "  - how customers typically describe their needs in this industry",
     "  - common questions or objections the owner handles regularly",
     "  - local context (neighbourhood, nearby landmarks, how locals refer to things)",
     "  - seasonal or calendar patterns specific to this business",
@@ -125,7 +125,7 @@ Produce a JSON object with exactly these fields:
   ],
   "vault_seed_notes": {{
     "Reference/Business Overview.md": "string — a full Markdown note (200–400 words) ...",
-    "Reference/Vertical Playbook.md": "string — a full Markdown note (150–300 words) ...",
+    "Reference/Industry Playbook.md": "string — a full Markdown note (150–300 words) ...",
     "Recurring/Patterns to Watch.md": "string — a full Markdown note (100–200 words) ..."
   }},
   "research_sources_used": [
@@ -136,8 +136,8 @@ Produce a JSON object with exactly these fields:
 """
 
 REQUIRED_FIELDS = [
-    "vertical_capabilities_block",
-    "vertical_brand_facts_block",
+    "industry_capabilities_block",
+    "industry_brand_facts_block",
     "business_data_context_section",
     "vault_seed_notes",
     "research_sources_used",
@@ -146,7 +146,7 @@ REQUIRED_FIELDS = [
 
 REQUIRED_VAULT_NOTES = [
     "Reference/Business Overview.md",
-    "Reference/Vertical Playbook.md",
+    "Reference/Industry Playbook.md",
     "Recurring/Patterns to Watch.md",
 ]
 
@@ -159,8 +159,8 @@ INSTRUCTION_ECHO_MARKERS = [
 ]
 
 ARRAY_LENGTH_BOUNDS = {
-    "vertical_capabilities_block": (4, 6),
-    "vertical_brand_facts_block": (2, 5),
+    "industry_capabilities_block": (4, 6),
+    "industry_brand_facts_block": (2, 5),
     "business_data_context_section": (3, 8),
 }
 
@@ -180,7 +180,7 @@ def build_user_prompt(interview: dict, web_research: str) -> str:
         owner_name=interview.get("owner_name", "[TO CONFIRM]"),
         communication_style=interview.get("communication_style", "[TO CONFIRM]"),
         timezone=interview.get("timezone", "[TO CONFIRM]"),
-        vertical_details=interview.get("vertical_details", "None provided."),
+        industry_details=interview.get("industry_details", "None provided."),
         web_research=web_research if web_research.strip() else "None available.",
     )
 

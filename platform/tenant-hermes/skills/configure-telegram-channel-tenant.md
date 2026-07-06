@@ -1,16 +1,17 @@
 ---
 name: configure-telegram-channel-tenant
 description: >
-  Rewrite a live tenant's Telegram credentials (bot token, allow list) via
-  `docker exec {container} hermes config set` instead of hand-editing the
-  tenant's .env. Use this ONLY for reconfiguring an already-onboarded,
-  already-running tenant — e.g. rotating a compromised bot token or
-  changing who's on the allow list. Does NOT cover a tenant's first-ever
-  .env write during onboarding: at that point the container doesn't exist
-  yet, so there's no `hermes` process to call — that initial write is a
-  plain file write done in sop/onboard-tenant.md step 5. For the admin
-  equivalent, see skills/configure-telegram-channel-admin.md — admin
-  Hermes is host-installed and reachable directly, unlike tenants.
+  Rewrite a live tenant's Telegram credentials (bot token, allow list, home
+  channel) via `docker exec {container} hermes config set` instead of
+  hand-editing the tenant's .env. Use this ONLY for reconfiguring an
+  already-onboarded, already-running tenant — e.g. rotating a compromised
+  bot token, changing who's on the allow list, or changing the primary
+  contact for alerts. Does NOT cover a tenant's first-ever .env write during
+  onboarding: at that point the container doesn't exist yet, so there's no
+  `hermes` process to call — that initial write is a plain file write done
+  in sop/onboard-tenant.md step 5. For the admin equivalent, see
+  skills/configure-telegram-channel-admin.md — admin Hermes is host-installed
+  and reachable directly, unlike tenants.
 ---
 
 # Skill: Configure Telegram Channel (Tenant)
@@ -48,11 +49,12 @@ file and line regardless of the file's current state.
 | Name | Meaning |
 |---|---|
 | `CONTAINER` | The tenant's container name, e.g. `hermes_{tenant-id}` |
-| `BOT_TOKEN` | New Telegram bot token from @BotFather (omit if only rotating the allow list) |
-| `ALLOWED_USERS` | New comma-separated numeric Telegram user IDs, no spaces (omit if only rotating the token) |
+| `BOT_TOKEN` | New Telegram bot token from @BotFather (omit if not rotating the token) |
+| `ALLOWED_USERS` | New comma-separated numeric Telegram user IDs, no spaces (omit if not rotating the allow list) |
+| `HOME_CHANNEL` | New single numeric ID, the primary contact for Hermes-initiated messages (omit if not changing it) |
 
-Tenants have no `TELEGRAM_HOME_CHANNEL` concept
-(`tenant-hermes/env.template` has no such line) — never write one.
+`HOME_CHANNEL` accepts exactly one ID, never a list — same convention as
+admin Hermes (see `skills/setup-admin-hermes.md` Step 3.1).
 
 ## Step 1 — Sanity-check inputs before writing anything
 
@@ -64,8 +66,13 @@ happily write it.
 - If `ALLOWED_USERS` is provided, it must be non-empty and every entry
   numeric. Do not let this tenant's allow list go empty — an enabled
   Telegram channel with no allowed users is not a valid state.
-- At least one of `BOT_TOKEN` / `ALLOWED_USERS` must be provided — don't
-  call this skill with nothing to write.
+- If `HOME_CHANNEL` is provided, it must be a single numeric ID (not a
+  list), and it must already be present in the tenant's current
+  `TELEGRAM_ALLOWED_USERS` (or in the new `ALLOWED_USERS`, if both are
+  being changed together) — a home channel that isn't an allowed user is
+  not a valid state.
+- At least one of `BOT_TOKEN` / `ALLOWED_USERS` / `HOME_CHANNEL` must be
+  provided — don't call this skill with nothing to write.
 
 ## Step 2 — Write via `docker exec ... hermes config set`
 
@@ -75,14 +82,18 @@ happily write it.
     if [ -n "${ALLOWED_USERS:-}" ]; then
       docker exec "$CONTAINER" hermes config set TELEGRAM_ALLOWED_USERS "$ALLOWED_USERS"
     fi
+    if [ -n "${HOME_CHANNEL:-}" ]; then
+      docker exec "$CONTAINER" hermes config set TELEGRAM_HOME_CHANNEL "$HOME_CHANNEL"
+    fi
 
 `hermes config set`'s routing rule is **secrets go to `.env`, everything
 else goes to `config.yaml`** — not whether the key name looks env-var-
 shaped. `TELEGRAM_BOT_TOKEN` is a credential and lands in `.env`;
-`TELEGRAM_ALLOWED_USERS` is an access-control setting and may legitimately
-land in either file depending on this Hermes version's own classification.
-**Either destination is correct** — never move the value once written,
-that reintroduces exactly the drift this skill exists to remove.
+`TELEGRAM_ALLOWED_USERS` and `TELEGRAM_HOME_CHANNEL` are access/behavior
+settings and may legitimately land in either file depending on this
+Hermes version's own classification. **Either destination is correct** —
+never move a value once written, that reintroduces exactly the drift this
+skill exists to remove.
 
 This lands on the bind-mounted `.env`, so it survives a
 `docker compose up --force-recreate`. It does not, however, get picked up
@@ -105,6 +116,12 @@ policy is to never print secrets anyway, so verify presence, not content:
         && echo "OK: allow list matches" \
         || echo "FAIL: allow list mismatch — written='${WRITTEN_USERS}' expected='${ALLOWED_USERS}'"
     fi
+    if [ -n "${HOME_CHANNEL:-}" ]; then
+      WRITTEN_HOME=$(docker exec "$CONTAINER" hermes config get TELEGRAM_HOME_CHANNEL)
+      [ "$WRITTEN_HOME" = "$HOME_CHANNEL" ] \
+        && echo "OK: home channel matches" \
+        || echo "FAIL: home channel mismatch — written='${WRITTEN_HOME}' expected='${HOME_CHANNEL}'"
+    fi
 
 If `hermes config get` errors with "unknown key" or similar, treat that as
 a signal this tenant's image predates the Hermes version this key needs —
@@ -126,15 +143,16 @@ it as blocking.
 
 ## Never
 
-- Never write `TELEGRAM_BOT_TOKEN` or `TELEGRAM_ALLOWED_USERS` with `sed`
-  or a manual file edit on a running tenant — always go through
-  `docker exec ... hermes config set`.
+- Never write `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS`, or
+  `TELEGRAM_HOME_CHANNEL` with `sed` or a manual file edit on a running
+  tenant — always go through `docker exec ... hermes config set`.
 - Never move or duplicate a value between `.env` and `config.yaml` after
   `hermes config set` writes it. Whichever file it lands in reflects
   Hermes's own secret/non-secret classification for that key — moving it
   yourself creates two sources of truth instead of one.
-- Never write a `TELEGRAM_HOME_CHANNEL` for a tenant — that field doesn't
-  exist in the tenant profile.
+- Never write a `TELEGRAM_HOME_CHANNEL` that isn't in the tenant's allow
+  list, and never write more than one ID to it — it accepts exactly one
+  primary contact.
 - Never run this skill against a tenant whose container isn't running yet
   — that's onboarding's job (sop/onboard-tenant.md step 5), which uses a
   plain file write instead because no `hermes` process exists to call.

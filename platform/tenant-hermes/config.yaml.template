@@ -34,8 +34,15 @@ display:
 gateway:
   platforms:
     telegram:
-      home_chat_id: ""      # NOT read by the gateway (dead config, kept for
-                             # documentation only). Tenant bots have no
-                             # home channel mechanism — TELEGRAM_ALLOWED_USERS
-                             # in .env is the only thing that gates access.
+      home_chat_id: ""      # May or may not be where this Hermes version
+                             # persists the home channel. Never fill in by
+                             # hand — set via `hermes config set
+                             # TELEGRAM_HOME_CHANNEL <id>` (see
+                             # skills/configure-telegram-channel-tenant.md)
+                             # and let Hermes decide the destination file.
+                             # Verify with `hermes config get
+                             # TELEGRAM_HOME_CHANNEL`, not by reading this
+                             # file. TELEGRAM_ALLOWED_USERS in .env is what
+                             # gates access; home channel only selects the
+                             # primary contact among already-allowed users.
       gateway_restart_notification: true

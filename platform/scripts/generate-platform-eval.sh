@@ -36,7 +36,7 @@ trap 'rm -f "$TMP_FILE"' EXIT
 {
   echo "eval_profile: fixed-safety-v1"
   echo "version: $EVAL_VERSION"
-  echo "purpose: \"Vertical-agnostic safety and isolation checks. Identical for every tenant regardless of business type. Generated from platform/policy/platform-policy.yaml by generate-platform-eval.sh - do not hand-edit, do not generate or edit this file per-tenant.\""
+  echo "purpose: \"Industry-agnostic safety and isolation checks. Identical for every tenant regardless of business type. Generated from platform/policy/platform-policy.yaml by generate-platform-eval.sh - do not hand-edit, do not generate or edit this file per-tenant.\""
   echo "run_mode: \"automated literal checks via eval-runner.sh for match_type: literal checks; operator-assisted Telegram/transcript review required for match_type: semantic checks\""
   echo "checks:"
 } > "$TMP_FILE"

@@ -36,6 +36,15 @@ first. Do not proceed until it passes.
   The only steps in this skill that do need sudo are installing the Agent
   Vault CA into the host trust store (Step 4) and, later, installing the
   watchdog systemd unit (Step 8) — both unrelated to Hermes's own install.
+- Never set `SUDO_PASSWORD` in `admin/.env`. Admin Hermes should never
+  need sudo for anything it runs as the agent — a sudo password prompt
+  means a tool/skill is wrongly escalating privileges; fix that, don't
+  silence it with a stored password.
+- Never configure `HERMES_LAZY_INSTALL_TARGET` or
+  `HERMES_DISABLE_LAZY_INSTALLS` here. Lazy-install only exists to work
+  around the tenant containers' read-only image (see `tenant-hermes/`) —
+  admin Hermes runs on the host with a normal, writable venv and needs
+  none of it.
 
 ## Ask The Operator
 
@@ -105,11 +114,13 @@ their value.
      if Telegram is enabled — do not proceed to Step 3.1 with an empty
      allow list. If the operator gives none, stop and ask again; an
      enabled Telegram channel with no allowed users is not a valid state.
-   - TELEGRAM_HOME_CHANNEL: which allowed user is the primary contact for
-     proactive messages (alerts, restart notifications)? Set via .env, not
-     config.yaml — see Step 3.1.
-     - If the allow list has more than one ID, present them as options and
-       ask the operator to choose.
+   - TELEGRAM_HOME_CHANNEL: which single allowed user is the primary
+     contact for proactive messages (alerts, restart notifications)? This
+     accepts exactly one numeric ID, never a list. Set via `hermes config
+     set`, not a manual edit — see Step 3.1.
+     - If the allow list has more than one ID, present them as
+       single-select options (pick exactly one) and ask the operator to
+       choose.
      - If the allow list has exactly one ID, use it as the home channel
        automatically — no separate confirmation needed, since it's the
        only valid choice.
@@ -294,27 +305,21 @@ collect at least one ID before writing anything.
    for Hermes-initiated messages (alerts, restart notifications); it does
    not grant access by itself.
 
-   `hermes config set` decides for itself whether each of these three
-   keys lands in `.env` or `config.yaml` — its rule is secrets go to
-   `.env`, everything else goes to `config.yaml`, not whether the key
-   name looks env-var-shaped. `TELEGRAM_BOT_TOKEN` is a credential and
-   lands in `.env`. `TELEGRAM_ALLOWED_USERS` and `TELEGRAM_HOME_CHANNEL`
-   are access/behavior settings, not secrets, and may legitimately land
-   in `config.yaml` instead — **this is correct, expected behavior for
-   this Hermes version, not a misconfiguration**. Do not hand-edit `.env`
-   to force them there if `hermes config set` chose `config.yaml`, and do
-   not move a value between files once written. Verify with
-   `hermes config get`, which reads back the correct value regardless of
-   which file backs it — see that skill's Step 3.
+   `hermes config set` decides for itself whether each key lands in
+   `.env` or `config.yaml` (secrets vs. everything else — not by key-name
+   shape). `TELEGRAM_ALLOWED_USERS` and `TELEGRAM_HOME_CHANNEL` may
+   legitimately land in `config.yaml` — **this is correct, not a
+   misconfiguration**. Never hand-edit either file to relocate a value
+   `hermes config set` already wrote; verify with `hermes config get`
+   instead, which is correct regardless of which file backs a key — see
+   that skill's "Why this exists" and Step 3 for the full rationale.
 
-2. Don't hand-edit the gateway block in `config.yaml` yourself — Step 1's
-   `hermes config set` calls are the only writes this step performs, and
-   they may touch `config.yaml`, `.env`, or both depending on Hermes's own
-   classification of each key. There is nothing left for you to fill in
-   here manually either way.
+2. Don't hand-edit `config.yaml`'s gateway block yourself — item 1's
+   `hermes config set` calls are the only writes this step performs,
+   wherever they land.
 
 3. Token format and non-empty checks are handled by
-   configure-telegram-channel.md's Step 1 before it writes anything — no
+   configure-telegram-channel-admin.md's Step 1 before it writes anything — no
    separate check needed here. Never print the token value in any report
    or log.
 
@@ -673,7 +678,7 @@ now rather than falling back to grep against `.env` directly:
       && echo "OK: telegram token set" || echo "FAIL: telegram token missing"
     HERMES_HOME=/opt/aaas/platform/admin hermes config get TELEGRAM_ALLOWED_USERS
     # Expected: non-empty comma-separated list — an empty result means the
-    # mandatory allow list is missing; go back to configure-telegram-channel.md
+    # mandatory allow list is missing; go back to configure-telegram-channel-admin.md
     HERMES_HOME=/opt/aaas/platform/admin hermes config get TELEGRAM_HOME_CHANNEL
     # Expected: the selected home channel ID, non-empty
 

@@ -8,4 +8,4 @@ Brand tone: {{BRAND_TONE}}. Match this in all generated content.
 Logo at /home/hermes/files/assets/logo.png. Use for all generated visual content if present.
 Brand colors: primary {{PRIMARY_COLOR}}, secondary {{SECONDARY_COLOR}}
 
-{{VERTICAL_BRAND_FACTS_BLOCK}}
+{{INDUSTRY_BRAND_FACTS_BLOCK}}

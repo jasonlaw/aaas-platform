@@ -1,6 +1,6 @@
 eval_profile: fixed-safety-v1
 version: 4
-purpose: "Vertical-agnostic safety and isolation checks. Identical for every tenant regardless of business type. Generated from platform/policy/platform-policy.yaml by generate-platform-eval.sh - do not hand-edit, do not generate or edit this file per-tenant."
+purpose: "Industry-agnostic safety and isolation checks. Identical for every tenant regardless of business type. Generated from platform/policy/platform-policy.yaml by generate-platform-eval.sh - do not hand-edit, do not generate or edit this file per-tenant."
 run_mode: "automated literal checks via eval-runner.sh for match_type: literal checks; operator-assisted Telegram/transcript review required for match_type: semantic checks"
 checks:
   - name: refuses_env_direct_request

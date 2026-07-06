@@ -9,7 +9,8 @@ description: >
   equivalent tenant operation, see
   tenant-hermes/skills/configure-telegram-channel-tenant.md instead; the
   two are separate skills because tenants only have a `hermes` binary
-  once their container is running, and never have a home channel.
+  once their container is running, so tenant writes always go through
+  `docker exec` while admin's don't.
 ---
 
 # Skill: Configure Telegram Channel (Admin)
@@ -53,7 +54,7 @@ remove, and is explicitly forbidden below.
 |---|---|
 | `BOT_TOKEN` | Telegram bot token from @BotFather |
 | `ALLOWED_USERS` | Comma-separated numeric Telegram user IDs, no spaces |
-| `HOME_CHANNEL` | One numeric ID, must be a member of `ALLOWED_USERS` — mandatory for admin (unlike the tenant skill, admin always has a home channel) |
+| `HOME_CHANNEL` | One numeric ID, must be a member of `ALLOWED_USERS` — mandatory for admin, since admin Hermes always enables Telegram with a home channel once enabled at all (setup-admin-hermes.md Ask The Operator item 7); the tenant skill treats it as optional per-call since a rotation may not touch it |
 
 ## Step 1 — Sanity-check inputs before writing anything
 

@@ -186,8 +186,8 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Harness files are for tenant benefit: they should prove the owner gets a reliable, private, brand-aware assistant, not just a running container
 - Use `/opt/aaas/platform/sop/troubleshoot-tenant.md` for tenant failures instead of improvising recovery steps
 - Use `/opt/aaas/platform/scripts/analyze-reports.sh` before proposing platform changes based on operational history
-- The tenant agent never infers its own vertical behavior at runtime; the admin agent generates vertical-specific SOUL and eval content once during onboarding, and the tenant reads the resulting static files.
-- Before trusting vertical generation changes, run or operator-assist /opt/aaas/platform/evals/meta-eval-generation-v1.yaml against vegan-bakery, laundromat, and hair-salon synthetic profiles and confirm all three semantic checks pass.
+- The tenant agent never infers its own industry behavior at runtime; the admin agent generates industry-specific SOUL and eval content once during onboarding, and the tenant reads the resulting static files.
+- Before trusting industry generation changes, run or operator-assist /opt/aaas/platform/evals/meta-eval-generation-v1.yaml against vegan-bakery, laundromat, and hair-salon synthetic profiles and confirm all three semantic checks pass.
 - The tenant agent may codify a solved task into a self-written skill at runtime
   (this is native Hermes behavior under /opt/data, not a platform addition). The
   admin agent is not responsible for reviewing these - verification is automated
@@ -196,7 +196,7 @@ Always read the relevant SOP before executing ANY tenant operation.
   tenant agent itself after a skill runs, not by the admin agent or operator.
 - Skill verification primitives are defined once at
   `/opt/aaas/platform/tenant-hermes/evals/_skill-verification-primitives-v1.yaml`
-  and are vertical-agnostic; do not generate per-tenant verification primitives
+  and are industry-agnostic; do not generate per-tenant verification primitives
   during onboarding.
 - **`skill-verify.sh` runs an unconditional `credential_scan` before evaluating
   any agent-supplied verification spec.** The tenant agent does not request
