@@ -101,13 +101,16 @@ agent-vault vault credential set {provider-env-var}={real-api-key} --vault {tena
 ```
 
 Then register the service mapping: which hostname this credential is allowed
-to be injected into, and how:
+to be injected into, and how. Use `{provider-id}` (the Provider ID column
+above, e.g. `opencode-zen`) for `--name`, not `{provider-env-var}` — Agent
+Vault service names must be lowercase alphanumeric-and-hyphens only, and an
+env-var-shaped name like `OPENCODE_ZEN_API_KEY` is rejected:
 ```bash
 agent-vault vault service add \
   --vault {tenant-id}-vault \
-  --name {provider-env-var} \
+  --name {provider-id} \
   --host {hostname} \
-  --auth-type Bearer \
+  --auth-type bearer \
   --token-key {provider-env-var}
 ```
 
@@ -130,9 +133,9 @@ agent-vault vault credential set {fallback-provider-env-var}={fallback-real-api-
 
 agent-vault vault service add \
   --vault {tenant-id}-vault \
-  --name {fallback-provider-env-var} \
+  --name {fallback-provider-id} \
   --host {fallback-hostname} \
-  --auth-type Bearer \
+  --auth-type bearer \
   --token-key {fallback-provider-env-var}
 ```
 

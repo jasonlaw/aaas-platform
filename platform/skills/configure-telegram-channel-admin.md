@@ -26,6 +26,16 @@ which is fragile and has already been a source of inconsistency.
 `config.yaml` and writes it correctly regardless of the file's current
 state (key absent, present, or commented out).
 
+`hermes config set`'s routing rule is **secrets go to `.env`, everything
+else goes to `config.yaml`** — it is not based on whether the key name
+looks env-var-shaped. In practice this means `TELEGRAM_BOT_TOKEN` (a
+credential) lands in `.env`, while `TELEGRAM_ALLOWED_USERS` and
+`TELEGRAM_HOME_CHANNEL` (access/behavior settings, not secrets) may
+legitimately land in `config.yaml`. **This is correct behavior, not a
+misfire** — do not "fix" it by moving the value to `.env` by hand. Doing
+so reintroduces exactly the hand-editing drift this skill exists to
+remove, and is explicitly forbidden below.
+
 ## Preconditions
 
 - Admin Hermes is installed on the host (setup-admin-hermes.md Step 1),
@@ -65,10 +75,15 @@ happily write it.
     HERMES_HOME=/opt/aaas/platform/admin hermes config set TELEGRAM_ALLOWED_USERS "$ALLOWED_USERS"
     HERMES_HOME=/opt/aaas/platform/admin hermes config set TELEGRAM_HOME_CHANNEL "$HOME_CHANNEL"
 
-All three are env-var-shaped keys, so `hermes config set` routes them into
-`/opt/aaas/platform/admin/.env` automatically — it does not touch
-`config.yaml`. Never write these three values with `sed`, a template
-render, or by hand; this is the only supported path for admin.
+All three are written the same way, via `hermes config set` — but do not
+assume they all land in the same file. `TELEGRAM_BOT_TOKEN` is a secret
+and lands in `.env`; `TELEGRAM_ALLOWED_USERS` and `TELEGRAM_HOME_CHANNEL`
+may land in either `.env` or `config.yaml` depending on this Hermes
+version's own secret/non-secret classification. Never write these three
+values with `sed`, a template render, or by hand, and never relocate a
+value from wherever `hermes config set` put it to somewhere else —
+`hermes config get` is how you read it back regardless of which file it's
+actually in, so there is never a need to know or care.
 
 This works whether `.env` currently has the keys absent, commented out, or
 already set to an old value — `hermes config set` finds or creates the
@@ -100,11 +115,15 @@ escalate rather than falling back to hand-editing `.env` for just that
 one key, which would silently reintroduce the inconsistency this skill
 exists to remove.
 
-Leave `config.yaml`'s Telegram block exactly as shipped by the template
-(commented out, or uncommented with `home_chat_id` left empty). Nothing
-in this skill touches `config.yaml` — `home_chat_id` there is inert
-documentation only; the real home channel is `TELEGRAM_HOME_CHANNEL` in
-`.env`, written above.
+Do not inspect or edit `config.yaml`'s Telegram block as part of this
+verification, and do not "clean up" or move any value you find there.
+Whichever file(s) `hermes config set` used — `.env`, `config.yaml`, or
+both — are correct by definition; `hermes config get` above is the only
+verification needed, and it works regardless of which file backs a given
+key. The `home_chat_id` field in the template may be inert legacy
+scaffolding, or it may be exactly where this Hermes version now persists
+`TELEGRAM_HOME_CHANNEL` — either way, treat it as Hermes's internal
+storage detail, not something this skill reads or writes directly.
 
 ## Step 4 — Test message (only after admin Hermes's gateway is running)
 
@@ -125,6 +144,12 @@ it as blocking.
 - Never write `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS`, or
   `TELEGRAM_HOME_CHANNEL` with `sed`, template substitution, or a manual
   file edit — always go through `hermes config set`.
+- Never move, copy, or duplicate a value between `.env` and `config.yaml`
+  after `hermes config set` writes it, even if it landed somewhere you
+  didn't expect. `hermes config set`'s file choice reflects its own
+  secret/non-secret classification for that key — moving the value
+  yourself doesn't correct anything, it just creates two sources of truth
+  and reintroduces the drift risk this skill exists to remove.
 - Never print the bot token in a task report, log, or verification output.
 - Never call this skill without `HERMES_HOME=/opt/aaas/platform/admin` set
   explicitly per-invocation — an unset `HERMES_HOME` silently targets

@@ -86,6 +86,19 @@ provider_host() {
   esac
 }
 
+# Mechanically reverses reference/llm-provider-catalog.md's documented,
+# confirmed-consistent derivation rule (ENV_VAR = PROVIDER_ID.upper()
+# .replace('-','_') + '_API_KEY') to recover a valid Agent Vault
+# `--name` value. Agent Vault service names must be lowercase
+# alphanumeric-and-hyphens only — the raw env var name (e.g.
+# OPENCODE_ZEN_API_KEY) is rejected by `agent-vault vault service add`.
+provider_id() {
+  local var_name="$1"
+  local id="${var_name%_API_KEY}"
+  id="$(echo "$id" | tr '[:upper:]' '[:lower:]' | tr '_' '-')"
+  echo "$id"
+}
+
 # --- Argument validation ---
 
 if [ -z "$TENANT_ID" ] || [[ "$TENANT_ID" == -* ]]; then
@@ -170,34 +183,36 @@ docker network disconnect "${NETWORK_NAME}" agent-vault 2>/dev/null || true
 
 PRIMARY_HOST="$(provider_host "$PROVIDER_VAR")" \
   || fail "cannot map $PROVIDER_VAR to a provider hostname — add it to the provider_host() table in this script"
+PRIMARY_ID="$(provider_id "$PROVIDER_VAR")"
 
 agent-vault vault credential set "${PROVIDER_VAR}=${REAL_API_KEY}" --vault "${VAULT_NAME}"
 pass "primary credential ${PROVIDER_VAR} stored in ${VAULT_NAME}"
 
 agent-vault vault service add \
   --vault "${VAULT_NAME}" \
-  --name "${PROVIDER_VAR}" \
+  --name "${PRIMARY_ID}" \
   --host "${PRIMARY_HOST}" \
-  --auth-type Bearer \
+  --auth-type bearer \
   --token-key "${PROVIDER_VAR}"
-pass "primary service registered: ${PROVIDER_VAR} → ${PRIMARY_HOST}"
+pass "primary service registered: ${PRIMARY_ID} (${PROVIDER_VAR}) → ${PRIMARY_HOST}"
 
 # --- Step 2.1: (Optional) Fallback provider ---
 
 if [ -n "$FALLBACK_PROVIDER_VAR" ]; then
   FALLBACK_HOST="$(provider_host "$FALLBACK_PROVIDER_VAR")" \
     || fail "cannot map $FALLBACK_PROVIDER_VAR to a provider hostname — add it to the provider_host() table in this script"
+  FALLBACK_ID="$(provider_id "$FALLBACK_PROVIDER_VAR")"
 
   agent-vault vault credential set "${FALLBACK_PROVIDER_VAR}=${FALLBACK_REAL_API_KEY}" --vault "${VAULT_NAME}"
   pass "fallback credential ${FALLBACK_PROVIDER_VAR} stored in ${VAULT_NAME}"
 
   agent-vault vault service add \
     --vault "${VAULT_NAME}" \
-    --name "${FALLBACK_PROVIDER_VAR}" \
+    --name "${FALLBACK_ID}" \
     --host "${FALLBACK_HOST}" \
-    --auth-type Bearer \
+    --auth-type bearer \
     --token-key "${FALLBACK_PROVIDER_VAR}"
-  pass "fallback service registered: ${FALLBACK_PROVIDER_VAR} → ${FALLBACK_HOST}"
+  pass "fallback service registered: ${FALLBACK_ID} (${FALLBACK_PROVIDER_VAR}) → ${FALLBACK_HOST}"
 fi
 
 # --- Step 3: Create agent proxy token ---

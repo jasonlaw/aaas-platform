@@ -76,10 +76,13 @@ happily write it.
       docker exec "$CONTAINER" hermes config set TELEGRAM_ALLOWED_USERS "$ALLOWED_USERS"
     fi
 
-These are env-var-shaped keys, so `hermes config set` routes them into the
-tenant's `.env` automatically — it does not touch `config.yaml`. Never
-write these values with `sed` or a manual edit once the container is
-running; this is the only supported path for a live tenant.
+`hermes config set`'s routing rule is **secrets go to `.env`, everything
+else goes to `config.yaml`** — not whether the key name looks env-var-
+shaped. `TELEGRAM_BOT_TOKEN` is a credential and lands in `.env`;
+`TELEGRAM_ALLOWED_USERS` is an access-control setting and may legitimately
+land in either file depending on this Hermes version's own classification.
+**Either destination is correct** — never move the value once written,
+that reintroduces exactly the drift this skill exists to remove.
 
 This lands on the bind-mounted `.env`, so it survives a
 `docker compose up --force-recreate`. It does not, however, get picked up
@@ -97,10 +100,10 @@ policy is to never print secrets anyway, so verify presence, not content:
         && echo "OK: bot token set" || echo "FAIL: bot token not set"
     fi
     if [ -n "${ALLOWED_USERS:-}" ]; then
-      docker exec "$CONTAINER" hermes config get TELEGRAM_ALLOWED_USERS
-      # Expected: prints the exact comma-separated list just written —
-      # compare it against $ALLOWED_USERS, not just check it's non-empty,
-      # since a truncated or reordered list is still "non-empty" but wrong.
+      WRITTEN_USERS=$(docker exec "$CONTAINER" hermes config get TELEGRAM_ALLOWED_USERS)
+      [ "$WRITTEN_USERS" = "$ALLOWED_USERS" ] \
+        && echo "OK: allow list matches" \
+        || echo "FAIL: allow list mismatch — written='${WRITTEN_USERS}' expected='${ALLOWED_USERS}'"
     fi
 
 If `hermes config get` errors with "unknown key" or similar, treat that as
@@ -126,6 +129,10 @@ it as blocking.
 - Never write `TELEGRAM_BOT_TOKEN` or `TELEGRAM_ALLOWED_USERS` with `sed`
   or a manual file edit on a running tenant — always go through
   `docker exec ... hermes config set`.
+- Never move or duplicate a value between `.env` and `config.yaml` after
+  `hermes config set` writes it. Whichever file it lands in reflects
+  Hermes's own secret/non-secret classification for that key — moving it
+  yourself creates two sources of truth instead of one.
 - Never write a `TELEGRAM_HOME_CHANNEL` for a tenant — that field doesn't
   exist in the tenant profile.
 - Never run this skill against a tenant whose container isn't running yet

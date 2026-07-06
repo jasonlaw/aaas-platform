@@ -4,6 +4,70 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.18.5 - 2026-07-06
+
+### Fixed
+
+- **Telegram config skills (admin and tenant) wrongly assumed
+  `TELEGRAM_ALLOWED_USERS` / `TELEGRAM_HOME_CHANNEL` always land in
+  `.env`.** A live setup report showed `hermes config set` writing these
+  two keys to `config.yaml` instead, which 0.18.3/0.18.4 treated as a
+  bug and worked around with a manual `.env` edit — reintroducing the
+  exact hand-editing risk that version existed to remove. Confirmed
+  against Hermes's own documented convention: `hermes config set` routes
+  **secrets to `.env`, everything else to `config.yaml`** — not by
+  whether the key name looks env-var-shaped. `TELEGRAM_BOT_TOKEN` is a
+  credential and lands in `.env`; `TELEGRAM_ALLOWED_USERS` and
+  `TELEGRAM_HOME_CHANNEL` are access/behavior settings, not secrets, and
+  may correctly land in `config.yaml` instead. This is expected behavior,
+  not a misconfiguration. Updated `skills/configure-telegram-channel-admin.md`,
+  `tenant-hermes/skills/configure-telegram-channel-tenant.md`,
+  `skills/setup-admin-hermes.md` (Step 3.1 and Step 6), and
+  `admin-hermes/config.yaml.template`'s `home_chat_id` comment to stop
+  asserting a fixed destination file, verify only via `hermes config get`
+  (which is correct regardless of which file backs a key), and explicitly
+  forbid moving a value between `.env` and `config.yaml` after
+  `hermes config set` writes it.
+
+- **Agent Vault `--auth-type Bearer` used the wrong case.** The CLI
+  requires lowercase `bearer`; every call site used title-case `Bearer`,
+  which a live setup report confirmed fails and had to be corrected by
+  hand. Fixed all six occurrences: `sop/provision-tenant-vault.md` (×2),
+  `skills/manage-agent-vault.md`, `skills/setup-admin-hermes.md` (×2),
+  and `scripts/provision-tenant-vault.sh` (×2).
+
+- **Agent Vault service registration used an env-var-shaped name for
+  `--name`, which Agent Vault rejects.** `--name` requires lowercase
+  alphanumeric-and-hyphens only; every call site passed the credential's
+  env var name directly (e.g. `OPENCODE_ZEN_API_KEY`), confirmed failing
+  in the same live setup report (worked around manually by registering
+  `opencode-zen` / `openrouter` instead). `--token-key` and
+  `credential set` correctly keep using the env var — only `--name` was
+  wrong. Fixed in `skills/setup-admin-hermes.md` (Step 5.2/5.3/5.7),
+  `skills/manage-agent-vault.md` (Section 2.1/2.3), and
+  `sop/provision-tenant-vault.md` (Section 2/2.1) by introducing a
+  distinct `{PROVIDER_ID}` / `{FALLBACK_PROVIDER_ID}` placeholder (the
+  catalog's Provider ID column) for `--name`, separate from
+  `{PROVIDER_VAR}`. `scripts/provision-tenant-vault.sh` only receives the
+  env var as input, so it now derives the service name in code via a new
+  `provider_id()` function that mechanically reverses the catalog's own
+  documented, confirmed-consistent derivation rule (`ENV_VAR =
+  PROVIDER_ID.upper().replace('-','_') + '_API_KEY'`) — e.g.
+  `OPENCODE_ZEN_API_KEY` → `opencode-zen` — rather than requiring a new
+  script argument.
+
+- **`setup-admin-hermes.md` Step 7's Vite-build wait guidance was
+  vulnerable to a restart race.** The dashboard's first-start build can
+  occasionally exceed the documented ~60s, and nothing warned against
+  restarting the systemd unit while waiting — a premature restart
+  re-triggers the build from scratch, turning a one-time wait into a
+  restart loop that never completes (matching a live setup report of a
+  manual pre-build workaround being needed). Widened the poll window from
+  40×2s (80s) to 60×3s (3 minutes), added an explicit "do not restart
+  while waiting" warning explaining why a restart makes it worse, and
+  added guidance to check `systemctl --user status` for an actual
+  crash loop before assuming the build itself is hung.
+
 ## 0.18.4 - 2026-07-06
 
 ### Fixed

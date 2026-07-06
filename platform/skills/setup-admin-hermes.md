@@ -292,18 +292,26 @@ collect at least one ID before writing anything.
    this list cannot reach the agent even if they somehow learn the home
    channel ID. TELEGRAM_HOME_CHANNEL only designates the primary contact
    for Hermes-initiated messages (alerts, restart notifications); it does
-   not grant access by itself. This is the only place the home channel is
-   actually configured — the gateway reads it via `_apply_env_overrides()`
-   in `gateway/config.py`. It does **not** read any `home_chat_id` key from
-   `config.yaml`; that key only exists in the template as inert
-   documentation of the field tenant bots leave empty (see config.yaml.template
-   comment). Do not rely on setting `home_chat_id` in `config.yaml` — it has
-   no effect on routing.
+   not grant access by itself.
 
-2. Leave the gateway block in config.yaml as shipped (commented out, or
-   uncommented with `home_chat_id` left empty) — there is nothing to fill
-   in here for the home channel; `TELEGRAM_HOME_CHANNEL` in `.env` from
-   step 1 is what actually configures it.
+   `hermes config set` decides for itself whether each of these three
+   keys lands in `.env` or `config.yaml` — its rule is secrets go to
+   `.env`, everything else goes to `config.yaml`, not whether the key
+   name looks env-var-shaped. `TELEGRAM_BOT_TOKEN` is a credential and
+   lands in `.env`. `TELEGRAM_ALLOWED_USERS` and `TELEGRAM_HOME_CHANNEL`
+   are access/behavior settings, not secrets, and may legitimately land
+   in `config.yaml` instead — **this is correct, expected behavior for
+   this Hermes version, not a misconfiguration**. Do not hand-edit `.env`
+   to force them there if `hermes config set` chose `config.yaml`, and do
+   not move a value between files once written. Verify with
+   `hermes config get`, which reads back the correct value regardless of
+   which file backs it — see that skill's Step 3.
+
+2. Don't hand-edit the gateway block in `config.yaml` yourself — Step 1's
+   `hermes config set` calls are the only writes this step performs, and
+   they may touch `config.yaml`, `.env`, or both depending on Hermes's own
+   classification of each key. There is nothing left for you to fill in
+   here manually either way.
 
 3. Token format and non-empty checks are handled by
    configure-telegram-channel.md's Step 1 before it writes anything — no
@@ -450,13 +458,19 @@ writing:
 The **Env var** column is exact and non-negotiable — it is the only name
 `{PROVIDER_VAR}` may take throughout Step 5, and it is the only name that
 may appear (commented or not) in `admin/.env`. Do not rename, abbreviate,
-or invent a variant even if it seems more descriptive — Agent Vault's
-service registration in 5.3 and the proxy injection in 5.5 are keyed to
-this exact string. This excerpt is a convenience only — the catalog file
-above is authoritative and is where new providers get added. If runtime
-source code or provider docs appear to contradict either this excerpt or
-the full catalog, **stop and escalate to the operator** before writing any
-credential — do not self-resolve the conflict.
+or invent a variant even if it seems more descriptive — the credential
+name and the proxy injection in 5.5 are keyed to this exact string.
+
+The **Provider ID** column (e.g. `opencode-zen`) is what `{PROVIDER_ID}`
+means in 5.3/5.7 below, and it is a *different* value from `{PROVIDER_VAR}`
+— Agent Vault service names must be lowercase alphanumeric-and-hyphens
+only, so an env-var-shaped name like `OPENCODE_ZEN_API_KEY` is rejected as
+a `--name`. Use the Provider ID for `--name`; use the Env var for
+`credential set` and `--token-key`. This excerpt is a convenience only —
+the catalog file above is authoritative and is where new providers get
+added. If runtime source code or provider docs appear to contradict either
+this excerpt or the full catalog, **stop and escalate to the operator**
+before writing any credential — do not self-resolve the conflict.
 
 ### 5.3 Store the credential and register the service
 
@@ -464,9 +478,9 @@ credential — do not self-resolve the conflict.
 
     agent-vault vault service add \
       --vault admin-vault \
-      --name {PROVIDER_VAR} \
+      --name {PROVIDER_ID} \
       --host {hostname} \
-      --auth-type Bearer \
+      --auth-type bearer \
       --token-key {PROVIDER_VAR}
 
 Real key is now in Agent Vault only. Do not write it anywhere else.
@@ -533,9 +547,9 @@ same `admin-vault`:
 
     agent-vault vault service add \
       --vault admin-vault \
-      --name {FALLBACK_PROVIDER_VAR} \
+      --name {FALLBACK_PROVIDER_ID} \
       --host {fallback-hostname} \
-      --auth-type Bearer \
+      --auth-type bearer \
       --token-key {FALLBACK_PROVIDER_VAR}
 
     FALLBACK_PROVIDER_VAR={FALLBACK_PROVIDER_VAR}
@@ -663,10 +677,13 @@ now rather than falling back to grep against `.env` directly:
     HERMES_HOME=/opt/aaas/platform/admin hermes config get TELEGRAM_HOME_CHANNEL
     # Expected: the selected home channel ID, non-empty
 
-Do not check `home_chat_id` in config.yaml as evidence of anything — it is
-dead config the gateway never reads (see Step 3.1, item 1). Checking it
-would validate the wrong file and could pass even when Telegram is
-completely unconfigured.
+Do not grep `.env` or `config.yaml` directly for these three keys as a
+substitute for `hermes config get` — Hermes may store any of them in
+either file depending on its own secret/non-secret classification (see
+Step 3.1, item 1), so a raw file grep can miss a correctly-stored value
+or, on `config.yaml`, hit stale template content that was never live.
+`hermes config get` is the only check that's correct regardless of which
+file actually backs a given key.
 
 If Telegram was declined, confirm the token is absent (not set to a live value):
 
@@ -725,14 +742,23 @@ Verify the service is up:
 
 The dashboard's first start after a fresh install (or after an upgrade
 that touches its bundled web UI) does a TypeScript/Vite build before it
-starts serving — this can take up to ~60 seconds and is expected, not a
-failure. Wait for it rather than restarting the service if the health
-check below doesn't respond immediately:
+starts serving — this can take up to ~60 seconds, occasionally longer on
+a slow disk or a loaded host, and is expected, not a failure. **Do not
+restart, stop, or re-enable the service while waiting** — each restart
+re-triggers the build from scratch, so a premature restart can turn a
+one-time ~60s wait into a restart loop that never lets the build finish.
+Poll instead:
 
-    for i in $(seq 1 40); do
+    for i in $(seq 1 60); do
       curl -sf http://127.0.0.1:9119/ >/dev/null 2>&1 && echo "OK: dashboard up" && break
-      sleep 2
+      sleep 3
     done
+
+If this loop completes all 60 iterations (3 minutes) with no success,
+check `systemctl --user status aaas-admin-hermes.service` before assuming
+the build is hung: a `Restart=on-failure` (exit code, not a slow build)
+crash loop looks different from a single long-running process, and only
+the former needs the operator to investigate rather than just wait longer.
 
 In a second terminal, confirm the proxy intercepts LLM calls:
 

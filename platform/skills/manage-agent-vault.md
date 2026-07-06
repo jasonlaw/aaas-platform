@@ -80,6 +80,12 @@ Most commonly used at the time of writing:
 | `opencode-zen` | opencode.ai             | OPENCODE_ZEN_API_KEY  |
 | `opencode-go`  | opencode.ai             | OPENCODE_GO_API_KEY   |
 
+`{PROVIDER_ID}` (used for `--name` below) and `{PROVIDER_VAR}` (used for
+the credential and `--token-key`) are different values — do not conflate
+them. Agent Vault service names must be lowercase alphanumeric-and-hyphens
+only, so an env-var-shaped name like `OPENCODE_ZEN_API_KEY` is rejected as
+a `--name`; use the Provider ID column instead.
+
 ### 2.2 Store or update the credential
 
     agent-vault vault credential set {PROVIDER_VAR}={real-api-key} --vault {vault-name}
@@ -91,9 +97,9 @@ overwrites the existing value if present.
 
     agent-vault vault service add \
       --vault {vault-name} \
-      --name {PROVIDER_VAR} \
+      --name {PROVIDER_ID} \
       --host {hostname} \
-      --auth-type Bearer \
+      --auth-type bearer \
       --token-key {PROVIDER_VAR}
 
 If the service is already registered (key rotation only), skip this step.
