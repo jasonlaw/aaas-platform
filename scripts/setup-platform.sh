@@ -577,6 +577,15 @@ services:
   agent-vault:
     image: infisical/agent-vault:latest
     container_name: agent-vault
+    labels:
+      # Required for aaas-watchdog.sh to discover this container at all — it
+      # scans `docker ps -a --filter label=aaas.watchdog=true`, and priority 0
+      # is what makes the watchdog's Agent Vault gate fire before every other
+      # check (see docs/architecture.md's "Agent Vault is priority 0" note).
+      # Without these three labels, Agent Vault is silently never monitored.
+      - "aaas.watchdog=true"
+      - "aaas.watchdog.priority=0"
+      - "aaas.watchdog.playbook=agent-vault-failure.md"
     ports:
       - "127.0.0.1:14321:14321"
       - "127.0.0.1:14322:14322"

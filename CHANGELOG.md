@@ -4,6 +4,54 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.18.2 - 2026-07-05
+
+### Fixed
+
+- **`platform/scripts/aaas-watchdog.sh` — every scheduled run failed with
+  exit code 1 and wrote no logs, on every fresh install.** Root cause: two
+  `grep` calls inside command substitutions, under `set -euo pipefail`, with
+  no `|| true` guard. `grep` exits 1 when it finds zero matching lines —
+  correct and expected on a platform with no tenants and no admin Hermes
+  installed yet (the normal state right after a fresh install) — and
+  `pipefail` propagates that as the whole pipeline's exit status, which then
+  aborts the entire script under `set -e`, before the log() function is ever
+  reached. Reproduced exactly: exit code 1, zero output, matching the
+  reported symptom precisely. Fixed both instances by wrapping the `grep` in
+  `{ grep ... || true; }`: (1) the `all_entities` build (both the
+  admin-Hermes-installed and admin-Hermes-not-installed branches), and (2)
+  the `API_SERVER_KEY` extraction in `admin_hermes_is_healthy()`, which has
+  the identical failure mode if `admin/.env` exists but doesn't yet contain
+  that key (a plausible transient state right after `setup-admin-hermes`
+  creates the stub). Audited every other `grep`/`awk`/`cut` usage in this
+  file and confirmed no other instances of this pattern exist — `awk` and
+  `cut` do not exit non-zero on empty/no-match input the way `grep` does, so
+  those call sites were already safe.
+
+- **`scripts/setup-platform.sh` — the generated Agent Vault
+  `docker-compose.yaml` carried no `aaas.watchdog` labels at all**, so even
+  with the crash above fixed, Agent Vault could never actually be discovered
+  or monitored by the watchdog — `docker ps -a --filter
+  label=aaas.watchdog=true` matches nothing, `vault_line` is permanently
+  empty, and the watchdog's priority-0 gate silently does nothing every
+  cycle. This directly contradicts `docs/architecture.md`'s "Agent Vault is
+  priority 0 and is checked first" claim, which has never actually been true
+  for any platform installed via this script — confirmed via git history
+  that these labels were absent as far back as the compose-generation logic
+  goes. Added the three required labels (`aaas.watchdog=true`,
+  `aaas.watchdog.priority=0`, `aaas.watchdog.playbook=agent-vault-failure.md`)
+  to the generated compose file. Verified end-to-end with a mocked `docker`
+  CLI: before the fix, `vault_line` is empty and Agent Vault is silently
+  unmonitored; after the fix (with the labels present), the same discovery
+  pipeline correctly produces `vault_line=[0	agent-vault	agent-vault-failure.md]`.
+  **This fix only affects newly generated compose files** — an
+  already-running Agent Vault container needs `docker compose -f
+  /opt/aaas/agent-vault/docker-compose.yaml up -d --force-recreate
+  agent-vault` after pulling this fix, to pick up the new labels. This is
+  safe: Agent Vault's data lives in a bind mount
+  (`/opt/aaas/agent-vault/data:/data`), not an anonymous volume, so
+  `--force-recreate` does not affect stored credentials.
+
 ## 0.18.1 - 2026-07-05
 
 ### Fixed

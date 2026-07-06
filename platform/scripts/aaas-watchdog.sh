@@ -327,7 +327,7 @@ wait_until_healthy() {
 admin_hermes_is_healthy() {
   curl -sf --max-time 5 "http://${ADMIN_DASHBOARD_HOST}:${ADMIN_DASHBOARD_PORT}/" >/dev/null 2>&1 || return 1
   local key=""
-  [[ -f "${ADMIN_DIR}/.env" ]] && key="$(grep -m1 '^API_SERVER_KEY=' "${ADMIN_DIR}/.env" | cut -d= -f2-)"
+  [[ -f "${ADMIN_DIR}/.env" ]] && key="$(grep -m1 '^API_SERVER_KEY=' "${ADMIN_DIR}/.env" 2>/dev/null | cut -d= -f2- || true)"
   # Key goes via a curl config file on stdin, never as a command-line arg,
   # so it never shows up in `ps`/`/proc/<pid>/cmdline` during this probe.
   printf 'header = "Authorization: Bearer %s"\n' "$key" \
@@ -399,9 +399,9 @@ docker_entities="$(
 # operator hasn't installed it yet, not because anything is broken.
 if [[ -f "${ADMIN_DIR}/.env" ]]; then
   all_entities="$(printf '%s\n%s\t%s\t%s\n' "$docker_entities" \
-    "$ADMIN_HERMES_PRIORITY" "admin-hermes" "$ADMIN_HERMES_PLAYBOOK" | grep -v '^\s*$' | sort -n -k1,1)"
+    "$ADMIN_HERMES_PRIORITY" "admin-hermes" "$ADMIN_HERMES_PLAYBOOK" | { grep -v '^\s*$' || true; } | sort -n -k1,1)"
 else
-  all_entities="$(printf '%s\n' "$docker_entities" | grep -v '^\s*$' | sort -n -k1,1)"
+  all_entities="$(printf '%s\n' "$docker_entities" | { grep -v '^\s*$' || true; } | sort -n -k1,1)"
 fi
 
 # --- Priority 0 (Agent Vault) gate ---
