@@ -4,7 +4,35 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
-## 0.18.2 - 2026-07-05
+## 0.18.3 - 2026-07-06
+
+### Changed
+
+- **Admin Telegram setup now writes credentials via the official
+  `hermes config set` CLI instead of `sed -i` against commented-out
+  placeholder lines in `.env`.** `sed`-based writes only work as long as
+  the target line's exact shape never drifts, which had already been a
+  source of setup inconsistency. New skill:
+  `platform/skills/configure-telegram-channel-admin.md`, called from
+  `setup-admin-hermes.md` Step 3.1. Also replaces that step's grep-based
+  verification with `hermes config get`.
+- **Added `platform/tenant-hermes/skills/configure-telegram-channel-tenant.md`**
+  for reconfiguring an already-onboarded, already-running tenant's
+  Telegram bot token or allow list via `docker exec {container} hermes
+  config set`, instead of hand-editing the tenant's bind-mounted `.env`.
+  This is deliberately a separate skill from the admin one above, not a
+  shared one with a mode switch: admin Hermes is host-installed and
+  `hermes` is reachable directly, while a tenant's `hermes` only exists
+  inside its own container image (`/opt/hermes/.venv`, read-only) once
+  that container is running — the two have different preconditions,
+  different invocation shape (`HERMES_HOME=...` vs `docker exec`), and
+  admin always has a home channel while tenants never do.
+- **Tenant onboarding's first-ever `.env` write for `TELEGRAM_BOT_TOKEN` /
+  `TELEGRAM_ALLOWED_USERS` is unchanged** (still a plain template
+  substitution in `sop/onboard-tenant.md` step 5) — at that point in
+  onboarding the tenant's container hasn't been created yet, so there is
+  no `hermes` process on the host to call. The new tenant skill above only
+  applies to *later* reconfiguration of an already-running tenant.
 
 ### Fixed
 

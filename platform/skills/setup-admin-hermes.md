@@ -275,11 +275,18 @@ If the operator enabled Telegram, the allow list is mandatory — do not
 continue with this step if it's empty. Go back to Ask The Operator and
 collect at least one ID before writing anything.
 
-1. Uncomment and fill in .env:
-
-       TELEGRAM_BOT_TOKEN={token}
-       TELEGRAM_ALLOWED_USERS={comma-separated numeric IDs}
-       TELEGRAM_HOME_CHANNEL={selected-id}
+1. Write the three Telegram values via
+   `/opt/aaas/platform/skills/configure-telegram-channel-admin.md`, with
+   `BOT_TOKEN` from Ask The Operator item 7, `ALLOWED_USERS` from the same
+   item, and `HOME_CHANNEL` as selected there. That skill runs
+   `hermes config set` for `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS`,
+   and `TELEGRAM_HOME_CHANNEL` and verifies each was written — do not
+   hand-edit `.env` with `sed` or any other means for these three keys;
+   the CLI is now the only supported path here (see that skill's "Why
+   this exists"). This works because admin Hermes is host-installed
+   (Step 1 above); tenants use a separate skill
+   (tenant-hermes/skills/configure-telegram-channel-tenant.md) since
+   their `hermes` only exists inside their container.
 
    TELEGRAM_ALLOWED_USERS is the access control mechanism — anyone not on
    this list cannot reach the agent even if they somehow learn the home
@@ -298,9 +305,10 @@ collect at least one ID before writing anything.
    in here for the home channel; `TELEGRAM_HOME_CHANNEL` in `.env` from
    step 1 is what actually configures it.
 
-3. Verify the token format looks plausible (numeric bot ID, colon, token
-   body) before writing it — do not write an empty or obviously malformed
-   token. Never print the token value in any report or log.
+3. Token format and non-empty checks are handled by
+   configure-telegram-channel.md's Step 1 before it writes anything — no
+   separate check needed here. Never print the token value in any report
+   or log.
 
 4. The gateway must be started with `HERMES_HOME` exported to the process
    environment (`/opt/aaas/platform/admin`) or it falls back to `~/.hermes`,
@@ -641,16 +649,19 @@ secrets and must never be wholesale-overwritten from the template. See
 `/opt/aaas/platform/sop/upgrade-platform.md` step 9.4, which runs this same
 check automatically on every platform upgrade.
 
-If Telegram was enabled in Step 3.1, also verify:
+If Telegram was enabled in Step 3.1, verification already happened inside
+configure-telegram-channel-admin.md's Step 3 (via `hermes config get` for
+each of the three keys) — no separate grep-based check needed here. If
+that skill's Step 3 was skipped or its output wasn't captured, re-run it
+now rather than falling back to grep against `.env` directly:
 
-    grep -q "^TELEGRAM_BOT_TOKEN=." /opt/aaas/platform/admin/.env     && echo "OK: telegram token set"
-    grep -q "^TELEGRAM_ALLOWED_USERS=." /opt/aaas/platform/admin/.env && echo "OK: telegram allow list set"
-    grep -q "^TELEGRAM_HOME_CHANNEL=." /opt/aaas/platform/admin/.env \
-      && echo "OK: home channel set" \
-      || echo "FAIL: TELEGRAM_HOME_CHANNEL was not set in .env — Ask The Operator step was skipped or incomplete"
-    grep -q "^TELEGRAM_ALLOWED_USERS=$" /opt/aaas/platform/admin/.env \
-      && echo "FAIL: TELEGRAM_ALLOWED_USERS is empty — allow list is mandatory when Telegram is enabled" \
-      || echo "OK: allow list non-empty"
+    HERMES_HOME=/opt/aaas/platform/admin hermes config get TELEGRAM_BOT_TOKEN >/dev/null \
+      && echo "OK: telegram token set" || echo "FAIL: telegram token missing"
+    HERMES_HOME=/opt/aaas/platform/admin hermes config get TELEGRAM_ALLOWED_USERS
+    # Expected: non-empty comma-separated list — an empty result means the
+    # mandatory allow list is missing; go back to configure-telegram-channel.md
+    HERMES_HOME=/opt/aaas/platform/admin hermes config get TELEGRAM_HOME_CHANNEL
+    # Expected: the selected home channel ID, non-empty
 
 Do not check `home_chat_id` in config.yaml as evidence of anything — it is
 dead config the gateway never reads (see Step 3.1, item 1). Checking it
