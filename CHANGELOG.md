@@ -4,6 +4,44 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.18.4 - 2026-07-06
+
+### Fixed
+
+- **`platform/admin-hermes/env.template` — `OPENCODE_GO_API_KEY` placeholder
+  was missing.** `env.template` had commented-out placeholder lines for
+  `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `NOUS_API_KEY`,
+  and `OPENCODE_ZEN_API_KEY`, but not `OPENCODE_GO_API_KEY`, which has been a
+  first-class entry in `reference/llm-provider-catalog.md` since it was added.
+  The Step 6 key-presence loop in `setup-admin-hermes.md` checks `admin/.env`
+  against keys found in `env.template` — so an admin instance configured with
+  `opencode-go` as its provider would never fail that check even if the key
+  line was absent from `.env`, because the template itself was missing it.
+  Added `# OPENCODE_GO_API_KEY=routed-via-agent-vault` immediately after the
+  `OPENCODE_ZEN_API_KEY` line, matching the pattern of every other provider
+  placeholder in the file.
+
+- **`platform/skills/setup-admin-hermes.md` Step 6 — "Telegram left disabled"
+  verification was brittle against `hermes config set` state.** The check
+  `grep -q "^# TELEGRAM_BOT_TOKEN=" admin/.env` only passes when the line is
+  present and commented with exactly `# TELEGRAM_BOT_TOKEN=`. After `hermes
+  config set` touches the file (e.g. from a prior run or a rotation attempt
+  that was aborted), the line shape may differ or the key may be absent
+  entirely — both cases silently fail the `grep` even though no token is
+  actually configured. Replaced with a `hermes config get` call that checks
+  whether the key has a live value, consistent with how the Telegram-enabled
+  path already verifies the three keys, and independent of `.env` line
+  formatting.
+
+- **`platform/skills/configure-telegram-channel-admin.md` Step 3 — allow-list
+  and home-channel verification was prose-only.** The step said to "compare
+  `$ALLOWED_USERS`" and "verify `$HOME_CHANNEL`" but left both as comments,
+  not executable shell. A truncated or reordered allow list would still print
+  as "non-empty" with no mismatch surfaced. Replaced both verification comments
+  with explicit shell comparisons (`[ "$WRITTEN" = "$EXPECTED" ]`) that print
+  `OK` or `FAIL` with the written vs expected values, consistent with the
+  verification style used throughout the rest of the platform skills.
+
 ## 0.18.3 - 2026-07-06
 
 ### Changed

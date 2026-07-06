@@ -82,12 +82,14 @@ policy is to never print secrets anyway, so verify presence, not content:
 
     HERMES_HOME=/opt/aaas/platform/admin hermes config get TELEGRAM_BOT_TOKEN >/dev/null \
       && echo "OK: bot token set" || echo "FAIL: bot token not set"
-    HERMES_HOME=/opt/aaas/platform/admin hermes config get TELEGRAM_ALLOWED_USERS
-    # Expected: prints the exact comma-separated list just written — compare
-    # it against $ALLOWED_USERS rather than just checking it's non-empty,
-    # since a truncated or reordered list is still "non-empty" but wrong.
-    HERMES_HOME=/opt/aaas/platform/admin hermes config get TELEGRAM_HOME_CHANNEL
-    # Expected: prints exactly $HOME_CHANNEL
+    WRITTEN_USERS=$(HERMES_HOME=/opt/aaas/platform/admin hermes config get TELEGRAM_ALLOWED_USERS)
+    [ "$WRITTEN_USERS" = "$ALLOWED_USERS" ] \
+      && echo "OK: allow list matches" \
+      || echo "FAIL: allow list mismatch — written='${WRITTEN_USERS}' expected='${ALLOWED_USERS}'"
+    WRITTEN_HOME=$(HERMES_HOME=/opt/aaas/platform/admin hermes config get TELEGRAM_HOME_CHANNEL)
+    [ "$WRITTEN_HOME" = "$HOME_CHANNEL" ] \
+      && echo "OK: home channel matches" \
+      || echo "FAIL: home channel mismatch — written='${WRITTEN_HOME}' expected='${HOME_CHANNEL}'"
 
 If `hermes config get` errors with "unknown key" or similar instead of
 printing a value or a clean empty result, treat that as a signal the

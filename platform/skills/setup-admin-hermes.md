@@ -668,9 +668,12 @@ dead config the gateway never reads (see Step 3.1, item 1). Checking it
 would validate the wrong file and could pass even when Telegram is
 completely unconfigured.
 
-If Telegram was declined, confirm the lines remain commented out instead:
+If Telegram was declined, confirm the token is absent (not set to a live value):
 
-    grep -q "^# TELEGRAM_BOT_TOKEN=" /opt/aaas/platform/admin/.env && echo "OK: telegram left disabled"
+    HERMES_HOME=/opt/aaas/platform/admin hermes config get TELEGRAM_BOT_TOKEN 2>&1 \
+      | grep -qiE "not (set|found)|unknown key|no value" \
+      && echo "OK: telegram left disabled" \
+      || echo "WARN: TELEGRAM_BOT_TOKEN appears set — verify Telegram was intentionally declined"
 
 After Step 7 starts Hermes, this validation step only confirms config was
 *written* correctly — it does not confirm the gateway actually connected.
