@@ -61,19 +61,24 @@ where it is explicitly marked conditional on an earlier answer — this
 keeps the number and shape of questions the same from run to run instead
 of drifting with phrasing.
 
-**Never offer two choices that both just mean "let me type something
-else."** This applies in two places below:
-- A *free-text* item (e.g. item 3's API key) gets no options UI at all —
-  ask the plain question and take the typed/pasted answer directly.
-  Never present it as a choice between "I'll provide it" and "type your
-  own answer" — those are the same action offered twice.
-- An *options* item with a catch-all (item 1 and item 4's "other") gets
-  exactly one free-text escape hatch, not two. "Other" already means
-  "type something not in this list" — don't also add a separate "type
-  your own answer" option next to it. If the elicitation mechanism in
-  use already provides its own generic free-text fallback alongside a
-  button list, don't add "other" as a redundant extra button on top of
-  that fallback — pick one, not both.
+**Buttons/options are fine and expected wherever a fixed set of answers
+exists — that's not the problem.** The one thing to never do is put two
+options side by side that both just mean "let the operator type
+something." Concretely, never render both of these together, no matter
+the exact wording used:
+- "I'll provide it" / "I will provide the answer" — and —
+- "Type your own answer" / "Other, please specify"
+
+These are the same action under two labels. If a question has no fixed
+set of valid answers at all (item 3's API key, item 2's model name, any
+other item marked *free-text* below), it needs **zero** buttons — ask
+the plain question in conversation and take the typed answer, full stop.
+If a question does have a fixed set of known answers plus room for
+something outside that set (item 1 and item 4's provider list), it gets
+the named options **plus exactly one** additional choice for "something
+else" — labeled once, not twice. A free-text field getting a button UI
+at all, or an open-set field getting two different-looking buttons that
+both lead to typing, are the same underlying mistake.
 
 **Never ask the operator to supply a credential this setup can generate
 itself.** Three values fall in this category, and none of them should

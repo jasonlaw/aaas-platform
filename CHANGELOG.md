@@ -4,6 +4,22 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.18.12 - 2026-07-07
+
+### Changed
+
+- **Clarified `setup-admin-hermes.md`'s anti-redundant-options rule** after
+  feedback that 0.18.10/0.18.11's wording could be read as "avoid buttons
+  generally," which was never the intent. Buttons for a genuinely fixed
+  set of answers (e.g. the provider list) are correct and expected — the
+  only banned thing is two options that both mean "let the operator type
+  something" (e.g. "I'll provide it" next to "type your own answer").
+  Rewrote the rule to say this explicitly, using the reported phrasing
+  as the named example, and restated the two concrete cases: a pure
+  free-text field (API key, model name) gets zero buttons, full stop; an
+  open-set field (provider list) gets its named options plus exactly one
+  "something else" choice, never two.
+
 ## 0.18.11 - 2026-07-07
 
 ### Fixed
