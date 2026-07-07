@@ -92,49 +92,64 @@ their value.
 1. LLM provider — options: openrouter, openai, anthropic, nous,
    opencode-zen, opencode-go, or other (for "other", see
    /opt/aaas/platform/reference/llm-provider-catalog.md for the full
-   catalog and its Exceptions section). Default: openrouter.
-2. Model for the chosen provider — free text. Default (only if item 1 is
-   openrouter): openai/gpt-4.1-mini. Use the default without asking
-   further if the operator has no preference and item 1 is openrouter;
-   otherwise ask for the model with no default.
-3. Real LLM API key for the primary provider — free text, required (a
-   secret with no possible default). Stored in Agent Vault only, never
-   in .env.
+   catalog and its Exceptions section). "Other" is the single free-text
+   escape hatch for this question — do not also add a separate "type
+   your own answer" option beside it. Default: openrouter.
+2. Model for the chosen provider — plain free text, no options UI.
+   Default (only if item 1 is openrouter): openai/gpt-4.1-mini. Use the
+   default without asking further if the operator has no preference and
+   item 1 is openrouter; otherwise ask for the model as a plain typed
+   answer, no default, no button list.
+3. Real LLM API key for the primary provider — plain free text, no
+   options UI, required (a secret with no possible default). Ask once,
+   directly, and take the typed/pasted value — do not present this as a
+   choice of any kind. Stored in Agent Vault only, never in .env.
 4. Fallback provider — options: none (default), or the same list as
-   item 1 minus whichever provider was already chosen there. This is
+   item 1 minus whichever provider was already chosen there — including
+   the same single "other" catch-all, not a second one. This is
    automatic failover to a backup provider:model if the primary fails
    (rate limits, server errors, auth failures) — see
    https://hermes-agent.nousresearch.com/docs/user-guide/features/fallback-providers.
    Declining is the common case and is not an error. If a fallback
    provider is chosen, also collect:
-   - Fallback model — free text, same convention as item 2 (no default).
-   - Fallback's real LLM API key — free text, required. Stored in Agent
-     Vault only, same as the primary key, never in .env.
+   - Fallback model — plain free text, no options UI, same convention as
+     item 2 (no default).
+   - Fallback's real LLM API key — plain free text, no options UI,
+     required. Stored in Agent Vault only, same as the primary key,
+     never in .env.
 5. Dashboard binding — options: default (127.0.0.1:9119, loopback only),
-   or custom (then collect host and port as free text). Use the default
+   or custom. If custom, collect host and port as two plain free-text
+   answers, no options UI, no default for either. Use the default
    without asking further if the operator picks default here — this also
    determines whether item 6 is asked at all.
 6. Dashboard basic auth — only ask this if item 5 was custom with a
    non-loopback host; skip entirely (leave disabled, the default) if
    item 5 was the default loopback binding, since basic auth only
    matters once the dashboard is reachable off-box. Options: no
-   (default), or yes. If yes, do not ask for a username or password —
+   (default), or yes — a plain two-way choice, no free-text answer of
+   any kind belongs here. If yes, do not ask for a username or password —
    both are generated automatically in Step 3.3.
-7. Enable Telegram for admin Hermes — options: no (default), or yes. If
-   yes, also collect:
-   - Telegram bot token (from @BotFather) — free text, required.
+7. Enable Telegram for admin Hermes — options: no (default), or yes — a
+   plain two-way choice, no free-text answer belongs on this question
+   itself (the sub-fields below are separate free-text questions, asked
+   only if the answer here is yes). If yes, also collect:
+   - Telegram bot token (from @BotFather) — plain free text, no options
+     UI, required.
    - Allow list: numeric Telegram user IDs permitted to message this
-     agent — free text, comma-separated numeric IDs, required. Mandatory
-     if Telegram is enabled — do not proceed to Step 3.1 with an empty
-     allow list. If the operator gives none, stop and ask again; an
-     enabled Telegram channel with no allowed users is not a valid state.
+     agent — plain free text, no options UI, comma-separated numeric
+     IDs, required. Mandatory if Telegram is enabled — do not proceed to
+     Step 3.1 with an empty allow list. If the operator gives none, stop
+     and ask again; an enabled Telegram channel with no allowed users is
+     not a valid state.
    - TELEGRAM_HOME_CHANNEL: which single allowed user is the primary
      contact for proactive messages (alerts, restart notifications)? This
      accepts exactly one numeric ID, never a list. Set via `hermes config
      set`, not a manual edit — see Step 3.1.
      - If the allow list has more than one ID, present them as
-       single-select options (pick exactly one) and ask the operator to
-       choose.
+       single-select options — the IDs already collected above, and
+       nothing else. No "other" and no free-text option belongs on this
+       question; the only valid answers are the IDs already on the
+       allow list.
      - If the allow list has exactly one ID, use it as the home channel
        automatically — no separate confirmation needed, since it's the
        only valid choice.

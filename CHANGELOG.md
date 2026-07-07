@@ -4,6 +4,32 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.18.11 - 2026-07-07
+
+### Fixed
+
+- **Every question in `setup-admin-hermes.md`'s Ask The Operator section
+  now individually forbids the redundant-free-text-option pattern**, not
+  just the one general rule added in 0.18.10. 0.18.10 fixed the two
+  reported examples (API key, fallback provider) and added one general
+  rule at the top of the section; this pass (run against OpenCode, which
+  executes this setup and renders its own question UI, not Hermes)
+  annotates all 7 top-level items and every sub-field individually, so
+  no single item depends on the general rule alone to avoid the pattern:
+  - Items 2, 3, 4's fallback model/key, 5's host/port, 7's bot
+    token/allow list — each now says "plain free text, no options UI"
+    directly on the item, not just implied by being unmarked.
+  - Items 1 and 4 — each now states directly that its "other" catch-all
+    is the single free-text escape hatch, not to be duplicated with a
+    second "type your own" option.
+  - Items 6 and 7's top-level yes/no — each now states directly that
+    it's a plain two-way choice with no free-text answer of any kind.
+  - The Telegram home-channel single-select — now states directly that
+    the only valid answers are the already-collected allow-list IDs, no
+    "other" and no free-text option belongs on it at all.
+  - Confirmed no other operator-facing question exists anywhere else in
+    the file outside this section.
+
 ## 0.18.10 - 2026-07-07
 
 ### Fixed
