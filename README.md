@@ -8,9 +8,7 @@ Credentials (LLM API keys and other secrets) are never stored in tenant containe
 
 | Doc | Covers |
 |---|---|
-| [docs/prerequisites.md](docs/prerequisites.md) | Host requirements before you start |
-| [docs/platform-setup.md](docs/platform-setup.md) | Full step-by-step setup walkthrough |
-| [docs/tenant-agent-setup.md](docs/tenant-agent-setup.md) | Tenant reference and validation runbook |
+| [docs/setup-flow.md](docs/setup-flow.md) | Prerequisites through first running tenant, step by step |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common problems and fixes |
 | [docs/architecture.md](docs/architecture.md) | Platform design: repo/host layout, credential security model, policy framework, task reports, knowledge vaults, tenant harness, watchdog, upgrade behavior, versioning |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |

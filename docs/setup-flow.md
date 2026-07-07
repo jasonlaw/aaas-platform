@@ -1,5 +1,4 @@
 # AaaS Platform — Setup to First Tenant Flow
-> Platform version: 0.15.10 · Last updated: 2026-07-03
 
 End-to-end reference for a fresh Ubuntu host through to the first running tenant. Each phase maps to a specific script or SOP; the responsible actor (operator or agent) is noted for every step.
 
