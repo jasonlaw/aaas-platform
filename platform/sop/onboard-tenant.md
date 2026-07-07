@@ -31,7 +31,7 @@ asset, not generated per tenant). If missing, the platform setup is out of date 
 do not attempt to author it inline; report this and stop.
 1. **Collect tenant information using a two-phase interview: essentials first, then optional refinements.**
 
-   **Design principle:** Most fields have sensible defaults. Present each default inline so the operator can accept it with a single word or skip past it — they only need to type when the default is wrong. The agent's personality and capabilities can always be tuned later; getting the bot running fast is the priority.
+   **Design principle:** Most fields have sensible defaults. Present each default inline so the operator can accept it with a single word or skip past it — they only need to type when the default is wrong. The agent's personality and capabilities can always be tuned later; getting the bot running fast is the priority. Every item in both phases below is answered directly in the reply to one grouped message — never split any of them into a separate button-based question per item, and never add a button whose only purpose is "I'll provide it" in front of a field that's already asking the operator to provide a value.
 
    **Phase 1 — Essentials (always ask, no defaults possible):**
    Ask these as a single grouped message so the operator can reply to all at once:

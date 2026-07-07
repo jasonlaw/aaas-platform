@@ -4,6 +4,46 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.18.14 - 2026-07-07
+
+### Changed
+
+- **Shortened `setup-admin-hermes.md`'s anti-detour rule to one sentence**
+  per feedback that the tooling-affordance explanation was unnecessary
+  detail — the objective is simple enough to state directly: if a
+  question expects the operator to provide a value, let them type it
+  right there; never add a button that detours back to asking again.
+
+### Reviewed
+
+- **`sop/onboard-tenant.md`'s tenant interview questions** for the same
+  pattern. Structurally different from admin setup's per-item questions
+  — Phase 1 and Phase 2 are each one grouped chat message covering
+  several fields at once, not individual button-based prompts, so the
+  redundant-option pattern doesn't arise the same way. The one genuine
+  options-only field (Telegram home channel single-select) was already
+  correctly scoped with no free-text duplicate, matching the admin
+  skill. Added one sentence to the Design principle making both points
+  explicit: never split these into per-item button questions, and never
+  add an "I'll provide it" button in front of a field already asking for
+  a value.
+
+## 0.18.13 - 2026-07-07
+
+### Changed
+
+- **Refined `setup-admin-hermes.md`'s anti-redundant-options rule once
+  more** after feedback distinguishing the tool's own default free-text
+  affordance (unavoidable, out of scope, fine to ignore) from the actual
+  defect: an *agent-added* listed option like "I'll provide it" for a
+  question expecting a provided value. That kind of option doesn't
+  collect an answer — tapping it just defers to asking again, turning
+  one question into two round-trips. Rewrote the rule to target this
+  precisely: whenever the operator is expected to supply a value
+  directly, ask plainly and accept the answer in the same turn via the
+  tool's native entry, rather than inserting an extra "I'll provide it"
+  confirmation step in front of it.
+
 ## 0.18.12 - 2026-07-07
 
 ### Changed
