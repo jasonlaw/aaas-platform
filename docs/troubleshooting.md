@@ -29,46 +29,45 @@ Use this guide when a tenant is unhealthy and the answer is not obvious from the
 
 ### Network Fails From Container
 - Symptom: ping or curl to `api.telegram.org` fails from inside the tenant container.
-- First check: `iptables --version` must show `legacy`.
-- If not legacy, switch iptables alternatives and restart Docker.
-- After Docker restart, restart only affected active tenants and rerun health checks.
+- First check: `iptables --version` must show `legacy`. If not, switch
+  iptables alternatives and restart Docker.
+- If iptables is already legacy and the container is on a custom bridge
+  network (e.g. `agent-vault-net`), this is the nftables gap below, not an
+  iptables mode issue — see "Docker 29.x Custom Bridge Network Has No
+  Internet (nftables gap)".
+- After any Docker restart, restart only affected active tenants and rerun health checks.
 
-### Agent Vault / Tenant Container Has No Internet on Docker Desktop + WSL2 (nftables gap)
-- Applies only if the host is Docker Desktop on WSL2 — not a plain Ubuntu
-  box. If you're not sure, `docker info | grep -i "Operating System"` will
-  say `Docker Desktop` on WSL2 hosts.
+### Docker 29.x Custom Bridge Network Has No Internet (nftables gap)
+- Applies to any host running Docker 29.x, not only Docker Desktop/WSL2 —
+  including a plain native Linux install. Setting `iptables-legacy` does
+  not prevent or fix this; Docker manages its own nftables ruleset for
+  bridge networks independently of the iptables alternative.
 - Symptom: `docker exec <container> ping 1.1.1.1` (or any external host)
   times out from a custom bridge network (e.g. `agent-vault-net`), and LLM
   calls through the Agent Vault MITM proxy fail with `HTTP 502 Bad Gateway`
   after a ~12-second timeout, even though the proxy's CONNECT tunnel itself
   establishes fine.
-- Cause: on Docker Desktop for WSL2, Docker's nftables backend can leave a
-  custom bridge network (anything other than the default `docker0`) missing
-  two rules that the default bridge gets automatically: a `DOCKER-FORWARD`
-  accept rule for outbound traffic, and a `DOCKER-CT` established/related
-  accept rule for return traffic. Without them the nftables `FORWARD` chain
-  drops the container's packets before they reach the proxy or the internet.
-- Quick check: find the bridge's interface name, then look for the two
-  rules:
+- Cause: Docker 29.x's nftables backend only auto-adds three rules for the
+  default `docker0` bridge — a `DOCKER-FORWARD` accept rule for outbound
+  traffic, a `DOCKER-CT` established/related accept rule for return
+  traffic, and a `POSTROUTING` masquerade rule — and does not add the
+  equivalent rules for any custom bridge network. Without them the
+  nftables `FORWARD` chain (policy DROP) drops the container's packets
+  before they reach the proxy or the internet.
+- Check and fix (covers all custom bridge networks on the host):
   ```bash
-  docker network inspect <network-name> -f '{{.Id}}' | cut -c1-12
-  # bridge interface is br-<that id>, e.g. br-d1ab7f165eb6
-  sudo nft list chain ip filter DOCKER-FORWARD | grep '<bridge-iface>'
-  sudo nft list chain ip filter DOCKER-CT | grep '<bridge-iface>'
-  ```
-  If either grep comes back empty, this is the issue.
-- Fix (until the next Docker Desktop restart re-applies its own rules —
-  treat this as a live workaround, not a permanent one):
-  ```bash
-  sudo nft add rule ip filter DOCKER-FORWARD iifname "<bridge-iface>" accept
-  sudo nft add rule ip filter DOCKER-CT oifname "<bridge-iface>" ct state established,related accept
+  sudo /opt/aaas/platform/scripts/fix-docker-nftables.sh --check
+  sudo /opt/aaas/platform/scripts/fix-docker-nftables.sh --apply
   ```
   Verify with `docker exec <container> ping -c1 1.1.1.1` and re-test the
   proxy call.
-- Not yet automated: this platform does not currently detect WSL2 or apply
-  this fix during setup. If you hit this repeatedly across reinstalls,
-  worth raising as a setup-agent-vault.md automation follow-up rather than
-  re-diagnosing from scratch each time.
+- Make it permanent: these rules are lost on host reboot and on Docker
+  daemon restart. Run this once per host:
+  ```bash
+  sudo /opt/aaas/platform/scripts/fix-docker-nftables.sh --install
+  ```
+  This installs and enables `aaas-fix-docker-nft.service`, which reapplies
+  the rules every time `docker.service` starts.
 
 ### Telegram Welcome Fails
 - `chat not found` or `403 Forbidden` usually means the owner has not opened the bot and sent `/start`.

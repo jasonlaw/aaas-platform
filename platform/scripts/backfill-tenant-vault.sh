@@ -2,7 +2,7 @@
 # Scaffold (or backfill) the knowledge vault for one tenant.
 #
 # Replaces the 5-command vault scaffold block repeated verbatim in:
-#   onboard-tenant.md step 4.2
+#   onboard-tenant.md step 4.1
 #   update-tenant.md step 7.1
 #   upgrade-tenants.md step 3 (vault backfill sub-step)
 #   troubleshoot-tenant.md "Knowledge Vault Missing" recovery path

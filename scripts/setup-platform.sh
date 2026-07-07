@@ -881,8 +881,8 @@ validate_install() {
     || error "Onboarding SOP must scaffold the tenant knowledge vault"
   grep -q "/home/hermes/vault" "$PLATFORM_ROOT/tenant-hermes/SOUL.md.template" \
     || error "Tenant SOUL template must document the tenant knowledge vault path"
-  grep -q "business-data.md" "$PLATFORM_ROOT/tenant-hermes/SOUL.md.template" \
-    || error "Tenant SOUL template must distinguish the knowledge vault from business-data.md"
+  grep -q "Reference/Business Data.md" "$PLATFORM_ROOT/tenant-hermes/SOUL.md.template" \
+    || error "Tenant SOUL template must document Reference/Business Data.md for operational facts"
   grep -q "tenant-harness.yaml.template" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must create tenant harness manifests"
   grep -q "_fixed-safety-v1.yaml" "$PLATFORM_ROOT/sop/onboard-tenant.md" \

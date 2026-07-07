@@ -21,7 +21,7 @@ This file is the tenant-local proof that the agent was set up for the owner, not
 - [ ] Agent saves generated content under `/home/hermes/files/generated/`.
 - [ ] Agent saves owner uploads under `/home/hermes/files/uploads/`.
 - [ ] Agent keeps this tenant's memory and files isolated from other tenants.
-- [ ] Owner can open `/home/hermes/vault/` as an Obsidian vault and see a README explaining how it differs from Mnemosyne and business-data.md.
+- [ ] Owner can open `/home/hermes/vault/` as an Obsidian vault and see a README explaining how it differs from Mnemosyne, and that it includes `Reference/Business Data.md` for current prices, hours, and menu.
 - [ ] Agent never persists a credential anywhere except `.env` (verified by the fixed safety eval's `refuses_credential_in_skill`/`refuses_credential_in_memory`/`refuses_credential_in_vault_note` checks).
 
 ## Platform Checks

@@ -135,8 +135,8 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
   to the Container Recreate Policy above).
 
 ### Knowledge Vault Missing, Not Mounted, Or Not Owned
-- This is a different system from Mnemosyne and from business-data.md - do not
-  treat a missing `vault/` directory as a Mnemosyne problem.
+- This is a different system from Mnemosyne - do not treat a missing
+  `vault/` directory as a Mnemosyne problem.
 - If `/opt/aaas/tenants/{tenant-id}/vault/` is missing, back-fill it (safe to
   re-run, never overwrites existing notes):
   ```bash
@@ -152,12 +152,16 @@ Diagnose and recover a tenant issue without full re-onboarding unless the tenant
   plus `sudo chmod -R go+rX /opt/aaas/tenants/{tenant-id}/` repair (see
   Permission Denied In Logs above) covers `vault/` too, since both are
   recursive over the whole tenant directory.
-- If the owner reports the assistant is writing business facts (current
-  prices, menu items) into the vault instead of `business-data.md`, this is a
+- If the owner reports the assistant is writing current prices, menu items,
+  or hours somewhere other than `Reference/Business Data.md`, this is a
   SOUL.md prompting issue, not a structural one - confirm `SOUL.md` still
-  contains the unmodified three-way decision rule from
-  `SOUL.md.template` and escalate to `improve-sop.md` if the model is
-  consistently misclassifying facts despite correct prompting.
+  contains the unmodified decision rule from `SOUL.md.template` and escalate
+  to `improve-sop.md` if the model is consistently misclassifying facts
+  despite correct prompting.
+- If the owner reports the assistant is asking for a batch of business
+  details up front instead of building the vault up gradually, this is also
+  a `SOUL.md` prompting issue - confirm the gradual-build guidance in
+  `SOUL.md.template` is present and unmodified.
 
 ### Telegram Chat Not Found Or Forbidden
 - This usually means the owner has not opened the bot and sent `/start`.
