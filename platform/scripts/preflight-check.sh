@@ -46,6 +46,14 @@ else
   fail "iptables_not_found"
 fi
 
+# iptables-legacy does not prevent the Docker 29.x custom-bridge nftables
+# gap (see docs/troubleshooting.md); check custom bridge networks directly.
+if command -v docker >/dev/null 2>&1 && [ -x "$PLATFORM_ROOT/scripts/fix-docker-nftables.sh" ]; then
+  "$PLATFORM_ROOT/scripts/fix-docker-nftables.sh" --check >/dev/null 2>&1 \
+    && pass "docker_custom_bridge_nftables_rules_ok" \
+    || warn "docker_custom_bridge_nftables_rules_missing:run $PLATFORM_ROOT/scripts/fix-docker-nftables.sh --apply"
+fi
+
 if command -v jq >/dev/null 2>&1; then
   pass "jq_available"
 else

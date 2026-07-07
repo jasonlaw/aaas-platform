@@ -117,6 +117,18 @@ sudo /opt/aaas/platform/scripts/aaas-watchdog.sh --install
 # Expected: all PASS, no FAIL
 ```
 
+### 6.5 Fix custom bridge networking (Docker 29.x nftables gap)
+Docker 29.x does not auto-add outbound/return/masquerade nftables rules for
+custom bridge networks (e.g. `agent-vault-net`), which can leave the
+container unable to reach the internet. This is independent of iptables
+mode. Check and permanently fix it now, once per host:
+```bash
+sudo /opt/aaas/platform/scripts/fix-docker-nftables.sh --check
+sudo /opt/aaas/platform/scripts/fix-docker-nftables.sh --install
+```
+`--install` enables `aaas-fix-docker-nft.service`, which reapplies the
+rules on every `docker.service` start (reboot or daemon restart).
+
 ### 7. Write task report
 Follow `/opt/aaas/platform/sop/write-report.md`. Include:
 - Container health status
@@ -124,6 +136,7 @@ Follow `/opt/aaas/platform/sop/write-report.md`. Include:
 - CA fetch confirmed and Dockerfile CA block verified
 - Image rebuild status and CA trust verification result
 - Watchdog labels present and watchdog install status
+- `fix-docker-nftables.sh --check` result and `aaas-fix-docker-nft.service` install status
 - Any warnings or issues
 
 ## Notes
@@ -135,9 +148,10 @@ Follow `/opt/aaas/platform/sop/write-report.md`. Include:
 - Back up `/opt/aaas/agent-vault/data/` as part of your server backup schedule.
   The database is encrypted at rest; backing it up does not expose credentials.
 - For recovery procedures see `/opt/aaas/platform/incidents/agent-vault-failure.md`.
-- If this host is Docker Desktop on WSL2 (not a plain Ubuntu box) and the
-  Agent Vault container has no internet access on a custom bridge network,
-  see `docs/troubleshooting.md` → "Agent Vault / Tenant Container Has No
-  Internet on Docker Desktop + WSL2 (nftables gap)" — a known Docker
-  Desktop/WSL2 nftables gap, not an Agent Vault bug. Not applicable on a
-  native Ubuntu install.
+- On Docker 29.x, custom bridge networks (including `agent-vault-net`) can
+  come up with no internet access — a Docker nftables gap, not an Agent
+  Vault bug, and not limited to WSL2. Run
+  `sudo /opt/aaas/platform/scripts/fix-docker-nftables.sh --install` once
+  per host (after step 6) to detect and permanently fix it. See
+  `docs/troubleshooting.md` → "Docker 29.x Custom Bridge Network Has No
+  Internet (nftables gap)" for details.
