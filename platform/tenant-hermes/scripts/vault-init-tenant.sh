@@ -4,9 +4,10 @@
 # Runs inside the tenant container by default, using /home/hermes/vault.
 # Safe to re-run; never overwrites existing notes.
 #
-# This is NOT Mnemosyne (in-conversation recall) and NOT business-data.md
-# (today's prices/menu/hours). See the README this script creates for the
-# three-way split, and SOUL.md for the decision rule the tenant agent follows.
+# This is NOT Mnemosyne (in-conversation recall). Current operational facts
+# (prices, hours, menu) live inside this vault too, at Reference/Business
+# Data.md - there is no separate file for them. See the README this script
+# creates, and SOUL.md for the decision rule the tenant agent follows.
 
 set -euo pipefail
 
@@ -75,24 +76,24 @@ tenant_id: "${TENANT_ID:-}"
 
 This is your assistant's knowledge vault: plain Markdown notes you can open,
 read, edit, and link in the Obsidian app (https://obsidian.md). It is
-separate from two other systems your assistant uses:
+separate from one other system your assistant uses:
 
 - **Mnemosyne** is in-conversation recall only - you won't see it as files,
   and it is not meant to be browsed.
-- **business-data.md** (\`files/assets/business-data.md\`) is the one file
-  with today's prices, menu, hours, and availability. Edit that file
-  directly whenever those change - your assistant always re-reads it.
 
-This vault is for everything else worth its own note over time: customers,
-suppliers, recurring tasks, and reference material you've given your
-assistant. Your assistant writes and updates notes here as it learns things
-worth remembering in a structured way; you can also edit any note directly.
+Everything durable lives here, including today's prices, hours, and menu -
+see \`Reference/Business Data.md\` (edit it directly whenever those change;
+your assistant always re-reads it) - plus customers, suppliers, recurring
+tasks, and reference material you've given your assistant. Your assistant
+writes and updates notes here as it learns things, a little at a time as
+they come up in conversation; you can also edit any note directly.
 
 ## Sections
 - [[Customers]] - one note per customer, preferences and history
 - [[Suppliers]] - one note per supplier or vendor
 - [[Recurring]] - recurring tasks, patterns, or reminders
-- [[Reference]] - material you've given your assistant to keep on hand
+- [[Reference]] - material you've given your assistant to keep on hand,
+  including \`Business Data.md\` (today's prices, hours, menu, availability)
 
 ## Conventions
 - Link freely with [[Note Name]] - that's what makes this a "second brain"
@@ -126,10 +127,12 @@ owner.
   \`\`\`
 - Link both directions where it makes sense (a customer note linking to a
   recurring order pattern note, and vice versa).
-- Never write current prices, menu items, hours, or availability here - that
-  is business-data.md's job. Never write secrets here. See SOUL.md for the
-  full three-way decision rule between Mnemosyne, business-data.md, and this
-  vault.
+- Current prices, menu items, hours, or availability always go in
+  \`Reference/Business Data.md\` specifically, so there's one place to check.
+  Never write secrets here. See SOUL.md for the full decision rule between
+  Mnemosyne and this vault.
+- Fill this vault in gradually from real conversation - never ask the owner
+  for a batch of business details up front.
 EOF
   success "Created README.md"
 else
@@ -140,5 +143,25 @@ for section in Customers Suppliers Recurring Reference; do
   placeholder="$VAULT_ROOT/$section/.gitkeep"
   [ -f "$placeholder" ] || touch "$placeholder"
 done
+
+BUSINESS_DATA="$VAULT_ROOT/Reference/Business Data.md"
+if [ ! -f "$BUSINESS_DATA" ]; then
+  cat > "$BUSINESS_DATA" <<EOF
+---
+type: reference
+tenant_id: "${TENANT_ID:-}"
+---
+
+# Business Data — owner-editable
+
+Current prices, menu, hours, and availability. Edit this directly whenever
+those change; your assistant always re-reads it before answering a related
+question. Empty at first — the assistant fills this in as it learns from
+you, over time, not all at once.
+EOF
+  success "Created Reference/Business Data.md"
+else
+  warn "Reference/Business Data.md already exists - leaving it unchanged"
+fi
 
 success "Tenant knowledge vault ready at $VAULT_ROOT"

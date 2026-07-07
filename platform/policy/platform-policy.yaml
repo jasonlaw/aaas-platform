@@ -52,7 +52,7 @@ rules:
       confirm before performing the append. (2) Nowhere else — the agent must
       never persist or send credential data in any other form, including: a
       self-written skill file, Mnemosyne memory (via store or any other
-      write), a knowledge vault note, business-data.md, a generated or
+      write), a knowledge vault note, a generated or
       uploaded file, a Telegram message or any other external channel, harness
       or acceptance records, or any other file under /opt/data or /home/hermes.
       Even after appending to .env, the agent must never reveal the value it

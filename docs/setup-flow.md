@@ -93,8 +93,8 @@ The operator is now talking to the admin Hermes agent. Platform context is loade
 | Step | What happens |
 |------|-------------|
 | 1 | Operator interviewed one question at a time: business type, name, vertical details, location, brand tone, Telegram bot token, allowed user IDs, LLM provider/model/key, optional fallback provider |
-| 1.1 | Agent web-researches business website, reviews, social pages to fill gaps and validate facts |
-| 1.2 | Agent generates: `VERTICAL_CAPABILITIES_BLOCK`, `VERTICAL_BRAND_FACTS_BLOCK`, operational details classification, tenant eval checks (2–4 literal/semantic), tenant policy rules |
+| 1.1 | Agent checks business website/social links (if given) for brand tone and colour only — no facts extracted |
+| 1.2 | Agent generates: `INDUSTRY_CAPABILITIES_BLOCK`, `INDUSTRY_BRAND_FACTS_BLOCK`, tenant eval checks (2–4 literal/semantic), tenant policy rules |
 | 2 | Full summary shown to operator → confirmed before any files are written |
 
 ### Provision (steps 3–8)
@@ -102,8 +102,7 @@ The operator is now talking to the admin Hermes agent. Platform context is loade
 |------|-------------|
 | 3 | Tenant ID generated as lowercase slug from business name |
 | 4 | Tenant directories created under `/opt/aaas/tenants/{id}/`: `memories/`, `skills/`, `files/assets/`, `files/uploads/`, `files/generated/`, `vault/` |
-| 4.1 | `business-data.md` written (operational details, owner-editable at runtime) |
-| 4.2 | Knowledge vault scaffolded via `backfill-tenant-vault.sh` → `vault/` with `Customers/`, `Suppliers/`, `Recurring/`, `Reference/`, `.obsidian/`, `README.md` |
+| 4.1 | Knowledge vault scaffolded empty via `backfill-tenant-vault.sh` → `vault/` with `Customers/`, `Suppliers/`, `Recurring/`, `Reference/` (including an empty `Business Data.md` stub), `.obsidian/`, `README.md`; optional unconfirmed `Reference/Onboarding Notes.md` if a description/links were given |
 | 5 | All templates rendered: `config.yaml`, `.env`, `.env.template`, `SOUL.md`, `MEMORY.md`, `USER.md`, `harness.yaml`, `ACCEPTANCE.md`, `tenant-policy.yaml`; generated eval profile written to `tenant-hermes/evals/generated/{id}-v1.yaml` |
 | 5.1 | Platform and tenant policy rules injected into `SOUL.md` inside `BEGIN/END` marker blocks |
 | 6 | Config verified: `memory.provider: mnemosyne`, `memory_enabled: false`, `user_profile_enabled: false`, no secrets in `config.yaml` |
@@ -159,5 +158,5 @@ The watchdog discovers entities by Docker label — no config update needed when
 | `/opt/aaas/agent-vault/` | Agent Vault data, compose file, `.env` |
 | `/opt/aaas/tenants/{id}/` | Per-tenant volume (configs, memories, files, vault) |
 | `/opt/aaas/tenants/{id}/.env` | Tenant runtime env (API key replaced by vault proxy) |
-| `/opt/aaas/tenants/{id}/files/assets/business-data.md` | Owner-editable operational details |
+| `/opt/aaas/tenants/{id}/vault/Reference/Business Data.md` | Owner-editable operational details (current prices, hours, menu) |
 | `/opt/aaas/tenants/{id}/vault/` | Tenant knowledge vault (Obsidian-compatible) |

@@ -24,20 +24,46 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ### Changed
 
+- **`business-data.md` merged into the knowledge vault.** There is no
+  longer a separate `files/assets/business-data.md` file or "Assistant
+  Context" section. Current operational facts (prices, hours, menu,
+  availability) now live in the vault at `Reference/Business Data.md`,
+  scaffolded as an empty, owner-editable stub during onboarding
+  (`vault-init-tenant.sh`) and always re-read by the tenant agent before
+  answering a related question — same rule as before, one system instead
+  of two. Onboarding no longer collects or classifies operational details
+  from the operator at all (`sop/onboard-tenant.md` step 1.2's
+  `OPERATIONAL_DETAILS` classification is removed); the tenant agent
+  learns these facts itself, from the owner, at runtime. Updated
+  everywhere this distinction was previously documented:
+  `SOUL.md.template`, `vault-init-tenant.sh`, `docs/architecture.md`,
+  `docs/setup-flow.md`, `platform/PLATFORM-REFERENCE.md`,
+  `platform/harness/ACCEPTANCE.md.template`, `platform/harness/check-tenant.sh`,
+  `platform/policy/platform-policy.yaml`,
+  `platform/admin-hermes/MEMORY.md.template`,
+  `platform/sop/troubleshoot-tenant.md`, `scripts/setup-platform.sh`'s
+  install-time SOUL template validation.
+- **The tenant agent builds vault knowledge gradually, with no pressure on
+  the owner.** `SOUL.md.template` is now explicit that the agent should
+  never ask for a batch of business details up front or make the owner
+  feel interviewed — it notes things as they come up in normal
+  conversation over days and weeks. This applies equally to
+  `Reference/Business Data.md` and to any other vault note.
 - **`sop/onboard-tenant.md` simplified.** Step 1.1 (web research) is now
   scoped to brand tone and colour only — it no longer extracts or
   records business facts. Step 1.15 (sub-agent) is removed entirely.
   Step 1.2 generates the capability/brand blocks by cold generation from
   the operator's own interview answers, same as the pipeline's own
-  fallback path did before. Step 4.1 writes `business-data.md` with a
-  single operational-details section (the "Assistant Context" section is
-  gone). Step 4.2 scaffolds the vault empty — no seed notes — and, if the
-  operator gave a business description or links in step 1, writes them
-  verbatim into a single `Reference/Onboarding Notes.md` note marked
-  `status: unconfirmed`. Step 17's welcome message now frames the agent
-  as new to the business, not pre-loaded with it, and says it will look
-  at any given links itself and confirm what it finds. Step 19's task
-  report no longer includes sub-agent status/confidence fields.
+  fallback path did before, and no longer collects operational details.
+  Step 4.1 (was 4.2) scaffolds the vault empty — no seed notes, no
+  business-data.md — and, if the operator gave a business description or
+  links in step 1, writes them verbatim into a single
+  `Reference/Onboarding Notes.md` note marked `status: unconfirmed`. Step
+  17's welcome message frames the agent as new to the business, not
+  pre-loaded with it, and says it will look at any given links itself and
+  confirm what it finds, without pressure to cover everything in the
+  first conversation. Step 19's task report no longer includes sub-agent
+  status/confidence fields or a separate business-data.md line.
 - **Added an optional "Website / social links" field** to the Phase 2
   interview in `onboard-tenant.md`, so an operator who has a homepage or
   social page on hand can hand it to the agent — as a pointer for the
@@ -45,8 +71,8 @@ All notable changes to this platform setup are tracked here. The platform setup 
   input.
 - **`SOUL.md.template`** now tells the tenant agent to check
   `Reference/Onboarding Notes.md` (if present) and confirm anything in it
-  with the owner in its first conversation, rather than treating it as
-  settled.
+  with the owner when it's natural to do so — not necessarily in the
+  first conversation — rather than treating it as settled.
 - **`docs/architecture.md`** — replaced the "Vault scaffolding and seed
   notes" / "Business intelligence sub-agent" sections with a single
   "Vault scaffolding" section describing the empty-start design and the

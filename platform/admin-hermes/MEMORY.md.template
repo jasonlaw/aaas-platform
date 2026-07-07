@@ -12,4 +12,4 @@
 - Report index is `/opt/aaas/platform/reports/INDEX.jsonl`.
 - Native Hermes memory is disabled for admin and tenant agents; Mnemosyne is the memory provider.
 - The Hermes dashboard should bind to `127.0.0.1:9119` by default.
-- Tenant operational business details (anything the owner updates as part of running the business) live in /opt/aaas/tenants/{tenant-id}/files/assets/business-data.md. This file is owner-editable, must be owned by UID 10000, and is never seeded into Mnemosyne. It is always created during onboarding — populated with collected operational details if any exist, or left as a commented stub for the owner to fill in later.
+- Tenant operational business details (anything the owner updates as part of running the business) live in the tenant's own knowledge vault, at /opt/aaas/tenants/{tenant-id}/vault/Reference/Business Data.md. This note is owner-editable, must be owned by UID 10000, and is never seeded into Mnemosyne. It is scaffolded empty during onboarding — the tenant agent fills it in over time, from real conversation with the owner, not at onboarding.
