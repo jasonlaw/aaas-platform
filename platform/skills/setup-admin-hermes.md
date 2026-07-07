@@ -210,6 +210,13 @@ memory, not this Mnemosyne plugin):
     HERMES_HOME=/opt/aaas/platform/admin mnemosyne-hermes install
     HERMES_HOME=/opt/aaas/platform/admin hermes memory setup
 
+Then pre-install the messaging dependency into the same venv, whether or
+not Telegram is enabled in this run. The gateway lazy-installs this on
+first start otherwise, and its startup check can fail the first attempt
+before the install finishes:
+
+    uv pip install --python "$HERMES_VENV_PY" --upgrade 'hermes-agent[messaging]'
+
 ## Step 2 — Create Admin Profile
 
     mkdir -p /opt/aaas/platform/admin

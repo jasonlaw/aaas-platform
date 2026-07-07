@@ -4,6 +4,27 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.19.1 - 2026-07-07
+
+### Fixed
+
+- **Docker 29.x custom bridge networks (e.g. `agent-vault-net`) can lose
+  internet access, on any host, not only Docker Desktop/WSL2.**
+  `iptables-legacy` does not fix this — Docker manages its own nftables
+  ruleset for bridges regardless of the iptables alternative. Added
+  `platform/scripts/fix-docker-nftables.sh` (`--check` / `--apply` /
+  `--install`) to detect and permanently fix missing `DOCKER-FORWARD`,
+  `DOCKER-CT`, and `POSTROUTING` masquerade rules. Wired into
+  `sop/setup-agent-vault.md` (new step 6.5) and `scripts/preflight-check.sh`
+  (new warning check). Corrected the misleading iptables-legacy claims in
+  `PLATFORM-REFERENCE.md` and broadened `docs/troubleshooting.md`'s nftables
+  entry from WSL2-only to all Docker 29.x hosts.
+- **Admin Hermes Telegram gateway could fail its first start.** The
+  gateway's lazy dependency install for `python-telegram-bot` races its own
+  startup check. `skills/setup-admin-hermes.md` Step 1 now pre-installs
+  `hermes-agent[messaging]` during runtime setup, before the gateway is
+  ever started.
+
 ## 0.19.0 - 2026-07-07
 
 ### Removed
