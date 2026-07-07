@@ -61,6 +61,20 @@ where it is explicitly marked conditional on an earlier answer — this
 keeps the number and shape of questions the same from run to run instead
 of drifting with phrasing.
 
+**Never offer two choices that both just mean "let me type something
+else."** This applies in two places below:
+- A *free-text* item (e.g. item 3's API key) gets no options UI at all —
+  ask the plain question and take the typed/pasted answer directly.
+  Never present it as a choice between "I'll provide it" and "type your
+  own answer" — those are the same action offered twice.
+- An *options* item with a catch-all (item 1 and item 4's "other") gets
+  exactly one free-text escape hatch, not two. "Other" already means
+  "type something not in this list" — don't also add a separate "type
+  your own answer" option next to it. If the elicitation mechanism in
+  use already provides its own generic free-text fallback alongside a
+  button list, don't add "other" as a redundant extra button on top of
+  that fallback — pick one, not both.
+
 **Never ask the operator to supply a credential this setup can generate
 itself.** Three values fall in this category, and none of them should
 ever be posed as a question:

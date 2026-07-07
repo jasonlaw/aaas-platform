@@ -4,6 +4,58 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.18.10 - 2026-07-07
+
+### Fixed
+
+- **`setup-admin-hermes.md`'s Ask The Operator questions were being
+  presented with redundant duplicate free-text options.** Reported from
+  a live run: the API key question (item 3, already marked pure
+  free-text with no options) was shown as a choice between "I'll provide
+  it" and "type your own answer" — two buttons for the same action. The
+  fallback provider question (item 4, which already lists concrete
+  providers plus a single "other" catch-all) was shown with an *extra*
+  "type your own answer" option alongside "other," again duplicating the
+  same escape hatch. Added an explicit rule: free-text items get no
+  options UI at all, and an "other"-style catch-all is exactly one
+  free-text escape hatch, never two side by side.
+
+## 0.18.9 - 2026-07-07
+
+### Fixed
+
+- **`scripts/agent-vault-health.sh`'s MITM proxy port check false-failed on
+  a healthy proxy.** An operator-submitted bug report correctly identified
+  the symptom (line 57's `[ "$PROXY_CODE" = "407" ]` never matched even
+  when the proxy was up and correctly returning 407) but misdiagnosed the
+  cause and proposed a fix that doesn't work — verified by reproducing
+  against a real proxy response (one-shot `nc` responder returning actual
+  407s) rather than reading the script alone:
+  - The report blamed line 54's `|| echo '000'` for "overriding" a 407
+    that curl had already captured. Tested directly: curl's
+    `%{http_code}` is **always** `000` for a failed CONNECT tunnel, with
+    or without the shell fallback — it reflects the final destination
+    resource's response (never reached here), not the proxy's own CONNECT
+    response. The correct variable is `%{http_connect}`, which the report
+    never identified.
+  - The report's proposed fix (`|| true` + default-if-empty, keeping
+    `%{http_code}`) was tested exactly as written: still produces `000`.
+    Applying it as submitted would have left the check permanently
+    broken.
+  - A second, compounding bug the report missed: even switching only to
+    `%{http_connect}` while keeping `|| echo '000'` produces `407000` —
+    curl's real value with the shell fallback still appended after it
+    (curl's own exit code is non-zero — confirmed 56, "CONNECT tunnel
+    failed," not the reported 7 — even when it already wrote a valid
+    code to stdout). Both the `-w` variable and the exit-code handling
+    had to be fixed together.
+  - Fix: switched to `%{http_connect}`, and separated exit-code handling
+    from output capture (`set +e` around the bare assignment, default to
+    `000` only if the variable ends up empty) instead of an inline `||`.
+    Verified against a healthy 407-returning proxy (PASS), a genuinely
+    unreachable proxy (FAIL, no regression), and confirmed compatible
+    with the script's existing `set -euo pipefail`.
+
 ## 0.18.8 - 2026-07-06
 
 ### Changed (streamlining pass — no behavior changes)
