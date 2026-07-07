@@ -27,11 +27,11 @@ aaas-platform/
     │   ├── config.yaml.template, env.template, SOUL.md.template, USER.md.template, MEMORY.md.template
     │   ├── policy/                 — tenant-policy.yaml.template (per-tenant operator restrictions)
     │   ├── skills/                 — tenant-contact-admin.md (tenant agent's own skill)
-    │   ├── scripts/                — skill-verify.sh, vault-init-tenant.sh, seed-vault-context.py (run inside the tenant container or against tenant volumes)
+    │   ├── scripts/                — skill-verify.sh, vault-init-tenant.sh (run inside the tenant container or against tenant volumes)
     │   └── evals/                  — tenant agent eval profiles (see below)
     ├── evals/                      — HOST: admin agent's own eval profile (meta-eval-generation-v1.yaml)
     ├── sop/                        — host-run SOPs: onboard/update/troubleshoot/upgrade/offboard a tenant, etc.
-    ├── skills/                     — admin agent's own skills (vault management, tenant request handling, business intelligence sub-agent, …)
+    ├── skills/                     — admin agent's own skills (vault management, tenant request handling, …)
     ├── harness/                    — check-tenant.sh + manifest/acceptance templates used to verify a tenant install
     ├── checklists/                 — required-step JSON checklists the admin agent must complete
     ├── policy/                     — platform-policy.yaml, the canonical source of platform-wide safety rules
@@ -186,47 +186,20 @@ A tenant has **three** distinct memory/knowledge systems, each with one job:
 | System | Holds | Read pattern |
 |---|---|---|
 | **Mnemosyne** | in-conversation recall (preferences, recent context) | queried by similarity, mid-conversation |
-| **`files/assets/business-data.md`** | today's truth: current prices, menu, hours, availability; plus a "Assistant Context" section of insider knowledge set at onboarding | one flat file, always re-read before answering related questions |
+| **`files/assets/business-data.md`** | today's truth: current prices, menu, hours, availability | one flat file, always re-read before answering related questions |
 | **Knowledge vault** (`vault/`) | durable, structured notes: customers, suppliers, recurring patterns, reference material | linked Markdown notes, browsed/searched, owner-editable |
 
 These do not overlap by design. Current pricing/menu/hours always belongs in `business-data.md`, never in the vault; fleeting conversational context belongs in Mnemosyne, not a dedicated vault note. The tenant's `SOUL.md` (rendered from `SOUL.md.template`) carries the exact decision rule the tenant agent follows when it learns a new fact, so this distinction lives with the agent at runtime, not only in platform documentation.
 
-### Vault scaffolding and seed notes
+### Vault scaffolding
 
 The vault is scaffolded once during onboarding (`onboard-tenant.md` step 4.2) using `/opt/aaas/platform/tenant-hermes/scripts/vault-init-tenant.sh`, copied into the tenant volume and run against the host-mounted path. It creates `Customers/`, `Suppliers/`, `Recurring/`, and `Reference/` folders, a minimal `.obsidian/` config, and a `README.md` explaining the three-way split to the owner. The same script is safe to re-run for tenants onboarded before this feature existed (see `update-tenant.md` and `upgrade-tenants.md`) — it never overwrites existing notes.
 
-After scaffolding, the vault is seeded with context notes produced by the **business intelligence sub-agent** (see below). When the sub-agent succeeds, the vault starts with three pre-written notes rather than empty section folders, so the tenant agent has structured business knowledge to query from the very first conversation.
+The vault starts empty — no pre-written notes, no research step, no synthesis pass. The tenant agent builds it entirely from real conversation with the owner, starting with the welcome message (`onboard-tenant.md` step 17), which introduces the agent as new to the business and ready to learn rather than already knowing it.
 
-### Business intelligence sub-agent
+**Onboarding source material (optional).** If the operator gave a business description or website/social links during onboarding, step 4.2 writes them, verbatim and unmodified, into a single `Reference/Onboarding Notes.md` note marked `status: unconfirmed`. This is a pointer to raw material, not a fact: `SOUL.md` instructs the tenant agent to look at any linked pages itself in its first conversation with the owner and confirm what it finds, rather than treating anything in that note as settled. No sub-agent, no separate research pass at onboarding time, and no other vault note is written before the tenant agent's own conversation with the owner produces one.
 
-The onboarding flow (step 1.15) runs a focused Claude API call — the business intelligence sub-agent — between web research (step 1.1) and template generation (step 1.2). Its job is synthesis, not collection: it turns the operator's interview answers and raw web research text into four structured artifacts that make the tenant agent genuinely useful from day one.
-
-**Why it exists:** before this, onboarding produced a thin 3–6 line capabilities block and 1–4 brand fact lines, then discarded the rest of the research. The tenant agent started with minimal context and had to build up knowledge through months of runtime conversations. The sub-agent captures that synthesis work up front, at onboarding time, and persists it in the places the tenant agent actually reads.
-
-**What it produces:**
-
-| Output | Used in |
-|---|---|
-| `vertical_capabilities_block` | `SOUL.md` — grounded, business-specific capability lines instead of generic bullets |
-| `vertical_brand_facts_block` | `memories/MEMORY.md` → Mnemosyne seed — stable facts drawn from actual research |
-| `business_data_context_section` | `business-data.md` "Assistant Context" section — insider knowledge lines (how customers describe their needs, local context, seasonal patterns, owner's phrasing) |
-| `vault_seed_notes` | Three vault notes written at onboarding — `Reference/Business Overview.md`, `Reference/Vertical Playbook.md`, `Recurring/Patterns to Watch.md` |
-
-**How it works:**
-
-1. `onboard-tenant.md` step 1.15 assembles a JSON context block from the interview answers and web research text, then calls `platform/scripts/run-business-research-subagent.py` on the host.
-2. The script sources `/opt/aaas/platform/admin/.env` and runs `hermes -z` from the admin Hermes install, with a system prompt (prepended into the single prompt string `hermes -z` takes) instructing the model to return structured JSON only. This inherits the admin agent's configured provider/model and its Agent Vault proxy routing directly — no separate API key is read or required. (Prior versions called `api.anthropic.com` directly with a bare `ANTHROPIC_API_KEY` that nothing in setup provisioned; fixed 2026-07-05.)
-3. The response is validated, stamped with `_meta` (tenant ID, provider, confidence), and written to `/tmp/aaas-research-{tenant-id}.json`.
-4. Step 1.2 reads `vertical_capabilities_block` and `vertical_brand_facts_block` from the JSON instead of generating them cold.
-5. Step 4.1 appends `business_data_context_section` to `business-data.md` as a second, clearly delimited "Assistant Context" section.
-6. Step 4.2 calls `platform/tenant-hermes/scripts/seed-vault-context.py` on the host, which reads `vault_seed_notes` from the JSON and writes each note into the scaffolded vault. Idempotent — existing notes are never overwritten.
-7. The temp file is cleaned up at step 19 (`rm -f /tmp/aaas-research-{tenant-id}.json`).
-
-**Fallback design:** the sub-agent is an enhancement, not a hard gate. If the `hermes -z` call fails, times out, the JSON cannot be parsed, or a field is missing, the onboarding SOP falls back to cold generation for that field and continues. The fallback is logged in the task report; no operator action is required unless the confidence level warrants it. Before calling `hermes -z`, the script runs a bounded proxy reachability check (mirroring setup-admin-hermes.md Step 7) against the admin's configured provider host, so a broken Agent Vault path fails fast with a diagnosable error instead of `hermes -z` hanging indefinitely (it has no internal timeout). Because the response now comes from `hermes -z`'s plain-text stdout rather than a raw Anthropic API response, the script can no longer check a `stop_reason` field directly; a truncated-looking response (JSON that doesn't parse and doesn't end in `}`/`]`) is instead flagged heuristically and its raw text saved to a `.raw` sidecar for diagnosis — step 1.15 reads it, notes how far generation got in the task report, and deletes it in the same step.
-
-**Confidence levels:** the sub-agent reports `high` (research corroborated interview answers), `medium` (sparse research), or `low` (interview answers only, no external validation). Low confidence is surfaced to the operator at step 2 with a suggestion to provide a website URL or Google Business link after onboarding. `research-tenant-business.md` documents how to act on that: re-run the sub-agent standalone against the new research and apply only the existing write steps (SOUL/MEMORY substitution, business-data append, vault seeding) rather than re-running onboarding.
-
-The sub-agent skill doc (`platform/skills/research-tenant-business.md`) is the source of truth for the sub-agent's contract, prompt, output field mapping, and failure handling.
+This replaces the business intelligence sub-agent and vault-seeding pipeline that shipped in earlier versions (`run-business-research-subagent.py`, `seed-vault-context.py`, `research-tenant-business.md` — removed in v0.19.0). That pipeline pre-wrote `Reference/Business Overview.md`, `Reference/Vertical Playbook.md`, and `Recurring/Patterns to Watch.md` from research before the tenant ever spoke to the agent, which conflicted with the vault's own "nothing is pre-seeded, everything comes from real conversation" design — see `CHANGELOG.md` 0.19.0.
 
 ### Tenant agent vault usage
 

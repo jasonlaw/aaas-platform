@@ -12,7 +12,7 @@ Credentials (LLM API keys and other secrets) are never stored in tenant containe
 | [docs/platform-setup.md](docs/platform-setup.md) | Full step-by-step setup walkthrough |
 | [docs/tenant-agent-setup.md](docs/tenant-agent-setup.md) | Tenant reference and validation runbook |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common problems and fixes |
-| [docs/architecture.md](docs/architecture.md) | Platform design: repo/host layout, credential security model, policy framework, task reports, knowledge vaults (including business intelligence sub-agent for onboarding), tenant harness, watchdog, upgrade behavior, versioning |
+| [docs/architecture.md](docs/architecture.md) | Platform design: repo/host layout, credential security model, policy framework, task reports, knowledge vaults, tenant harness, watchdog, upgrade behavior, versioning |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 
 ## Before You Begin
@@ -112,7 +112,7 @@ From there, OpenCode can use the platform SOPs to help you:
 
 - Set up Agent Vault credential broker (one-time, before first tenant)
 - Build and maintain the Hermes tenant Docker image
-- Onboard new tenants (includes automatic Agent Vault credential provisioning, business intelligence sub-agent context generation, and tenant knowledge vault scaffolding and seeding)
+- Onboard new tenants (includes automatic Agent Vault credential provisioning and empty tenant knowledge vault scaffolding — the tenant agent builds its own knowledge from conversation with the owner)
 - Monitor tenant health and logs (includes Agent Vault health check)
 - Suspend, reactivate, and offboard tenants (includes Agent Vault cleanup)
 - Upgrade tenants to a newer image

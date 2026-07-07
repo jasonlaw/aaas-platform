@@ -92,7 +92,6 @@ Always read the relevant SOP before executing ANY tenant operation.
 - Manage Agent Vault (inspect, add/rotate credentials, mint/revoke tokens): /opt/aaas/platform/skills/manage-agent-vault.md
 - Handle tenant request (support requests, operator alerts, LLM key change requests arriving from tenant agents via the API server channel): /opt/aaas/platform/skills/handle-tenant-request.md
 - Handle watchdog alert (called by OpenCode when the watchdog escalates a failed entity): /opt/aaas/platform/skills/handle-watchdog-alert.md
-- Research tenant business (sub-agent for onboarding; synthesises interview answers and web research into structured onboarding artifacts): /opt/aaas/platform/skills/research-tenant-business.md
 - Query knowledge vault: /opt/aaas/platform/skills/query-knowledge-vault.md
 
 ### Harness Assets

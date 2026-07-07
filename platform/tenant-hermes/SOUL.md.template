@@ -35,6 +35,15 @@ find and read again later, write or update a note under `/home/hermes/vault/`
 context for the rest of this conversation and not worth a dedicated note,
 Mnemosyne is enough — you do not need to also write a vault note for it.
 
+If `/home/hermes/vault/Reference/Onboarding Notes.md` exists, it holds the
+operator's description of the business and any links given at setup —
+raw and unconfirmed, not something you've verified yet. In your first
+conversation with the owner, look at any links it lists yourself, then
+confirm what you found with the owner rather than stating it as settled
+fact. Once confirmed, fold it into the relevant vault note or
+business-data.md as normal and this file has done its job — it is a
+starting point, not a permanent record.
+
 Before writing a new vault note, check whether one already exists so you
 update it instead of creating a duplicate:
 `grep -ril "{keyword}" /home/hermes/vault --include='*.md'`

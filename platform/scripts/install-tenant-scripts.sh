@@ -12,7 +12,6 @@
 #   reconcile-plugins.sh  — runs automatically via tenant-entrypoint.sh on start
 #   tenant-entrypoint.sh  — compose service command (replaces bare `gateway run`)
 #   seed-mnemosyne.py     — called by onboard-tenant step 13 and update-tenant step 5
-#   seed-vault-context.py — called by onboard-tenant step 4.2 to write sub-agent vault notes
 #
 # Evals installed (to /opt/data/evals/):
 #   _skill-verification-primitives-v1.yaml — credential-scan patterns read by skill-verify.sh
@@ -111,7 +110,6 @@ install_script "tenant-install.sh"
 install_script "reconcile-plugins.sh"
 install_script "tenant-entrypoint.sh"
 install_script "seed-mnemosyne.py"
-install_script "seed-vault-context.py"
 
 # Evals: primitives YAML must be present inside the tenant volume so that
 # skill-verify.sh (which runs inside the container) can read it. The default

@@ -92,7 +92,7 @@ fi
 if [ -f "$PLATFORM_ROOT/admin/config.yaml" ] && [ -f "$PLATFORM_ROOT/admin/.env" ]; then
   pass "admin_hermes_configured"
 else
-  warn "admin_hermes_not_configured:run 'setup-admin-hermes' skill before onboarding tenants (the business intelligence sub-agent requires it)"
+  warn "admin_hermes_not_configured:run 'setup-admin-hermes' skill before onboarding tenants (tenant agents contact admin Hermes for support and LLM key changes)"
 fi
 
 if [ -x "$PLATFORM_ROOT/scripts/check-admin-drift.sh" ]; then

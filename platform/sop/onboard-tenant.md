@@ -67,6 +67,7 @@ do not attempt to author it inline; report this and stop.
    > - **LLM API key:** *(required only if you changed the provider above — otherwise paste your OpenRouter key)*
    > - **Fallback provider:** None *(optional — Hermes auto-switches mid-turn if the primary provider fails)*
    > - **Access restrictions:** None *(optional — e.g. "only allow posting to Instagram, not Facebook")*
+   > - **Website / social links:** None *(optional — homepage, Facebook, Instagram; the agent will look these up itself in its first conversation with you)*
 
    **Defaults used when the operator accepts without changes:**
    | Field | Default |
@@ -82,90 +83,16 @@ do not attempt to author it inline; report this and stop.
    | fallback_providers | *(none)* |
    | tenant_access_restrictions | *(none)* |
    | timezone | inferred from location (if ambiguous, ask) |
-   | industry_details | *(derived from business type in step 1.1 web research)* |
+   | industry_details | business type + description as given in step 1 |
+   | business_links | *(none)* |
 
    **Never ask the operator for the provider-specific API key env var name — that is always derived, not collected.** Accept the LLM provider/model in whatever form the operator gives it (`provider/model`, e.g. `openrouter/google/gemini-2.0-flash-001`; or separate `provider =` / `model =` answers), split out the Provider ID, and look it up in `/opt/aaas/platform/reference/llm-provider-catalog.md` to get both the hostname (needed later in `provision-tenant-vault.md` step 2) and the env var name (via the catalog's deterministic derivation rule). Only fall back to asking the operator a follow-up question if the named provider isn't in the catalog (ask for its API hostname only, never the env var name — see the catalog's "Provider not in this table" section) or if it falls under the catalog's Exceptions section (OAuth-only or multi-credential providers), in which case follow that section's escalation guidance instead of proceeding. Same rule applies to the optional fallback provider if one is collected.
-1.1. **Web research augmentation:** After collecting the operator's answers, proactively search the business website, public review/blog pages, Instagram bios, and Google Business snippets to fill gaps and validate facts. Do this even when the operator has answered every question — website copy often surfaces richer industry detail than interview answers alone. If a social page blocks unauthenticated access, use the above sources as alternates. Record which sources were used; include them in the final task report.
+1.1. **Web research — tone and brand only.** If the operator gave links in step 1, or a website/social page is easy to find from the business name and location, check it for two things only: brand tone (formal/casual/playful) and brand colour. Do not extract or record business facts (services, hours, pricing, history, positioning) — the tenant agent gathers those itself in conversation, per step 4.2. Record which pages were checked, for the task report.
 
-   **Using research to fill accepted defaults:** If the operator accepted defaults without customising tone, colors, or industry_details, use web research findings to improve on the defaults before proceeding — e.g. if the business website uses a strong brand colour, prefer that over #2563EB; if their social bio signals a distinct voice, reflect it in brand_tone. Update the working values silently and surface the changes in the step 2 confirmation summary so the operator can see what was inferred.
-1.15. **Business intelligence sub-agent:** Run the research sub-agent to synthesise the interview answers and web research into richer, structured context. This replaces cold LLM generation for the capability and brand blocks in step 1.2, and produces the vault seed notes written in step 4.2.
-
-   Assemble the context block from step 1 answers and step 1.1 research text, then run:
-   ```bash
-   python3 /opt/aaas/platform/scripts/run-business-research-subagent.py \
-     --tenant-id    "{tenant-id-slug}" \
-     --output-file  "/tmp/aaas-research-{tenant-id-slug}.json" \
-     <<'CONTEXT'
-   {
-     "interview": {
-       "business_name": "...",
-       "business_type": "...",
-       "location": "...",
-       "brand_tone": "...",
-       "owner_name": "...",
-       "language": "...",
-       "communication_style": "...",
-       "timezone": "...",
-       "industry_details": "...",
-       "primary_color": "...",
-       "secondary_color": "..."
-     },
-     "web_research": "...paste step 1.1 research text here, or empty string if nothing found..."
-   }
-   CONTEXT
-   ```
-
-   Read the skill file for full usage details and fallback handling:
-   `/opt/aaas/platform/skills/research-tenant-business.md`
-
-   After the script exits 0, read the output:
-   ```bash
-   cat /tmp/aaas-research-{tenant-id-slug}.json
-   ```
-
-   Extract and hold for the steps that consume each field:
-   - `industry_capabilities_block`  → step 1.2 (replaces cold generation)
-   - `industry_brand_facts_block`   → step 1.2 (replaces cold generation)
-   - `business_data_context_section` → step 4.1 (appended to business-data.md)
-   - `vault_seed_notes`             → step 4.2 (written into scaffolded vault)
-   - `research_sources_used`        → step 19 (task report)
-   - `confidence`                   → surface to operator in step 2 confirmation
-
-   **If the script fails** (non-zero exit, JSON parse error, or missing output file):
-   Log the error, note it in the task report, and continue to step 1.2 using
-   cold generation as before. The sub-agent is an enhancement, not a hard gate.
-   Do not surface the raw error to the operator — summarise it as "business
-   intelligence sub-agent unavailable; using generated context instead."
-
-   **If the failure mentions "response looks truncated"** (the script's
-   heuristic for JSON that fails to parse and doesn't end in `}`/`]` — it can
-   no longer check a raw API `stop_reason` now that generation runs through
-   `hermes -z`, whose output is plain text): a sidecar file
-   `/tmp/aaas-research-{tenant-id-slug}.json.raw` was written containing the
-   partial output. Before continuing:
-   1. Read it: `cat /tmp/aaas-research-{tenant-id-slug}.json.raw`
-   2. Note in the task report roughly how far generation got (e.g. "cut off
-      partway through vault_seed_notes, capability and brand-fact arrays were
-      complete") — this is what tells you later whether truncation is a
-      one-off or systemic enough to warrant raising the admin agent's own
-      output-length config (there is no separate `SUBAGENT_MAX_TOKENS` any
-      more — the sub-agent uses the admin agent's own model settings).
-   3. Delete the sidecar immediately after noting it:
-      `rm -f /tmp/aaas-research-{tenant-id-slug}.json.raw`
-   This file exists only for this one diagnostic read — it is never
-   operator-facing, is not consumed by any later step, and contains raw
-   interview/research content, so it should not persist on the host past this
-   point. Do not wait for step 19 cleanup to remove it.
-
-   **If confidence is `low`:** Add to the step 2 confirmation summary:
-   "Note: Limited public information was found for this business. The generated
-   context is based mainly on your interview answers. You can provide a website
-   URL or Google Business link after onboarding to let the agent update its
-   reference notes."
-
-1.2. Using the collected business type and details, generate the following for this specific business (not a predefined category):
-   - INDUSTRY_CAPABILITIES_BLOCK: 4-6 bullet lines in the form "- <capability>", describing concretely what this agent helps the owner with, grounded in the actual business. **Prefer the `industry_capabilities_block` array from the step 1.15 sub-agent output if available** — join the array items as newline-separated lines. Fall back to cold generation only if the sub-agent was unavailable. Do not copy wording from any other tenant.
-   - INDUSTRY_BRAND_FACTS_BLOCK: 2-5 lines of stable business facts for the Mnemosyne seed — facts that do not change unless the owner makes a deliberate business decision (e.g. founding year, location, brand story, core service categories, facilities). Do not include operational details here. **Prefer the `industry_brand_facts_block` array from the step 1.15 sub-agent output if available** — join as newline-separated lines. Fall back to cold generation only if the sub-agent was unavailable. Do not invent facts that were not collected or found.
+   If the operator accepted the tone/colour defaults as-is, and research suggests a clearly better match (a strong brand colour on the site, a distinct voice in the bio), update `brand_tone`/`primary_color`/`secondary_color` before step 2 and surface the change in the confirmation summary. Otherwise leave the operator's answers untouched.
+1.2. Using the collected business type and description, generate the following for this specific business (not a predefined category), by cold generation from the interview answers and any step 1.1 tone/colour findings — do not invent facts that were not collected or found:
+   - INDUSTRY_CAPABILITIES_BLOCK: 4-6 bullet lines in the form "- <capability>", describing concretely what this agent helps the owner with, grounded in the actual business. Do not copy wording from any other tenant.
+   - INDUSTRY_BRAND_FACTS_BLOCK: 2-5 lines of stable business facts for the Mnemosyne seed — facts that do not change unless the owner makes a deliberate business decision (e.g. founding year, location, brand story, core service categories, facilities), drawn only from what the operator stated in step 1. Do not include operational details here.
    - OPERATIONAL_DETAILS: a separate list of facts that belong in `business-data.md`, not in `MEMORY.md`. Apply this classification rule to every collected fact:
 
      Classification rule: Can the owner change this as a routine part of running the business, without changing what the business fundamentally is? If yes → operational. If no → stable.
@@ -190,10 +117,7 @@ do not attempt to author it inline; report this and stop.
    ```
    If either check shows a collision, stop and ask the operator to provide a disambiguating suffix (e.g. `happy-paws-kl` vs `happy-paws-pj`). Do not create any files until the slug is confirmed unique.
 4. Create tenant directories under `/opt/aaas/tenants/{tenant-id}/`: `memories`, `skills`, `files/assets`, `files/uploads`, `files/generated`, `vault`.
-4.1. **Create `business-data.md`** at `/opt/aaas/tenants/{tenant-id}/files/assets/business-data.md` now, before step 7's `chown -R`, so the ownership pass covers it. Write the file in two sections:
-
-   **Section 1 — Operational details** (owner-editable, changes frequently):
-   If OPERATIONAL_DETAILS were collected, write them here. If none, write a stub.
+4.1. **Create `business-data.md`** at `/opt/aaas/tenants/{tenant-id}/files/assets/business-data.md` now, before step 7's `chown -R`, so the ownership pass covers it. One section only — operational details the owner changes routinely (prices, hours, current offerings). If OPERATIONAL_DETAILS were collected in step 1.2, write them here; otherwise write a stub.
    ```
    # Business Data — owner-editable
    # Last updated: {YYYY-MM-DD}
@@ -203,69 +127,43 @@ do not attempt to author it inline; report this and stop.
 
    {operational details here, or stub comment if none}
    ```
-
-   **Section 2 — Business context** (set at onboarding, rarely changes):
-   If the step 1.15 sub-agent produced a `business_data_context_section` array,
-   append it as a second section after a blank line. **First check whether the
-   section already exists** (relevant on a re-run after a partial failure):
-   ```bash
-   grep -q "^## Assistant Context" /opt/aaas/tenants/{tenant-id}/files/assets/business-data.md \
-     && echo "SKIP: Assistant Context section already present — not appending again" \
-     || echo "OK: adding Assistant Context section"
-   ```
-   Only append if the section is not already present:
-   ```
-   ## Assistant Context
-   # Set at onboarding. Edit only if this information becomes inaccurate.
-   # The assistant uses this to sound like it knows this business without
-   # being asked — do not delete lines unless they are factually wrong.
-
-   {one line per item in business_data_context_section array}
-   ```
-   If the sub-agent was unavailable, omit section 2 entirely — do not leave a
-   placeholder or empty header. The file is complete with section 1 alone.
-4.2. **Scaffold the tenant's knowledge vault.** This is a separate system from
-   both Mnemosyne and `business-data.md` — see the three-way explanation in
-   `SOUL.md` (rendered from `SOUL.md.template`) for what the tenant agent is
-   told about each. Run the deterministic scaffolder now, before step 7's
-   ownership repair, so the ownership pass covers it:
+   Nothing else goes in this file. The agent builds its own picture of the
+   business — brand story, positioning, patterns — through conversation and
+   its own research (step 4.2), not through a pre-written context block.
+4.2. **Scaffold the tenant's knowledge vault, empty.** This is a separate
+   system from Mnemosyne and `business-data.md` — see the three-way
+   explanation in `SOUL.md` (rendered from `SOUL.md.template`). Run the
+   deterministic scaffolder now, before step 7's ownership repair, so the
+   ownership pass covers it:
    ```bash
    /opt/aaas/platform/scripts/backfill-tenant-vault.sh {tenant-id} "{business-name}"
    ```
-   This calls `vault-init-tenant.sh` to create `/opt/aaas/tenants/{tenant-id}/vault/` with `Customers/`,
+   This creates `/opt/aaas/tenants/{tenant-id}/vault/` with `Customers/`,
    `Suppliers/`, `Recurring/`, `Reference/` folders, a minimal `.obsidian/`
-   config so it opens cleanly in the Obsidian app, and a `README.md` written
-   from the actual business name (not a template placeholder left unfilled).
+   config, and a `README.md` written from the actual business name. No other
+   notes are written — the vault holds zero business facts until the tenant
+   agent learns them from the owner directly.
 
-   **If the step 1.15 sub-agent succeeded**, seed the vault with the research
-   notes it produced. Run the seed script on the host (not inside the container
-   — the vault is a host-mounted volume):
-   ```bash
-   VAULT_DIR="/opt/aaas/tenants/{tenant-id}/vault" \
-     python3 /opt/aaas/platform/tenant-hermes/scripts/seed-vault-context.py \
-       --research-file "/tmp/aaas-research-{tenant-id}.json" \
-       --vault-dir     "/opt/aaas/tenants/{tenant-id}/vault"
+   If the operator gave a business description or links in step 1, write
+   them into `Reference/Onboarding Notes.md` as raw, unconfirmed source
+   material — not as facts the agent can state to a customer:
    ```
-   Expected output: three `PASS` lines for the seed notes written into
-   `Reference/Business Overview.md`, `Reference/Industry Playbook.md`, and
-   `Recurring/Patterns to Watch.md`. A `SKIP` line means a note already existed
-   (safe — idempotent). A `FAIL` line means a note could not be written — log
-   the reason in the task report but do not abort onboarding; the vault is still
-   functional without seed notes.
+   ---
+   type: reference
+   status: unconfirmed
+   created_utc: "{ISO-8601 timestamp}"
+   ---
+   # Onboarding Notes
 
-   After the seed script exits, enumerate which notes are actually present so the
-   task report reflects the real vault state (not just what the seeder reported):
-   ```bash
-   find /opt/aaas/tenants/{tenant-id}/vault -name '*.md' -not -name 'README.md' \
-     | sort | sed "s|/opt/aaas/tenants/{tenant-id}/vault/||"
+   Operator's description: "{business description from step 1}"
+   Links given: {links from step 1, or "none"}
+
+   This note is raw source material from onboarding, not a confirmed fact.
+   Before treating anything here as settled, check it with the owner in
+   conversation — see SOUL.md's guidance on this file.
    ```
-   Include this list in the task report under "Vault notes present after seeding."
-   An empty result (only README.md) when the sub-agent succeeded means all three
-   seed writes silently failed — escalate rather than marking onboarding complete.
-
-   If the sub-agent was unavailable, skip this seed step — the vault starts
-   with its README and empty section folders as before, and the tenant agent
-   will populate it at runtime. Note the skip in the task report.
+   Skip this file entirely if the operator gave no description beyond the
+   business type already in `SOUL.md`, and no links.
 
    The tenant agent itself maintains this vault at runtime — the admin agent's
    job here is only to scaffold it once and seed it with initial context.
@@ -279,7 +177,7 @@ do not attempt to author it inline; report this and stop.
    /opt/aaas/platform/scripts/install-tenant-scripts.sh {tenant-id}
 ```
    This installs `skill-verify.sh`, `tenant-install.sh`, `reconcile-plugins.sh`,
-   `tenant-entrypoint.sh`, `seed-mnemosyne.py`, and `seed-vault-context.py` into
+   `tenant-entrypoint.sh`, and `seed-mnemosyne.py` into
    `/opt/aaas/tenants/{tenant-id}/scripts/`, each with `chmod +x`. Idempotent —
    already-current files are skipped. Adding a new runtime script in the future
    only requires updating `install-tenant-scripts.sh` in one place.
@@ -354,7 +252,7 @@ do not attempt to author it inline; report this and stop.
    `docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/MEMORY.md fact`
    `docker exec hermes_{tenant-id} python3 /opt/data/scripts/seed-mnemosyne.py /opt/data/memories/USER.md preference`
    Each call exits non-zero if any individual fact fails to store — treat a non-zero exit as a failed seed, not a partial success. Verify with `docker exec hermes_{tenant-id} hermes memory status`, `docker exec hermes_{tenant-id} hermes mnemosyne stats --global`, and `docker exec hermes_{tenant-id} hermes mnemosyne inspect "{business-name}"`. To manually store a single fact, use `docker exec hermes_{tenant-id} hermes mnemosyne store`. If `hermes mnemosyne` is unavailable, try the documented fallback `hermes hermes-mnemosyne`.
-   Note: `business-data.md` is not seeded into Mnemosyne — it is read directly by the tenant agent at runtime from `/home/hermes/files/assets/business-data.md`. The knowledge vault at `/home/hermes/vault/` is a third, separate system: scaffolded and seed-noted in step 4.2, maintained by the tenant agent itself at runtime, and never seeded into Mnemosyne. If the step 1.15 sub-agent succeeded, the vault already contains `Reference/Business Overview.md`, `Reference/Industry Playbook.md`, and `Recurring/Patterns to Watch.md` — the tenant agent can query these from day one. The tenant agent will continue to add and update notes at runtime as it learns new durable facts.
+   Note: `business-data.md` is not seeded into Mnemosyne — it is read directly by the tenant agent at runtime from `/home/hermes/files/assets/business-data.md`. The knowledge vault at `/home/hermes/vault/` is a third, separate system: scaffolded empty in step 4.2 (plus an optional unconfirmed `Onboarding Notes.md`), maintained entirely by the tenant agent at runtime, and never seeded into Mnemosyne. The tenant agent builds it up from real conversation with the owner, starting with the welcome message in step 17.
 14. Add or update the tenant entry in `/opt/aaas/platform/tenants.yaml`.
 15. Run the deterministic tenant harness check:
    `/opt/aaas/platform/harness/check-tenant.sh {tenant-id}`
@@ -367,5 +265,7 @@ do not attempt to author it inline; report this and stop.
    **Do not proceed to the welcome message below until both eval profiles pass (or any failures are explicitly accepted by the operator).** Sending a welcome message before eval verification sets a false expectation that the bot is fully ready.
 17. Send the welcome message through the tenant's Telegram bot to every numeric ID in `TELEGRAM_ALLOWED_USERS`. This only succeeds for users who have already opened the bot and sent `/start`; report Telegram `400 Bad Request: chat not found` or `403 Forbidden` as "user must start the bot first":
    `curl -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" -d chat_id="{user-id}" --data-urlencode text="{welcome-message}"`
+
+   Frame the agent as new to the business, not pre-loaded with it: it introduces itself, says it's ready to learn, and will check with the owner before assuming anything. If links were given in step 1, the message says it will take a look at them itself and confirm what it finds — it does not claim to already know the business.
 18. Update `/opt/aaas/tenants/{tenant-id}/harness.yaml` with status, last verification timestamp, and verification notes if your editor/tooling can do so safely.
-19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, knowledge vault scaffold status and vault seed notes written (or skipped), business intelligence sub-agent status (succeeded/failed/fallback) and confidence level, tenant-policy.yaml rules generated (or none) and confirmation that both BEGIN/END policy marker blocks rendered in SOUL.md, isolated tenant network created and Agent Vault joined to it, welcome message delivery status per user ID, registry update status, research sources used (from sub-agent output or step 1.1), fallback LLM provider/model configured (or declined), and whether operational details and assistant context section were written to `files/assets/business-data.md` or a stub was created for future owner use. Remove the temp research file: `rm -f /tmp/aaas-research-{tenant-id}.json /tmp/aaas-research-{tenant-id}.json.raw` (the `.raw` sidecar should already be gone if a truncation was handled at step 1.15 — this is a safety net, not the primary cleanup path).
+19. Report tenant ID, container status, outbound connectivity test results (ping/curl), harness check summary, tenant eval results, Telegram bot link, Mnemosyne activation/seed status, knowledge vault scaffold status (empty, plus whether an unconfirmed Onboarding Notes.md was written), tenant-policy.yaml rules generated (or none) and confirmation that both BEGIN/END policy marker blocks rendered in SOUL.md, isolated tenant network created and Agent Vault joined to it, welcome message delivery status per user ID, registry update status, tone/brand sources checked in step 1.1, fallback LLM provider/model configured (or declined), and whether operational details were written to `files/assets/business-data.md` or a stub was created for future owner use.

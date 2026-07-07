@@ -4,6 +4,59 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.19.0 - 2026-07-07
+
+### Removed
+
+- **Business intelligence sub-agent and vault-seeding pipeline**
+  (`platform/scripts/run-business-research-subagent.py`,
+  `platform/tenant-hermes/scripts/seed-vault-context.py`,
+  `platform/skills/research-tenant-business.md` — all replaced with
+  `To be removed.` stubs). This pipeline ran an LLM synthesis pass during
+  onboarding and pre-wrote `Reference/Business Overview.md`,
+  `Reference/Vertical Playbook.md`, and `Recurring/Patterns to Watch.md`
+  into the tenant's knowledge vault, plus an "Assistant Context" section
+  into `business-data.md`, before the tenant ever spoke to the agent.
+  This directly conflicted with the knowledge vault's own design
+  principle — nothing is pre-seeded, every fact comes from real
+  conversation with the owner — so the conflict is resolved by removing
+  the pipeline rather than narrowing its scope.
+
+### Changed
+
+- **`sop/onboard-tenant.md` simplified.** Step 1.1 (web research) is now
+  scoped to brand tone and colour only — it no longer extracts or
+  records business facts. Step 1.15 (sub-agent) is removed entirely.
+  Step 1.2 generates the capability/brand blocks by cold generation from
+  the operator's own interview answers, same as the pipeline's own
+  fallback path did before. Step 4.1 writes `business-data.md` with a
+  single operational-details section (the "Assistant Context" section is
+  gone). Step 4.2 scaffolds the vault empty — no seed notes — and, if the
+  operator gave a business description or links in step 1, writes them
+  verbatim into a single `Reference/Onboarding Notes.md` note marked
+  `status: unconfirmed`. Step 17's welcome message now frames the agent
+  as new to the business, not pre-loaded with it, and says it will look
+  at any given links itself and confirm what it finds. Step 19's task
+  report no longer includes sub-agent status/confidence fields.
+- **Added an optional "Website / social links" field** to the Phase 2
+  interview in `onboard-tenant.md`, so an operator who has a homepage or
+  social page on hand can hand it to the agent — as a pointer for the
+  agent to look at itself in conversation, not as onboarding research
+  input.
+- **`SOUL.md.template`** now tells the tenant agent to check
+  `Reference/Onboarding Notes.md` (if present) and confirm anything in it
+  with the owner in its first conversation, rather than treating it as
+  settled.
+- **`docs/architecture.md`** — replaced the "Vault scaffolding and seed
+  notes" / "Business intelligence sub-agent" sections with a single
+  "Vault scaffolding" section describing the empty-start design and the
+  optional onboarding-source note.
+- **`README.md`**, **`platform/PLATFORM-REFERENCE.md`** — removed
+  mentions of the business intelligence sub-agent and vault seeding.
+- **`platform/scripts/install-tenant-scripts.sh`**,
+  **`scripts/setup-platform.sh`** — stopped installing/copying the
+  removed scripts and skill file.
+
 ## 0.18.14 - 2026-07-07
 
 ### Changed
