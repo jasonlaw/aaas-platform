@@ -86,12 +86,12 @@ provider_host() {
   esac
 }
 
-# Mechanically reverses reference/llm-provider-catalog.md's documented,
-# confirmed-consistent derivation rule (ENV_VAR = PROVIDER_ID.upper()
-# .replace('-','_') + '_API_KEY') to recover a valid Agent Vault
-# `--name` value. Agent Vault service names must be lowercase
-# alphanumeric-and-hyphens only — the raw env var name (e.g.
-# OPENCODE_ZEN_API_KEY) is rejected by `agent-vault vault service add`.
+# Derives a valid Agent Vault `--name` from the env var name, using
+# reference/llm-provider-catalog.md's derivation rule in reverse:
+# ENV_VAR = PROVIDER_ID.upper().replace('-','_') + '_API_KEY'.
+# Agent Vault service names must be lowercase alphanumeric-and-hyphens
+# only — the raw env var name (e.g. OPENCODE_ZEN_API_KEY) is rejected by
+# `agent-vault vault service add`.
 provider_id() {
   local var_name="$1"
   local id="${var_name%_API_KEY}"

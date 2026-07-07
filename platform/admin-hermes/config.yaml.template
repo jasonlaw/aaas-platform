@@ -37,12 +37,10 @@ dashboard:
 
 # Telegram gateway is optional for admin Hermes. If the operator declined
 # Telegram during setup-admin-hermes, leave this block absent/commented.
-# NOTE: home_chat_id below may or may not be where this Hermes version
-# actually persists the home channel. Never fill this in by hand — always
-# set the home channel via `hermes config set TELEGRAM_HOME_CHANNEL <id>`
-# (see skills/configure-telegram-channel-admin.md) and let Hermes decide
-# whether that lands here or in .env. Verify with `hermes config get
-# TELEGRAM_HOME_CHANNEL`, not by reading this file directly.
+# Never fill in home_chat_id by hand. Set the home channel via
+# `hermes config set TELEGRAM_HOME_CHANNEL <id>` (see
+# skills/configure-telegram-channel-admin.md). Verify with
+# `hermes config get TELEGRAM_HOME_CHANNEL`, not by reading this file.
 # gateway:
 #   platforms:
 #     telegram:

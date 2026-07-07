@@ -129,15 +129,7 @@ their value.
 
 Install Hermes using the official installer, in its default per-user mode
 — no `sudo`, and it runs as whichever account is doing this setup (the
-same operator that already owns the rest of /opt/aaas). This replaces an
-earlier design that hand-built a venv with `pip install 'hermes-agent[...]'`
-under a dedicated `aaas` service account; that approach is retired because
-(a) it duplicated permission bookkeeping that /opt/aaas already handles by
-being owned by the operator throughout, and (b) PyPI has historically
-lagged the `hermes-agent` git source (e.g. serving 0.13.0 while source was
-already at 0.14.0), which was the root cause of a previously-unconfirmed
-Telegram/`dashboard_auth` packaging gap. The official installer clones and
-builds from git directly, sidestepping that lag entirely:
+same operator that already owns the rest of /opt/aaas):
 
     curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --skip-browser
 
@@ -152,8 +144,7 @@ distros already add `~/.local/bin` to a login shell's PATH by default):
 
     hermes --version
 
-If that fails, add it explicitly — this is the one-line fallback the
-official docs themselves recommend for exactly this case:
+If that fails, add it explicitly:
 
     grep -qxF 'export PATH="$HOME/.local/bin:$PATH"' ~/.bashrc || \
       echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
@@ -163,13 +154,12 @@ official docs themselves recommend for exactly this case:
 Also export `HERMES_HOME` in the shell profile now, not just inline for the
 one-off Mnemosyne commands below. Without a persistent export, running
 `hermes` interactively from a normal login shell falls back to
-`~/.hermes/config.yaml` — the installer's own default profile, with its own
-default model — instead of this platform's `/opt/aaas/platform/admin`
-profile and the provider/model configured in Step 2's `config.yaml`. This
-fails silently: no error, just the wrong model. (The systemd service in
-Step 7 doesn't need this — it gets `HERMES_HOME` from `.env` via
-`EnvironmentFile=`; this is specifically for interactive CLI use. Step 3.1
-item 4 covers the same fallback in the gateway-process context.)
+`~/.hermes/config.yaml` instead of this platform's
+`/opt/aaas/platform/admin` profile — silently, with no error, just the
+wrong model. (The systemd service in Step 7 doesn't need this — it gets
+`HERMES_HOME` from `.env` via `EnvironmentFile=`; this is specifically for
+interactive CLI use. Step 3.1 item 4 covers the same fallback in the
+gateway-process context.)
 
     grep -qxF 'export HERMES_HOME=/opt/aaas/platform/admin' ~/.bashrc || \
       echo 'export HERMES_HOME=/opt/aaas/platform/admin' >> ~/.bashrc
@@ -186,14 +176,14 @@ folder name (installer versions have used both `venv/` and `.venv/`):
     uv pip install --python "$HERMES_VENV_PY" --upgrade \
       'mnemosyne-memory[embeddings]' mnemosyne-hermes
 
-Then activate the Mnemosyne plugin into the admin Hermes profile. This is
-a separate step from the pip install — the pip package only places the
-plugin code on disk; the `install` subcommand creates the symlink under
+Then activate the Mnemosyne plugin into the admin Hermes profile — a
+separate step from the pip install above, since the pip package only
+places the plugin code on disk; `install` creates the symlink under
 `~/.hermes/plugins/mnemosyne` that Hermes's plugin loader requires.
-`HERMES_HOME` must be exported so both commands target the admin profile,
-not the default `~/.hermes` location. `memory_enabled: false` in
-`config.yaml` disables native Hermes memory (intentional — Mnemosyne
-replaces it); it does not affect this plugin activation path:
+`HERMES_HOME` must be exported so both commands target the admin
+profile, not the default `~/.hermes` location. Do this regardless of
+`memory_enabled: false` in `config.yaml` (which disables native Hermes
+memory, not this Mnemosyne plugin):
 
     HERMES_HOME=/opt/aaas/platform/admin mnemosyne-hermes install
     HERMES_HOME=/opt/aaas/platform/admin hermes memory setup
@@ -215,17 +205,14 @@ Copy only missing files (never overwrite without operator confirmation):
     chmod 600 /opt/aaas/platform/admin/.env
 
 No `chown` needed — this directory is already owned by the operator
-running this setup, same as the rest of `/opt/aaas`. The `chmod` calls
-above still matter: they keep `.env` and mnemosyne data unreadable by
-other local accounts on a shared box, same intent as before, just without
-a dedicated identity to own it.
+running this setup. The `chmod` calls above keep `.env` and mnemosyne
+data unreadable by other local accounts on a shared box.
 
 **Seed Mnemosyne with `admin/memories/MEMORY.md` and `admin/memories/USER.md`.** These are
-intentionally one-time seeds (see CHANGELOG.md's Step 2 file audit) — do
-this now, once, right after they're copied above; nothing else in this repo
-re-seeds them later. Uses the same SDK-based script tenant onboarding uses,
-run with the admin venv's own python and `MNEMOSYNE_DATA_DIR` pointed at the
-path just set in `.env`:
+one-time seeds — do this now, once, right after they're copied above;
+nothing else in this repo re-seeds them later. Uses the same SDK-based
+script tenant onboarding uses, run with the admin venv's own python and
+`MNEMOSYNE_DATA_DIR` pointed at the path just set in `.env`:
 
     HERMES_VENV_PY="$(find ~/.hermes/hermes-agent -maxdepth 2 -type f -path '*/bin/python*' ! -path '*-config*' | head -1)"
     test -n "$HERMES_VENV_PY" || { echo "FAIL: could not locate the Hermes venv python under ~/.hermes/hermes-agent"; exit 1; }
@@ -291,11 +278,10 @@ collect at least one ID before writing anything.
    `BOT_TOKEN` from Ask The Operator item 7, `ALLOWED_USERS` from the same
    item, and `HOME_CHANNEL` as selected there. That skill runs
    `hermes config set` for `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ALLOWED_USERS`,
-   and `TELEGRAM_HOME_CHANNEL` and verifies each was written — do not
-   hand-edit `.env` with `sed` or any other means for these three keys;
-   the CLI is now the only supported path here (see that skill's "Why
-   this exists"). This works because admin Hermes is host-installed
-   (Step 1 above); tenants use a separate skill
+   and `TELEGRAM_HOME_CHANNEL` and verifies each was written. Never
+   hand-edit `.env` with `sed` or any other means for these three keys.
+   This works because admin Hermes is host-installed (Step 1 above);
+   tenants use a separate skill
    (tenant-hermes/skills/configure-telegram-channel-tenant.md) since
    their `hermes` only exists inside their container.
 
@@ -306,13 +292,10 @@ collect at least one ID before writing anything.
    not grant access by itself.
 
    `hermes config set` decides for itself whether each key lands in
-   `.env` or `config.yaml` (secrets vs. everything else — not by key-name
-   shape). `TELEGRAM_ALLOWED_USERS` and `TELEGRAM_HOME_CHANNEL` may
-   legitimately land in `config.yaml` — **this is correct, not a
-   misconfiguration**. Never hand-edit either file to relocate a value
-   `hermes config set` already wrote; verify with `hermes config get`
-   instead, which is correct regardless of which file backs a key — see
-   that skill's "Why this exists" and Step 3 for the full rationale.
+   `.env` or `config.yaml`. `TELEGRAM_ALLOWED_USERS` and
+   `TELEGRAM_HOME_CHANNEL` may land in either — both are correct. Never
+   hand-edit either file to relocate a value; verify with
+   `hermes config get` instead — see that skill's Step 3.
 
 2. Don't hand-edit `config.yaml`'s gateway block yourself — item 1's
    `hermes config set` calls are the only writes this step performs,
@@ -614,15 +597,11 @@ block/line and re-derive from the catalog
 **Validate `SOUL.md` and `config.yaml` content, not just their existence.**
 A bare `test -f` above only proves a file exists — it says nothing about
 whether it still contains the rules and invariants the admin agent actually
-has to follow. This matters because Step 2 copies both files from their
-templates once and never touches them again; nothing elsewhere in this repo
-re-syncs or content-checks the deployed copies, so a template that ships a
-new or reworded rule after this admin instance was first set up will
-silently never reach it unless these checks catch the drift. This already
-happened once for real: `admin-hermes/config.yaml.template` gained a
-Telegram `gateway` block in 0.13.1 and had a wrong comment corrected in
-0.13.2 — any admin instance set up before either release kept the stale
-file with nothing ever flagging it.
+has to follow. Step 2 copies both files from their templates once and
+never touches them again; nothing elsewhere in this repo re-syncs or
+content-checks the deployed copies, so a template that ships a new or
+reworded rule after this admin instance was first set up will silently
+never reach it unless these checks catch the drift.
 
     grep -q "Always write a task report" /opt/aaas/platform/admin/SOUL.md \
       && echo "OK: report-writing rule present" \
@@ -648,12 +627,11 @@ to refresh both `admin/SOUL.md` and `admin/config.yaml` against their current
 templates; do not silently overwrite an operator-customized file here.
 
 **Check `.env` for structurally new required keys, not just secret values.**
-A future `env.template` may add a new non-secret key (the same way
-`TELEGRAM_HOME_CHANNEL` was added in 0.13.1) that an already-configured
-`.env` will never pick up on its own. This check only verifies key *names*
-are present somewhere in the file (commented or not) — it never compares or
-touches secret values, since real values legitimately differ from the
-template by design:
+A future `env.template` may add a new non-secret key that an
+already-configured `.env` will never pick up on its own. This check only
+verifies key *names* are present somewhere in the file (commented or
+not) — it never compares or touches secret values, since real values
+legitimately differ from the template by design:
 
     for key in $(grep -oE '^#?\s*[A-Za-z_]+=' /opt/aaas/platform/admin-hermes/env.template | sed -E 's/^#\s*//; s/=$//' | sort -u); do
       grep -q "^${key}=\|^# ${key}=" /opt/aaas/platform/admin/.env \
@@ -721,12 +699,8 @@ If declined, confirm the lines remain commented out instead:
 ## Step 7 — Install Gateway Service and Verify Proxy
 
 Admin Hermes (the gateway/dashboard process) runs as a systemd `--user`
-service, not a bare backgrounded process — this gives it the same
-crash/reboot auto-restart guarantee Docker's `restart: unless-stopped`
-already gives every other component. A previous version of this skill
-started it with a plain `nohup ... &`, which had no recovery mechanism at
-all beyond the watchdog's 5-minute poll (Step 8) and did not survive a
-reboot.
+service, giving it the same crash/reboot auto-restart guarantee Docker's
+`restart: unless-stopped` already gives every other component.
 
     mkdir -p ~/.config/systemd/user
     cp /opt/aaas/platform/admin-hermes/aaas-admin-hermes.service \
@@ -813,8 +787,8 @@ instead polls whether the dashboard is actually *responding* every 5 minutes
 and escalates to OpenCode with the recovery playbook when it isn't (e.g. the
 process is alive but the Agent Vault proxy is failing, which systemd alone
 would never detect). When the watchdog does need to restart admin Hermes,
-it does so via `systemctl --user restart aaas-admin-hermes.service` rather
-than a raw `nohup`, so both layers manage the same single process.
+it does so via `systemctl --user restart aaas-admin-hermes.service`, so
+both layers manage the same single process.
 
 See /opt/aaas/platform/incidents/hermes-admin-failure.md for the recovery
 playbook OpenCode uses when the watchdog detects Hermes admin is down.

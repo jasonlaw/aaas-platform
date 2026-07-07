@@ -4,6 +4,55 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.18.8 - 2026-07-06
+
+### Changed (streamlining pass — no behavior changes)
+
+Went through every rule and prompt touched across 0.18.3–0.18.7 and
+removed historical/justification narrative ("this used to be done via
+X," "a live setup report confirmed," "this is correct, not a
+misconfiguration," version-number call-outs explaining why something
+changed) in favor of stating the current rule directly. The underlying
+mechanism, commands, file paths, and cross-references are unchanged —
+this is a clarity pass, not a behavior change.
+
+- **`skills/configure-telegram-channel-admin.md`** rewritten: dropped
+  the "Why this exists" history section (retired-sed-approach backstory,
+  routing-rule "this is correct not a misfire" reassurance) in favor of
+  a short "Rule" statement. 158 → 114 lines, same steps/inputs/verify
+  commands.
+- **`tenant-hermes/skills/configure-telegram-channel-tenant.md`**
+  rewritten the same way for consistency with the admin skill.
+- **`skills/setup-admin-hermes.md`**: removed the retired-venv-install
+  backstory (Step 1), the "previous version used nohup" aside (Step 7),
+  the "this already happened once for real: 0.13.1/0.13.2" narrative
+  (Step 6), and tightened several other paragraphs that had grown
+  duplicative across recent patches. 838 → 811 lines. Fixed a
+  now-broken "see that skill's Why this exists" cross-reference left
+  over from the configure-telegram-channel-admin.md rewrite.
+- **`sop/provision-tenant-vault.md`**: reworded the "old
+  connect-Agent-Vault-itself design" migration note, the "unlike
+  earlier Agent Vault versions" CLI-history aside, and the "same reason
+  required in earlier platform versions" network-naming note into
+  direct present-tense rules/checks.
+- **`scripts/provision-tenant-vault.sh`**: trimmed the `provider_id()`
+  comment's "confirmed-consistent derivation rule" phrasing to state
+  the rule directly.
+- **`admin-hermes/config.yaml.template`** and
+  **`tenant-hermes/config.yaml.template`**: replaced the "may or may
+  not be where this Hermes version persists the home channel" hedge on
+  `home_chat_id` with a direct instruction (never fill in by hand, set
+  via `hermes config set`, verify via `hermes config get`) — the hedge
+  added no actionable information over the direct rule.
+- **`PLATFORM-REFERENCE.md`**: removed two bug-history narratives (the
+  `MANAGED_ASSET_RELATIVE_PATHS` drift story, the watchdog
+  `local/watchdog.env`-to-systemd-override migration story), keeping
+  only the current rule in each case.
+
+Verified after every edit: all shell/Python scripts still parse, all
+YAML still parses, no new broken cross-references, and no remaining
+"Why this exists" references to the now-removed sections.
+
 ## 0.18.7 - 2026-07-06
 
 ### Fixed (found during a full project audit of 0.18.4–0.18.6)

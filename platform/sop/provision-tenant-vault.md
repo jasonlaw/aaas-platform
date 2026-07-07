@@ -58,11 +58,9 @@ docker run -d \
 docker network connect hermes-{tenant-id}-net agent-vault-proxy-{tenant-id}
 ```
 
-If re-onboarding or recovering a tenant provisioned before this fix, Agent
-Vault may still be directly connected to this network from the old
-connect-Agent-Vault-itself design. Drop that connection now that the
-sidecar covers it — leaving it in place defeats the isolation fix even
-though the sidecar is also present:
+If re-onboarding or recovering an existing tenant, check whether Agent
+Vault is still directly connected to this tenant's network and disconnect
+it if so — only the sidecar should be connected:
 
 ```bash
 docker network disconnect hermes-{tenant-id}-net agent-vault 2>/dev/null || true
@@ -154,7 +152,7 @@ VAULT_TOKEN=$(agent-vault agent create --vault {tenant-id}-vault:proxy --name he
 The `:proxy` suffix on `--vault` scopes the token to proxy access only — it
 grants the tenant container proxy access to `{tenant-id}-vault` only and
 cannot read the raw credential value, only route requests through the proxy.
-`--token-only` prints just the token (replaces the older `--print-token` flag).
+`--token-only` prints just the token.
 
 ### 4. Set a placeholder for the LLM API key env var — BEFORE injecting proxy config
 The tenant `.env` was rendered in onboard-tenant step 5 with the real key under the
@@ -250,11 +248,10 @@ grep -qx "${FALLBACK_PROVIDER_VAR}=routed-via-agent-vault" /opt/aaas/tenants/{te
 ```
 
 ### 7. Confirm the vault's egress scope
-Unlike earlier Agent Vault versions, CLI v0.39.0 has no separate
-`vault update --unmatched-host-policy` command — there is no policy to set.
-A vault denies any host that does not have a registered service by default.
-Step 2 already scoped this vault to exactly one reachable host (the LLM
-provider hostname registered there); nothing further is required here. If the
+A vault denies any host that does not have a registered service by
+default — there is no separate policy command to set. Step 2 already
+scoped this vault to exactly one reachable host (the LLM provider
+hostname registered there); nothing further is required here. If the
 tenant's harness or skills call other external APIs, either register an
 additional service for that host (step 2's pattern) or route it outside the
 proxy via `NO_PROXY` (step 5) — anything neither registered nor excluded is
@@ -284,10 +281,9 @@ networks:
 
 Using `external: true` tells Compose that this network was created outside
 this Compose file (by step 1a's `docker network create`) and should not be
-recreated. The explicit `name:` is required for the same reason it was
-required for `agent-vault-net` in earlier platform versions — without it,
-Compose would project-prefix the network name and `docker compose up` would
-fail with "network not found".
+recreated. The explicit `name:` is required — without it, Compose would
+project-prefix the network name and `docker compose up` would fail with
+"network not found".
 
 Each tenant's network has exactly two members: that tenant's container and
 Agent Vault. A compromised tenant container can no longer reach any other
