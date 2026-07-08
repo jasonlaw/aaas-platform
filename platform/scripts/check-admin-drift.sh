@@ -2,7 +2,7 @@
 # Detects admin Hermes SOUL.md/config.yaml drift from the shipped templates.
 #
 # Why this exists: unlike tenant SOUL.md/config.yaml (re-rendered every
-# upgrade) or AGENTS.md/PLATFORM-REFERENCE.md (overwritten wholesale every
+# upgrade) or AGENTS.md/ADMIN-CONTEXT.md (overwritten wholesale every
 # upgrade), platform/skills/setup-admin-hermes.md Step 2 copies
 # admin-hermes/{SOUL.md,config.yaml}.template into /opt/aaas/platform/admin/
 # exactly once, and nothing else in this repo ever touches those two files

@@ -55,7 +55,7 @@ End-to-end reference for a fresh Ubuntu host through to the first running tenant
 cd /opt/aaas/platform && opencode
 ```
 
-The operator is now talking to the admin Hermes agent. Platform context is loaded automatically from `AGENTS.md` and `PLATFORM-REFERENCE.md`.
+The operator is now talking to the admin Hermes agent. Platform context is loaded automatically from `AGENTS.md` and `ADMIN-CONTEXT.md`.
 
 ---
 

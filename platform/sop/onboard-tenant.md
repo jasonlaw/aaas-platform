@@ -117,8 +117,7 @@ do not attempt to author it inline; report this and stop.
    ```
    `backfill-tenant-vault.sh` copies `vault-init-tenant.sh` into the tenant
    volume and runs it there; you should not need to call
-   `vault-init-tenant.sh` directly during onboarding, only for manual repair
-   (see PLATFORM-REFERENCE.md). This creates `/opt/aaas/tenants/{tenant-id}/vault/` with `Customers/`,
+   `vault-init-tenant.sh` directly during onboarding. This creates `/opt/aaas/tenants/{tenant-id}/vault/` with `Customers/`,
    `Suppliers/`, `Recurring/`, `Reference/` folders (including an empty,
    owner-editable `Reference/Business Data.md` stub for current prices, hours,
    and menu), a minimal `.obsidian/` config, and a `README.md` written from

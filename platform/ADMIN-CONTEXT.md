@@ -1,10 +1,8 @@
-# AaaS Platform Reference
+# AaaS Admin Context
 
-This document is the canonical reference for the AaaS (Agent as a Service)
-platform.
+This document is shared admin context for the AaaS (Agent as a Service) platform.
 
-It defines the platform structure, conventions, operating principles,
-available assets, and platform-wide invariants. SOP-specific procedures
+It gives admin agents the shared platform map, conventions, operating principles, available assets, and platform-wide invariants. SOP-specific procedures
 belong in the SOP files listed below. Agent-specific identity,
 responsibilities, and behavioral instructions are defined in their own
 instruction files.

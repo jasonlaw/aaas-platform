@@ -1,7 +1,7 @@
 # Incident: Platform Asset Recovery From Backup
 
 ## Scope
-Use this only for managed platform assets such as `AGENTS.md`, `PLATFORM-REFERENCE.md`, SOPs, templates, harness files, scripts, skills, and Dockerfile.
+Use this only for managed platform assets such as `AGENTS.md`, `ADMIN-CONTEXT.md`, SOPs, templates, harness files, scripts, skills, and Dockerfile.
 
 ## Never Restore From Platform Asset Backups
 - `/opt/aaas/tenants/`
