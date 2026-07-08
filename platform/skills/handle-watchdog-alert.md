@@ -77,7 +77,7 @@ re-probe the entity to confirm whether it recovered:
 
 **Agent Vault:**
 
-    /opt/aaas/platform/scripts/agent-vault-health.sh
+    sudo -g docker /opt/aaas/platform/scripts/agent-vault-health.sh
 
 **Tenant container:**
 

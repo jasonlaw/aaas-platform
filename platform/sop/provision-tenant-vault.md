@@ -10,7 +10,7 @@ or update-tenant when credentials change.
 
 ## Pre-requisites
 - Agent Vault container is running and healthy:
-  `/opt/aaas/platform/scripts/agent-vault-health.sh`
+  `sudo -g docker /opt/aaas/platform/scripts/agent-vault-health.sh`
 - `agent-vault` CLI is installed and authenticated on the host:
   `agent-vault vault list` must succeed without error
 - Tenant `.env` exists at `/opt/aaas/tenants/{tenant-id}/.env`

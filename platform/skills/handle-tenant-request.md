@@ -50,7 +50,7 @@ mistake. Investigate using your normal admin tools:
 
     docker logs hermes_{tenant-id} --tail 100
     docker exec hermes_{tenant-id} curl -s -o /dev/null -w "%{http_code}" <relevant-endpoint>
-    /opt/aaas/platform/scripts/agent-vault-health.sh
+    sudo -g docker /opt/aaas/platform/scripts/agent-vault-health.sh
 
 Check recent matching report entries in
 `/opt/aaas/platform/reports/INDEX.jsonl` for prior incidents matching the

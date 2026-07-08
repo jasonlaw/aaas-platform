@@ -48,7 +48,7 @@ curl -sf http://127.0.0.1:9119/health && echo "dashboard responsive" || echo "da
 ### 2. Check Agent Vault (proxy dependency)
 
 ```bash
-/opt/aaas/platform/scripts/agent-vault-health.sh
+sudo -g docker /opt/aaas/platform/scripts/agent-vault-health.sh
 ```
 
 If Agent Vault is down, Hermes admin will fail all LLM calls after startup.

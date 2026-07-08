@@ -222,15 +222,26 @@ success "npm ready: $NPM_PATH — $(npm --version)"
 # ------------------------------------------------------------------------------
 log "Step 5: Installing Docker Engine..."
 
-DOCKER_GROUP_JUST_ADDED=false
 if command -v docker &> /dev/null; then
   warn "Docker already installed — skipping install"
   docker --version
 else
   curl -fsSL https://get.docker.com | sh
-  sudo usermod -aG docker $USER
-  DOCKER_GROUP_JUST_ADDED=true
   success "Docker installed"
+fi
+
+# Docker group membership is checked independently of whether Docker was
+# just installed above. A pre-existing Docker install (shared host,
+# pre-baked image, Docker set up by something other than this script) must
+# not skip granting access — the old code only ran `usermod` in the
+# "just installed" branch, so any host with Docker already present silently
+# never got the current user added to the docker group. `usermod -aG` is
+# idempotent, so it's safe to check-and-grant unconditionally every run.
+DOCKER_GROUP_JUST_ADDED=false
+if ! id -nG "$USER" | grep -qw docker; then
+  sudo usermod -aG docker "$USER"
+  DOCKER_GROUP_JUST_ADDED=true
+  success "Added $USER to docker group"
 fi
 
 # Enable Docker at boot when the host uses systemd, then start it now.

@@ -9,7 +9,9 @@ catch (connectivity, network isolation, harness checks below).
 
 0. Read `/opt/aaas/platform/checklists/monitor-health.required.json`. Treat every item as a completion gate; unresolved items must appear in the final task report.
 0.1. **Check Agent Vault health** before checking tenants — if the vault is down, all tenant LLM calls will fail:
-   `/opt/aaas/platform/scripts/agent-vault-health.sh`
+   The `aaas` user is not in the `docker` group, so run this with `docker` group access active or the container/health checks will FAIL with a false negative (permission denied on the Docker socket):
+   `sudo -g docker /opt/aaas/platform/scripts/agent-vault-health.sh`
+   (`sudo -g docker` is used rather than `sg docker` — see `scripts/setup-prerequisites.sh`, which switched away from `sg` because it is absent on minimal Ubuntu images.)
    If it returns FAIL, follow `/opt/aaas/platform/incidents/agent-vault-failure.md` before proceeding.
    If it returns WARN (e.g. CLI not authenticated), note it in the report but continue.
 1. **Verify iptables and Docker state:**

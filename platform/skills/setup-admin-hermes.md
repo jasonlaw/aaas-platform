@@ -13,7 +13,7 @@ description: >
 **Prerequisite:** OpenCode platform setup is complete and Agent Vault is
 running and healthy. Verify before starting:
 
-    /opt/aaas/platform/scripts/agent-vault-health.sh
+    sudo -g docker /opt/aaas/platform/scripts/agent-vault-health.sh
     # Expected: all PASS
 
 If Agent Vault is not healthy, follow /opt/aaas/platform/sop/setup-agent-vault.md

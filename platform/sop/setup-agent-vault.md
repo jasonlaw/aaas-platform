@@ -113,7 +113,7 @@ sudo /opt/aaas/platform/scripts/aaas-watchdog.sh --install
 ```
 
 ```bash
-/opt/aaas/platform/scripts/agent-vault-health.sh
+sudo -g docker /opt/aaas/platform/scripts/agent-vault-health.sh
 # Expected: all PASS, no FAIL
 ```
 

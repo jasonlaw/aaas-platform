@@ -24,7 +24,7 @@ description: >
 
 **Prerequisite:** Agent Vault is running and healthy before any operation here.
 
-    /opt/aaas/platform/scripts/agent-vault-health.sh
+    sudo -g docker /opt/aaas/platform/scripts/agent-vault-health.sh
     # Expected: all PASS
 
 If any check fails, stop and follow /opt/aaas/platform/sop/setup-agent-vault.md

@@ -23,7 +23,7 @@ docker logs agent-vault --tail 50
 
 ### 2. Run health script
 ```bash
-/opt/aaas/platform/scripts/agent-vault-health.sh
+sudo -g docker /opt/aaas/platform/scripts/agent-vault-health.sh
 ```
 
 ### 3. Check data directory
@@ -48,7 +48,7 @@ docker inspect --format='{{.State.Health.Status}}' agent-vault
 
 Verify proxy is reachable:
 ```bash
-/opt/aaas/platform/scripts/agent-vault-health.sh
+sudo -g docker /opt/aaas/platform/scripts/agent-vault-health.sh
 ```
 
 No tenant container restart is needed — they will resume proxying once Agent
