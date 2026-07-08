@@ -5,7 +5,7 @@ layout, the credential security model, the policy framework, task reporting,
 the tenant knowledge vault, tenant harness/eval verification, and the
 watchdog/health-monitoring design. For installation steps, see the
 [README](../README.md); for a full step-by-step setup walkthrough see
-[platform-setup.md](platform-setup.md).
+[setup-flow.md](setup-flow.md).
 
 ## Repository Structure
 
