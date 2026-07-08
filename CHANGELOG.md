@@ -13,8 +13,7 @@ All notable changes to this platform setup are tracked here. The platform setup 
   even started.** Step 4.1 was reworded to delegate the tenant knowledge
   vault scaffold to `backfill-tenant-vault.sh`, dropping the literal
   mention of `vault-init-tenant.sh` (the script it invokes internally)
-  that the validator required — the same regression class fixed once
-  before in 0.15.9. Added a sentence naming `vault-init-tenant.sh`
+  that the validator required. Added a sentence naming `vault-init-tenant.sh`
   explicitly so the validator passes and the delegation is documented.
 
 ## 0.19.2 - 2026-07-08
