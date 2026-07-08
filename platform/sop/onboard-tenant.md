@@ -115,7 +115,10 @@ do not attempt to author it inline; report this and stop.
    ```bash
    /opt/aaas/platform/scripts/backfill-tenant-vault.sh {tenant-id} "{business-name}"
    ```
-   This creates `/opt/aaas/tenants/{tenant-id}/vault/` with `Customers/`,
+   `backfill-tenant-vault.sh` copies `vault-init-tenant.sh` into the tenant
+   volume and runs it there; you should not need to call
+   `vault-init-tenant.sh` directly during onboarding, only for manual repair
+   (see PLATFORM-REFERENCE.md). This creates `/opt/aaas/tenants/{tenant-id}/vault/` with `Customers/`,
    `Suppliers/`, `Recurring/`, `Reference/` folders (including an empty,
    owner-editable `Reference/Business Data.md` stub for current prices, hours,
    and menu), a minimal `.obsidian/` config, and a `README.md` written from
