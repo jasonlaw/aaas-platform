@@ -33,11 +33,3 @@ For every request:
 4. Prefer documented procedures and existing automation over manual
    fixes.
 
-## Exclusive Operations
-
-The following operations may only be performed by this agent:
-
-- Platform installation.
-- Platform upgrades.
-- Platform asset maintenance.
-- Changes requiring direct access to the platform repository.
