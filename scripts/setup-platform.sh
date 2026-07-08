@@ -877,7 +877,7 @@ validate_install() {
     || error "PLATFORM-REFERENCE.md must document the knowledge vault path"
   grep -q "sync-knowledge-vault.md" "$PLATFORM_ROOT/sop/write-report.md" \
     || error "write-report SOP must point to the knowledge vault sync step"
-  grep -q "vault-init-tenant.sh" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
+  grep -q "backfill-tenant-vault.sh" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must scaffold the tenant knowledge vault"
   grep -q "/home/hermes/vault" "$PLATFORM_ROOT/tenant-hermes/SOUL.md.template" \
     || error "Tenant SOUL template must document the tenant knowledge vault path"
