@@ -137,12 +137,6 @@ The knowledge vault is:
 - independent of Mnemosyne
 - never synchronized into Mnemosyne
 
-### Secrets
-
-- LLM API keys never reside in `.env`.
-- Non-LLM credentials reside in `.env`.
-- `TELEGRAM_ALLOWED_USERS` is a comma-separated list of Telegram user IDs.
-
 ## Platform Assets
 
 ### SOPs
