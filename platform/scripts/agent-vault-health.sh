@@ -46,18 +46,21 @@ else
 fi
 
 # --- MITM proxy port reachability ---
+# curl's --proxytunnel treats a 407 response to CONNECT as a tunnel failure,
+# not as an HTTP response. That means %{http_code} stays "000" even when the
+# proxy is up and correctly demanding auth, so it cannot be used to detect a
+# healthy proxy here. Read the CONNECT status line from verbose output instead.
 if command -v curl >/dev/null 2>&1; then
-  # A CONNECT to the proxy port should return 407 (auth required), not connection refused
-  PROXY_CODE="$(curl -s -o /dev/null -w '%{http_code}' \
+  PROXY_VERBOSE="$(curl -s -o /dev/null -v \
     --connect-timeout 5 \
     --proxytunnel --proxy "http://localhost:14322" \
-    "http://healthcheck.internal/" 2>/dev/null || echo '000')"
-  # 407 = proxy auth required = proxy is up and responding
-  # 000 = connection refused = proxy is down
-  if [ "$PROXY_CODE" = "407" ] || [ "$PROXY_CODE" = "200" ]; then
-    pass "agent_vault_proxy_port_reachable:http_$PROXY_CODE"
+    "http://healthcheck.internal/" 2>&1 || true)"
+  if echo "$PROXY_VERBOSE" | grep -q '^< HTTP/1\.[01] 407'; then
+    pass "agent_vault_proxy_port_reachable:http_407"
+  elif echo "$PROXY_VERBOSE" | grep -q '^< HTTP/1\.[01] 200'; then
+    pass "agent_vault_proxy_port_reachable:http_200"
   else
-    fail "agent_vault_proxy_port_unreachable:http_$PROXY_CODE"
+    fail "agent_vault_proxy_port_unreachable"
   fi
 else
   warn "curl_not_available:skipping_proxy_port_check"
