@@ -48,7 +48,7 @@ ASSUME_YES=false
 # managed asset only ever needs to be added in a single place.
 MANAGED_ASSET_RELATIVE_PATHS=(
   "AGENTS.md"
-  "PLATFORM-REFERENCE.md"
+  "ADMIN-CONTEXT.md"
   "VERSION"
   "admin-hermes/SOUL.md.template"
   "admin-hermes/USER.md.template"
@@ -486,7 +486,7 @@ install_assets() {
   chmod +x "$PLATFORM_ROOT/tenant-hermes/scripts/tenant-entrypoint.sh"
   chmod +x "$PLATFORM_ROOT/tenant-hermes/scripts/tenant-install.sh"
   cp "$ASSET_ROOT/AGENTS.md" "$PLATFORM_ROOT/AGENTS.md"
-  cp "$ASSET_ROOT/PLATFORM-REFERENCE.md" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md"
+  cp "$ASSET_ROOT/ADMIN-CONTEXT.md" "$PLATFORM_ROOT/ADMIN-CONTEXT.md"
   cp "$ASSET_ROOT/VERSION" "$PLATFORM_ROOT/VERSION"
   cp "$REPO_ROOT/CHANGELOG.md" "$PLATFORM_ROOT/CHANGELOG.md"
   cp "$ASSET_ROOT/docker/Dockerfile" "$PLATFORM_ROOT/docker/Dockerfile"
@@ -789,8 +789,8 @@ validate_install() {
     || warn "Agent Vault CA certificate not yet present: $PLATFORM_ROOT/docker/agent-vault-ca.pem — fetch it by following setup-agent-vault SOP step 3 once Agent Vault is running"
   grep -q "^services:" "$PLATFORM_ROOT/docker/docker-compose.yaml" \
     || error "docker-compose.yaml must contain a top-level services mapping"
-  grep -q "docker compose up -d {service-name}" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    || error "PLATFORM-REFERENCE.md must include the service-specific docker compose safety rule"
+  grep -q "docker compose up -d {service-name}" "$PLATFORM_ROOT/ADMIN-CONTEXT.md" \
+    || error "ADMIN-CONTEXT.md must include the service-specific docker compose safety rule"
   grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' "$PLATFORM_ROOT/VERSION" \
     || error "VERSION must contain a semantic version like 0.1.0"
   grep -q "sudo chown -R 10000:10000" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
@@ -834,8 +834,8 @@ validate_install() {
     || error "Onboarding SOP must seed Mnemosyne with the store command"
   grep -q "chat not found" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must document Telegram chat-not-found handling"
-  grep -q "Always write a task report" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    || error "PLATFORM-REFERENCE.md must require task reports after SOP execution"
+  grep -q "write-report.md" "$PLATFORM_ROOT/ADMIN-CONTEXT.md" \
+    || error "ADMIN-CONTEXT.md must include the write-report SOP in shared admin context"
   # The deployed admin/SOUL.md, admin/config.yaml, and admin/.env (not the
   # templates) are only created by the separate setup-admin-hermes skill, not
   # by this script — so they may legitimately not exist yet on a fresh
@@ -866,8 +866,8 @@ validate_install() {
         || error "Deployed admin/.env is missing the '${key}' key present in admin-hermes/env.template. Run upgrade-platform.md step 9.4 to add it (never wholesale-overwrite .env, it holds real secrets)."
     done
   fi
-  grep -q "check-tenant.sh" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    || error "PLATFORM-REFERENCE.md must advertise tenant harness checks"
+  grep -q "check-tenant.sh" "$PLATFORM_ROOT/ADMIN-CONTEXT.md" \
+    || error "ADMIN-CONTEXT.md must list tenant harness checks in shared admin context"
   grep -q "vault-init-tenant.sh" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must scaffold the tenant knowledge vault"
   grep -q "/home/hermes/vault" "$PLATFORM_ROOT/tenant-hermes/SOUL.md.template" \
@@ -884,24 +884,24 @@ validate_install() {
     || error "Tenant acceptance template must include verification timestamp"
   grep -q "confirms_before_posting" "$PLATFORM_ROOT/tenant-hermes/evals/_fixed-safety-v1.yaml" \
     || error "Fixed tenant eval profile must verify confirmation-before-posting"
-  grep -q "preflight-check.sh" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    || error "PLATFORM-REFERENCE.md must advertise platform pre-flight checks"
+  grep -q "preflight-check.sh" "$PLATFORM_ROOT/ADMIN-CONTEXT.md" \
+    || error "ADMIN-CONTEXT.md must list platform pre-flight checks in shared admin context"
   grep -q "validate-tenant-config.sh" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must validate tenant config"
   grep -q "restart: unless-stopped" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must require tenant compose restart policy"
   grep -q "mem_limit: 1g" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must document tenant compose resource limits"
-  grep -q "troubleshoot-tenant" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    || error "PLATFORM-REFERENCE.md must advertise tenant troubleshooting SOP"
-  # Guard against the identity-claim leaking back together: PLATFORM-REFERENCE.md
+  grep -q "troubleshoot-tenant" "$PLATFORM_ROOT/ADMIN-CONTEXT.md" \
+    || error "ADMIN-CONTEXT.md must list tenant troubleshooting SOP in shared admin context"
+  # Guard against the identity-claim leaking back together: ADMIN-CONTEXT.md
   # is read by both agents and must never claim to BE either one, and Hermes's
-  # SOUL.md.template must read PLATFORM-REFERENCE.md rather than AGENTS.md, or
+  # SOUL.md.template must read ADMIN-CONTEXT.md rather than AGENTS.md, or
   # it would be told at session start "you are the OpenCode admin agent."
-  grep -qi "you are the .*admin agent" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    && error "PLATFORM-REFERENCE.md must not assert an agent identity — that regresses the AGENTS.md/Hermes identity confusion this file exists to fix"
-  grep -q "PLATFORM-REFERENCE.md" "$PLATFORM_ROOT/admin-hermes/SOUL.md.template" \
-    || error "admin-hermes/SOUL.md.template must read PLATFORM-REFERENCE.md, not AGENTS.md, for shared platform knowledge"
+  grep -qi "you are the .*admin agent" "$PLATFORM_ROOT/ADMIN-CONTEXT.md" \
+    && error "ADMIN-CONTEXT.md must not assert an agent identity — that regresses the AGENTS.md/Hermes identity confusion this file exists to fix"
+  grep -q "ADMIN-CONTEXT.md" "$PLATFORM_ROOT/admin-hermes/SOUL.md.template" \
+    || error "admin-hermes/SOUL.md.template must read ADMIN-CONTEXT.md, not AGENTS.md, for shared platform knowledge"
   grep -q "AaaS pre-flight check" "$PLATFORM_ROOT/scripts/preflight-check.sh" \
     || error "Pre-flight script must contain expected banner"
   # Agent Vault infrastructure (runtime, not managed assets — existence checks only)

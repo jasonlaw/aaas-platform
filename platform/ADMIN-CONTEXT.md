@@ -1,10 +1,9 @@
-# AaaS Platform Reference
+# AaaS Admin Context
 
-This document is the canonical reference for the AaaS (Agent as a Service)
-platform.
+This document is shared admin context for the AaaS (Agent as a Service) platform.
 
-It defines the platform structure, conventions, operating principles,
-available assets, and platform-wide rules. Agent-specific identity,
+It gives admin agents the shared platform map, conventions, operating principles, available assets, and platform-wide invariants. SOP-specific procedures
+belong in the SOP files listed below. Agent-specific identity,
 responsibilities, and behavioral instructions are defined in their own
 instruction files.
 
@@ -170,52 +169,11 @@ The knowledge vault is:
 | `handle-tenant-request.md` | Tenant request handling |
 | `handle-watchdog-alert.md` | Watchdog alert handling |
 
-## Platform Rules
+## Platform Invariants
 
-### Standard Operating Procedure
-
-- Read the relevant SOP before performing an operational task.
-- Read the required checklist before executing an SOP when one exists.
-- Run the platform preflight check before platform, Docker,
-  networking, upgrade, or troubleshooting work when host state may
-  affect the outcome.
-- Follow documented procedures before implementing a new solution.
-- Validate the outcome before declaring work complete.
-
-### Troubleshooting
-
-- Search existing SOPs, scripts, incident playbooks, and previous task
-  reports before implementing a new fix.
-- Prefer existing automation over manual intervention.
-- Follow documented recovery procedures whenever one exists.
-- Only introduce a new recovery procedure after confirming that no
-  documented procedure already applies.
-- Before continuing a long-running troubleshooting investigation in an
-  supervised session, summarize the current findings and confirm whether
-  to continue.
-- During unattended watchdog execution, follow the documented
-  escalation path instead of waiting for operator input.
-
-### Reporting
-
-Write a task report whenever:
-
-- an operational task completes
-- troubleshooting completes
-- a platform issue is root-caused
-- an operational improvement is identified
-- a script, SOP, or documentation issue is discovered
-
-Each report should record:
-
-- root cause
-- supporting evidence
-- corrective action
-- validation results
-- prevention or follow-up recommendations
-
-Use `improve-sop.md` for procedural improvements rather than modifying
-upgrade-managed SOPs directly.
+These are always-loaded platform rules. Step-by-step procedures,
+completion gates, report formats, and recovery paths belong in the
+relevant SOP.
 
 ### Operator Confirmation
 
@@ -257,15 +215,6 @@ Confirm before:
 - Apply documented nftables fixes through the provided platform
   scripts rather than manual firewall changes.
 - Use tenant-isolated Docker networks.
-
-### Platform Maintenance
-
-- Do not modify protected platform scripts while they are being used to
-  diagnose or recover from an incident.
-- Treat issues in platform scripts, incident playbooks, or SOPs as
-  separate findings and report them.
-- Platform upgrades refresh managed assets only.
-- Preserve tenant data during upgrades.
 
 ### Policy
 

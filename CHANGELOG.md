@@ -4,6 +4,12 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.20.0 - 2026-07-08
+
+### Changed
+
+- **`platform/PLATFORM-REFERENCE.md` renamed to `platform/ADMIN-CONTEXT.md`.** The file is shared admin-agent context loaded by both admin-agent surfaces, not an SOP authority document. Updated setup/preflight validation, admin templates, SOP asset lists, and current docs to use the new name. AGENT.md and SOUL.md refinement.
+
 ## 0.19.4 - 2026-07-08
 
 ### Fixed
