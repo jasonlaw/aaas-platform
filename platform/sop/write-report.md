@@ -126,4 +126,3 @@ Example:
 - Before proposing platform improvements, read recent matching index entries first:
   `tail -n 50 /opt/aaas/platform/reports/INDEX.jsonl`
 - For broader platform improvement work, prefer `/opt/aaas/platform/scripts/analyze-reports.sh` when available.
-- If this report records a tenant root cause, an incident, or a recurring SOP friction point worth remembering past this single report, follow `/opt/aaas/platform/sop/sync-knowledge-vault.md` to write or update a vault note after writing the report. Skip this for routine, no-news reports - the vault is for durable knowledge, not a mirror of every report. A failed or skipped vault sync never blocks report completion.

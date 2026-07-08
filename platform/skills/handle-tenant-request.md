@@ -52,8 +52,9 @@ mistake. Investigate using your normal admin tools:
     docker exec hermes_{tenant-id} curl -s -o /dev/null -w "%{http_code}" <relevant-endpoint>
     /opt/aaas/platform/scripts/agent-vault-health.sh
 
-Check `/opt/aaas/platform/skills/query-knowledge-vault.md` for prior
-incidents matching the symptom before treating it as new. If you find and
+Check recent matching report entries in
+`/opt/aaas/platform/reports/INDEX.jsonl` for prior incidents matching the
+symptom before treating it as new. If you find and
 fix the cause, reply confirming what was wrong and that it's resolved. If
 it's tenant-side (their own mistake, not a platform issue), reply
 explaining that plainly — you can give guidance, but never instructions the
@@ -68,12 +69,9 @@ issue, not a tenant mistake) — whether or not you were able to fix it
 yourself — write a task report per `/opt/aaas/platform/sop/write-report.md`
 before considering this request closed. Set `trigger: tenant_request`,
 `tenant_id` to the reporting tenant, and `operator_request` to the tenant's
-message verbatim. Do this regardless of whether the fix also produced a
-knowledge-vault note below — the report is the audit trail (`reports/`,
-`INDEX.jsonl`) that operator tooling like `analyze-reports.sh` depends on;
-the vault note is a separate, durable-knowledge layer on top of it, not a
-substitute. A `support_request` you determine is tenant-side does not need
-a report.
+message verbatim. The report is the audit trail (`reports/`, `INDEX.jsonl`)
+that operator tooling like `analyze-reports.sh` depends on. A
+`support_request` you determine is tenant-side does not need a report.
 
 ### operator_alert
 
@@ -130,7 +128,6 @@ are support, not a decision-maker for the tenant's business logic.
 ## After handling
 
 If the request revealed a reusable fix or a platform-wide pattern (e.g.
-several tenants hitting the same download failure), note it in the
-platform knowledge vault per
-`/opt/aaas/platform/sop/sync-knowledge-vault.md` so the next occurrence is
-faster to resolve.
+several tenants hitting the same download failure), make sure the task
+report captures it clearly in `improvement_signals` so the next occurrence
+is faster to resolve.

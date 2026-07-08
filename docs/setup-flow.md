@@ -1,4 +1,5 @@
 # AaaS Platform — Setup to First Tenant Flow
+> Platform version: 0.19.2 · Last updated: 2026-07-08
 
 End-to-end reference for a fresh Ubuntu host through to the first running tenant. Each phase maps to a specific script or SOP; the responsible actor (operator or agent) is noted for every step.
 
@@ -37,8 +38,7 @@ End-to-end reference for a fresh Ubuntu host through to the first running tenant
 | 3 | All managed platform assets installed: SOPs, scripts, templates, skills, incidents, evals, Dockerfile, policy files |
 | 4 | **Watchdog installed** — `loginctl enable-linger` run for the operator user; `sudo aaas-watchdog.sh --install` writes `aaas-watchdog.service` + `aaas-watchdog.timer` to `/etc/systemd/system/`, enables and starts the timer (fires at boot + every 5 minutes) |
 | 5 | **Agent Vault setup** — data dir and `docker-compose.yaml` created; master password auto-generated via `openssl rand` and saved to `/opt/aaas/agent-vault/.env` (chmod 600); image pulled; container started; health confirmed within 120s (hard error if not healthy) |
-| 6 | Knowledge vault scaffolded at `/opt/aaas/platform/vault/` via `vault-init.sh` |
-| 7 | Full install validated — all managed assets, content checks, Agent Vault infrastructure |
+| 6 | Full install validated — all managed assets, content checks, Agent Vault infrastructure |
 
 **End state:** Agent Vault is running and healthy. Watchdog is active and already monitoring it. Platform assets are installed and validated.
 

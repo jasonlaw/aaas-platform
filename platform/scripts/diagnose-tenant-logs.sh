@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Diagnose tenant container logs using the platform's known error vocabulary.
 #
-# Replaces free-form LLM log triage in troubleshoot-tenant.md step 8.
+# Replaces free-form LLM log triage in troubleshoot-tenant.md step 7.
 # Pattern-matches against the exact check names from check-tenant.sh,
 # the recovery paths in troubleshoot-tenant.md, and agent-vault-health.sh
 # output — so every match maps directly to a named recovery path the agent

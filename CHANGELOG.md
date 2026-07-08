@@ -4,6 +4,29 @@ All notable changes to this platform setup are tracked here. The platform setup 
 
 ## Unreleased
 
+## 0.19.2 - 2026-07-08
+
+### Removed
+
+- **Admin agent's platform-level knowledge vault** (the Obsidian-compatible
+  second brain previously scaffolded at `/opt/aaas/platform/vault` and
+  synced from task reports). Removed entirely: `scripts/vault-init.sh`,
+  `skills/query-knowledge-vault.md`, and `sop/sync-knowledge-vault.md` are
+  deleted, along with every reference to them in `PLATFORM-REFERENCE.md`,
+  `admin-hermes/SOUL.md.template`, `sop/write-report.md`,
+  `sop/improve-sop.md`, `sop/troubleshoot-tenant.md`,
+  `skills/handle-tenant-request.md`, `scripts/setup-platform.sh` (asset
+  list, directory scaffold, install step, and validation checks), and
+  `docs/architecture.md`/`docs/setup-flow.md`. The admin agent now relies
+  solely on `/opt/aaas/platform/reports/INDEX.jsonl` and
+  `analyze-reports.sh` for prior-history lookups instead of a separate
+  vault layer. **This does not affect the tenant knowledge vault** — each
+  tenant's own vault at `/opt/aaas/tenants/{tenant-id}/vault`
+  (`vault-init-tenant.sh`, `provision-tenant-vault`,
+  `deprovision-tenant-vault`, `backfill-tenant-vault.sh`, and everything in
+  `docs/architecture.md`'s Tenant Knowledge Vault section) is untouched and
+  remains tenant-agent-only, as before.
+
 ## 0.19.1 - 2026-07-07
 
 ### Fixed

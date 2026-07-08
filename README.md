@@ -8,7 +8,9 @@ Credentials (LLM API keys and other secrets) are never stored in tenant containe
 
 | Doc | Covers |
 |---|---|
-| [docs/setup-flow.md](docs/setup-flow.md) | Prerequisites through first running tenant, step by step |
+| [docs/prerequisites.md](docs/prerequisites.md) | Host requirements before you start |
+| [docs/platform-setup.md](docs/platform-setup.md) | Full step-by-step setup walkthrough |
+| [docs/tenant-agent-setup.md](docs/tenant-agent-setup.md) | Tenant reference and validation runbook |
 | [docs/troubleshooting.md](docs/troubleshooting.md) | Common problems and fixes |
 | [docs/architecture.md](docs/architecture.md) | Platform design: repo/host layout, credential security model, policy framework, task reports, knowledge vaults, tenant harness, watchdog, upgrade behavior, versioning |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
@@ -116,7 +118,6 @@ From there, OpenCode can use the platform SOPs to help you:
 - Upgrade tenants to a newer image
 - Update tenant configuration safely
 - Improve SOPs through reviewable proposals without editing upgrade-managed native SOPs directly
-- Build and search the platform's own knowledge vault of durable tenant, incident, and SOP learnings
 
 Ask the admin agent what skills are available, then tell it the tenant operation you want to perform.
 

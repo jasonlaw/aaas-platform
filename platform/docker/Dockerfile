@@ -1,3 +1,8 @@
+# Pinned to an exact release tag rather than :latest so a rebuild (--build-image,
+# or a forced upgrade) can't silently pull a different, unvetted base image.
+# Bump deliberately, verify against platform/evals + harness/check-tenant.sh on
+# a test tenant first, then update this line — see docs/architecture.md.
+# https://github.com/NousResearch/hermes-agent/tags
 # NOTE: validate_install() checks that this FROM line is present — do not change the base image.
 FROM nousresearch/hermes-agent:latest
 

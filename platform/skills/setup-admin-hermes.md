@@ -51,22 +51,11 @@ first. Do not proceed until it passes.
 Collect before writing any files. Never write the real API key anywhere
 except Agent Vault (Step 5).
 
-**Format for every question below:** each item states whether it is an
-*options* question (a fixed, known set of answers — present them as a
-list and let the operator pick one) or a *free-text* question (no fixed
-set — real secrets, model names). Default to options wherever the valid
-answers are known ahead of time; do not turn a fixed-choice field into an
-open-ended question. Ask items in the order listed and skip an item only
-where it is explicitly marked conditional on an earlier answer — this
-keeps the number and shape of questions the same from run to run instead
-of drifting with phrasing.
-
-**If a question expects the operator to provide a value, let them type
-it right there — never add a button that just detours back to asking
-again** (e.g. an "I'll provide it" option in front of a question that's
-already asking for exactly that). Applies to every *free-text* item
-below and to the "something else" case on an *options* item like item
-1's provider list.
+- Whenever a question has a known set of valid answers, present them as
+  selectable options. Always provide default options where possible
+  instead of requesting free-form input.
+- Whenever a free-form value is required, allow the operator to enter it
+  directly.
 
 **Never ask the operator to supply a credential this setup can generate
 itself.** Three values fall in this category, and none of them should

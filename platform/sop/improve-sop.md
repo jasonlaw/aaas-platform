@@ -23,7 +23,6 @@ Collect or infer:
 - SOP name or operational area to improve.
 - Operator request and desired outcome.
 - Recent matching reports from `/opt/aaas/platform/reports/INDEX.jsonl`.
-- Relevant notes from the knowledge vault, if present: `/opt/aaas/platform/vault/SOPs/{sop-name}.md` and any linked incidents (see `/opt/aaas/platform/skills/query-knowledge-vault.md`).
 - Current native SOP text from `/opt/aaas/platform/sop/{sop-name}.md`.
 - Any related scripts, checklists, harnesses, incident playbooks, or templates.
 
@@ -49,7 +48,6 @@ Collect or infer:
    - Files intentionally not modified.
 9. Validate the proposed SOP by walking through one realistic scenario from recent reports. Confirm that the new wording would have changed the outcome or reduced ambiguity.
 10. Write a task report using `/opt/aaas/platform/sop/write-report.md` with `sop` set to `improve-sop`.
-11. Follow `/opt/aaas/platform/sop/sync-knowledge-vault.md` to record the accepted change (or the rejected idea, if explicitly told not to pursue it) in `vault/SOPs/{sop-name}.md`, linked to the incidents or reports that justified it.
 
 ## Proposal Format
 Use this structure for `/opt/aaas/platform/reports/sop-improvements/{timestamp}_{sop-name}.md`:

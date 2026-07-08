@@ -2,7 +2,7 @@
 
 This document covers how the AaaS Platform is designed: repository and host
 layout, the credential security model, the policy framework, task reporting,
-the knowledge vault systems, tenant harness/eval verification, and the
+the tenant knowledge vault, tenant harness/eval verification, and the
 watchdog/health-monitoring design. For installation steps, see the
 [README](../README.md); for a full step-by-step setup walkthrough see
 [platform-setup.md](platform-setup.md).
@@ -35,7 +35,7 @@ aaas-platform/
     ├── harness/                    — check-tenant.sh + manifest/acceptance templates used to verify a tenant install
     ├── checklists/                 — required-step JSON checklists the admin agent must complete
     ├── policy/                     — platform-policy.yaml, the canonical source of platform-wide safety rules
-    ├── scripts/                    — host-side operational scripts (eval-runner.sh, watchdog, vault-init.sh, …)
+    ├── scripts/                    — host-side operational scripts (eval-runner.sh, watchdog, …)
     ├── docker/                     — Dockerfile for the tenant image
     ├── incidents/                  — incident playbooks
     ├── reports/                    — task reports written by the admin agent during operations
@@ -143,40 +143,6 @@ This summarizes issues, improvement signals, partial/failed SOPs, and pending ne
 
 **Important:** Reports must never contain secrets; redact API keys, bot tokens, access tokens, private URLs, and customer private data.
 
-## Platform Knowledge Vault
-
-The platform maintains an [Obsidian](https://obsidian.md)-compatible knowledge vault at `/opt/aaas/platform/vault` — a curated, cross-linked layer of plain Markdown notes that sits on top of the raw task reports. It is the admin agent's own second brain about operating the platform: somewhere a human operator can open in the Obsidian app, browse, search, and follow links between tenants, incidents, and recurring SOP friction, rather than rereading every full report.
-
-It is intentionally separate from three other systems with similar-sounding names:
-- **Agent Vault** stores tenant credentials and secrets — never knowledge.
-- **Mnemosyne** is each tenant's own in-conversation runtime memory — business-facing, not operator-facing.
-- **Each tenant's own knowledge vault** (below) is that tenant's business knowledge, not platform-operations knowledge.
-
-The platform knowledge vault is scaffolded automatically during install/upgrade and is safe to open immediately:
-
-```bash
-# Open /opt/aaas/platform/vault as a vault in the Obsidian app
-```
-
-The admin agent writes to it following `/opt/aaas/platform/sop/sync-knowledge-vault.md` — typically right after writing a task report for a tenant root cause, an incident, or a recurring SOP friction point. Routine, no-news reports are not mirrored into the vault; it is for durable judgment and cross-links, not a duplicate of `INDEX.jsonl`.
-
-Before troubleshooting a tenant or proposing an SOP change, the admin agent checks the vault first using `/opt/aaas/platform/skills/query-knowledge-vault.md`:
-
-```bash
-grep -ril "{keyword}" /opt/aaas/platform/vault --include='*.md'
-```
-
-Both `query-knowledge-vault.md` and `sync-knowledge-vault.md` are **admin-agent-only** — they run on the host against `/opt/aaas/platform/vault` and are never available inside a tenant container. They are not the mechanism the tenant agent uses for its own vault; see Tenant Knowledge Vault below.
-
-Vault layout:
-- `Tenants/{tenant-id}.md` — one evolving note per tenant
-- `Incidents/{timestamp}-{slug}.md` — timestamped write-ups with root cause and fix
-- `SOPs/{sop-name}.md` — accumulated commentary and gotchas per SOP (links to, never duplicates, the native SOP file)
-- `Platform/{topic}.md` — architecture decisions and platform-wide notes
-- `Daily/{YYYY-MM-DD}.md` — optional running log
-
-The vault is additive and never blocks SOP completion: if it is missing or a write fails, the admin agent reports it as a minor follow-up and continues. Like reports, the vault must never contain secrets, API keys, tokens, or customer private data.
-
 ## Tenant Knowledge Vault
 
 Each tenant also gets its own, separate Obsidian-compatible knowledge vault at `/opt/aaas/tenants/{tenant-id}/vault`, mounted into the container at `/home/hermes/vault`. This is the tenant agent's own second brain about the business it runs — owner-browsable, owner-editable, and maintained by the tenant agent itself at runtime, not by the admin agent.
@@ -204,7 +170,7 @@ This replaces the business intelligence sub-agent and vault-seeding pipeline tha
 
 ### Tenant agent vault usage
 
-The tenant agent has no `platform/skills/`-style loader the way the admin agent does — it only ever reads `SOUL.md` and files it is told to check. So its "search before writing a new note" habit is not a separate skill file; it is written directly into `SOUL.md.template`, backed by a "For the assistant" reference section at the bottom of the generated `vault/README.md` (the same file the owner reads, with the agent-facing part clearly marked so it's easy to skip). The admin-only `query-knowledge-vault.md` skill is unrelated and unreachable from inside a tenant container.
+The tenant agent has no `platform/skills/`-style loader the way the admin agent does — it only ever reads `SOUL.md` and files it is told to check. So its "search before writing a new note" habit is not a separate skill file; it is written directly into `SOUL.md.template`, backed by a "For the assistant" reference section at the bottom of the generated `vault/README.md` (the same file the owner reads, with the agent-facing part clearly marked so it's easy to skip). The admin agent has no vault of its own and no equivalent skill.
 
 `check-tenant.sh` and `validate-tenant-config.sh` verify the vault exists, is owned by UID 10000, and is mounted into the container; these are part of the standard tenant harness, not a separate check the operator has to remember.
 
@@ -412,7 +378,7 @@ For detailed incident diagnosis and recovery, see `/opt/aaas/platform/incidents/
 Running the installer against an existing `/opt/aaas/platform` installation
 refreshes managed platform assets: `AGENTS.md`, `PLATFORM-REFERENCE.md`, `VERSION`, `CHANGELOG.md`, SOPs, skills,
 templates, harness assets, eval assets, scripts, Hermes admin templates,
-`platform/docker/Dockerfile`, and the knowledge vault scaffold (existing notes are never overwritten).
+and `platform/docker/Dockerfile`.
 
 It preserves:
 
@@ -422,7 +388,6 @@ It preserves:
 - `/opt/aaas/agent-vault/.env` (Agent Vault master password — back this up externally; loss requires a full vault reset, see `platform/incidents/agent-vault-failure.md`)
 - `/opt/aaas/agent-vault/data/` (Agent Vault database)
 - `/opt/aaas/platform/reports/`
-- `/opt/aaas/platform/vault/` (knowledge vault notes — only missing folders/files are scaffolded in; existing notes are left untouched)
 - `/opt/aaas/platform/admin/` (the admin agent's deployed profile and secrets — diffed against current templates and refreshed only with operator confirmation, never overwritten automatically)
 - The admin agent's Hermes install itself (`~/.local/bin/hermes`, `~/.hermes/hermes-agent/`) — outside `/opt/aaas/` entirely, untouched by platform upgrades; run `hermes update` separately if the `hermes-agent` package itself needs updating
 

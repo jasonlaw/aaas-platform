@@ -88,7 +88,6 @@ MANAGED_ASSET_RELATIVE_PATHS=(
   "incidents/hermes-admin-failure.md"
   "skills/grill-me.md"
   "skills/setup-admin-hermes.md"
-  "skills/query-knowledge-vault.md"
   "skills/handle-tenant-request.md"
   "skills/handle-watchdog-alert.md"
   "skills/manage-agent-vault.md"
@@ -107,9 +106,7 @@ MANAGED_ASSET_RELATIVE_PATHS=(
   "sop/setup-agent-vault.md"
   "sop/provision-tenant-vault.md"
   "sop/deprovision-tenant-vault.md"
-  "sop/sync-knowledge-vault.md"
   "sop/improve-sop.md"
-  "scripts/vault-init.sh"
   "scripts/agent-vault-health.sh"
   "scripts/add-tenant-compose-service.sh"
   "scripts/backfill-tenant-vault.sh"
@@ -442,7 +439,6 @@ install_assets() {
   mkdir -p "$PLATFORM_ROOT/evals"
   mkdir -p "$PLATFORM_ROOT/incidents"
   mkdir -p "$PLATFORM_ROOT/scripts"
-  mkdir -p "$PLATFORM_ROOT/vault"
   mkdir -p "$PLATFORM_ROOT/watchdog/logs"
   mkdir -p "$PLATFORM_ROOT/watchdog/state"
   mkdir -p "$INSTALL_ROOT/tenants"
@@ -474,7 +470,6 @@ install_assets() {
   chmod +x "$PLATFORM_ROOT/tenant-hermes/scripts/skill-verify.sh"
   chmod +x "$PLATFORM_ROOT/tenant-hermes/scripts/vault-init-tenant.sh"
   chmod +x "$PLATFORM_ROOT/scripts/agent-vault-health.sh"
-  chmod +x "$PLATFORM_ROOT/scripts/vault-init.sh"
   chmod +x "$PLATFORM_ROOT/scripts/generate-platform-eval.sh"
   chmod +x "$PLATFORM_ROOT/scripts/validate-platform-rules.sh"
   chmod +x "$PLATFORM_ROOT/scripts/aaas-watchdog.sh"
@@ -873,11 +868,7 @@ validate_install() {
   fi
   grep -q "check-tenant.sh" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
     || error "PLATFORM-REFERENCE.md must advertise tenant harness checks"
-  grep -q "vault/" "$PLATFORM_ROOT/PLATFORM-REFERENCE.md" \
-    || error "PLATFORM-REFERENCE.md must document the knowledge vault path"
-  grep -q "sync-knowledge-vault.md" "$PLATFORM_ROOT/sop/write-report.md" \
-    || error "write-report SOP must point to the knowledge vault sync step"
-  grep -q "backfill-tenant-vault.sh" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
+  grep -q "vault-init-tenant.sh" "$PLATFORM_ROOT/sop/onboard-tenant.md" \
     || error "Onboarding SOP must scaffold the tenant knowledge vault"
   grep -q "/home/hermes/vault" "$PLATFORM_ROOT/tenant-hermes/SOUL.md.template" \
     || error "Tenant SOUL template must document the tenant knowledge vault path"
@@ -967,8 +958,6 @@ if [ "$VALIDATE_ONLY" = false ]; then
   install_assets
   setup_watchdog
   setup_agent_vault
-  bash "$PLATFORM_ROOT/scripts/vault-init.sh" "$PLATFORM_ROOT/vault" \
-    || warn "Knowledge vault scaffold step failed - run /opt/aaas/platform/scripts/vault-init.sh manually later"
 else
   warn "Validate-only mode - no files will be copied"
 fi
